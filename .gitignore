@@ -210,3 +210,4 @@ __marimo__/
 # OS
 .gitignore
 README_PRIV.md
+Microsiem.sublime-*
