@@ -1,0 +1,44 @@
+E' sostanzialmente una web console molto sofisticata in react e typescript su server web nginx presente sulla macchina server "cybersheppard" con framework flask o django per dashbord e visualizzazioni in tempo reale dalla quale è possibile gestire e inviare impostazioni di hardening tramite comandi pure linux basata su dei modelli prestabiliti. E' possibile suddividere il software in parti: 
+
+- Hardening: usando " "sysctl" - "apparmour/selinux" - "iptables" - "systemd/systemctl" - "sudoers"
+- Monitoring: "auditd" - "ulog2d" - "netstat" - "lsof" - "find" - "strace" 
+- Alerting: inviare mail di allerta a destinatari e/o tramite webhook (slack o telegram o whatsAPP)
+- Checking: "bash/python" per interrogare e ottenere l'output dei tool usati in hardening e monitoring. Il checking di default deve poter recuperare queste informazioni :
+		- stato dell'hardening
+		- stato della compliance
+		- connessioni presenti (con particolare attenzione a rdp/vnc o ssh)
+		- utenti connessi e operazioni che eseguono (tramite modifica del file sudoers o tramite auditd) soprattutto se sospette.
+		- Ad ogni modo il sistema di checking deve essere possibile ampliarlo con degli script personalizzati tramite output standardizzato, sarà premuta nella documentazione specificare le variabili (o nomi delle variabili) in output correlate con i dati (serie/colonne/tabelle) del db. L'utente deve poter essere in grado di creare le dashbord interrogando il db e quindi poter selezionare i dati rappresentabili.
+		- listare le priv-escalation possibili tramite controlli della presenza di file/directory owner root con permessi troppo permissivi, la presenza di software conosciuti per privesc possibili come vim, link di librerie esterne non standard
+		- tramite le regole di auditd estrarre tutti i dati che potrebbero indicare compromissioni o comunque dati utili che sarà possibile rappresentare su dashboard
+		- devono essere terminati i servizi non essenziali riducendo la superficie d'attacco adeguatamente alla destinazione d'uso della macchina
+		- Se i servizi non previsti vengono avviati senza permesso generano alert
+		- è possibilie hashare i file importanti per segnalare una possible compromissione
+
+In base alla destinazione d'uso della macchina (es. web o dns o db o gateway) o in base alla compliance (es. nis2 o pci o iso) viene proposto l'hardening o la modifica più adatta (sempre tramite i modelli prestabiliti) e poi viene integra nel sistema tramite connessione ssh con chiave pubblica/privata.
+I modelli sono lunghe liste di file di config, quindi è possibile anche aggiungere o personalizzare questi modelli e poterli selezionare nel caso di bisogno, deve essere possibile riconoscere errori in questi modelli e suggerire le dovute correzioni per fare in modo che funziono e non rendano il sistema instabile o inutilizzabile utilizzando delle macchine di testing selezionate dall'utente, può essere utile creare un alert che indichi che l'applicazione diretta delle modifiche senza prima un test è richioso, ma sta all'utente la responsabilità di testare le configurazioni su macchine non in produzione. I modelli vengono hashati e ogni modifica non autorizzata viene segnalata tramite check dell'hash sha512. Per generare i modelli e standardizzarne il risultato potrebbe essere utile una funzione di standardizzazione.
+Il checking o il monitoring viene eseguito direttamente sulla macchina target, tramite scrittura del file cron e generando un file di output con tutti i dati necessari. Dal server centrale viene poi importato il file di output tramite scp. Sulla macchina server viene poi parsato l'output e inseriti i dati nel db pronti per la rappresentazione. La scrittura del file cron deve prevedere l'esecuzione asincrona dei comandi di monitoring/checking e quindi il recupero delle informazioni deve essere sempre superiore al tempo totale di esecuzione del cron in modo di avere sempre tutti risultati utili.
+
+L'utente deve poter aggiungere una macchina target tramite un pulsante "Aggiungi" oppure tramite un menù a tendina selezionare gli host presenti che sono stati rilevati tramite "arpscan" o upload di un file tipo txt con una serie di indirizzi ip uno per riga. All'inserimento viene chiesto il nome host e la funzione della macchina, inoltre può essere definita anche una compliance cioè se la macchina deve rispettare delle specifiche. Con queste informazioni vengono proposti 2 modelli di hardening:
+	- base
+	- severo
+
+Entrambde devono comunque rispettare le esigenze di compliance o comunque devono rispettare le richieste, la differenza consistene nel livello di hardening il "base" è più leggero il "severo" è più profondo.
+Sul sistema target deve essere presente l'utente "microsiem", al primo avvio viene creata la chiave ellittica e aggiunta sul target, poi viene modificato e hardenizzato il file sshd_server con le impostazioni utili al nostro scopo indipendentemente dalla impostazioni selezionate dall'utente, è inoltre utile inserire limitazione dei permessi tramite file sudoers e auditd, monitorando constantemente l'attività e segnalando attività non standard.
+Quando l'utente ha segnalato le impostazioni volute inizia la fase di modifica della macchina target applicando le impostazioni previste nei modelli suggeriti.
+Ogni 30 secondi viene fatto il fetch dal sistema target e importanti i dati nel nostro microsiem, i dati vengono salvati tramite db postgresql o influxdb e poi le serie possono essere rappresentate su dashbord. Il sistema deve essere scritto in python e i comandi da lanciare sui sistemi target in bash.
+
+Tramite interfaccia (tasti/bottone o pagina dedicata) l'utente ha la possibilità di:
+- creare altri utenti e assegnare un ruolo: "sysadmin" o "reporter". L'utente di default è sysadmin e autenticano tramite jws e può compiere ogni operazione. 
+	- il RUOLO reporter: può solo creare dashbord, vedere lo stato delle macchine, selezionarle per creare una reportistica executive
+	- Il ruolo sysadmin: può fare tutto quello che fa reporter, più aggiungere/modificare/rimuovere macchine, applicare/modificare/rimuovere i modelli, lanciare scansioni arp delle rete o upload di file per l'aggiunta di nuove macchine target.
+	- Deve essere possibile poter fare queste cose (una parte di queste possono essere considerate "checking" di fatto, ma sarà l'utente a lanciare la richiesta, non viene fatta di default, è questa la differenza con la parte "checking" vera e propria):
+		- cambiare password di accesso
+		- aggiornare le chiavi ssh (possibile solo chiavi ellittiche) e impostare il tempo di rotazione delle credenziali
+		- recuperare liste dei pacchetti presenti/installate sulle macchine, confrontarle con vulnerabilità note presenti con apt buglist 
+		- configurare ogni quanti secondi recuperare i dati dal sistema e per quanto tempo conservarli
+		- Controllare lo stato delle connessioni con le macchine e con il db
+		- Configurare smtp per invio alert e testarne il funzionamento con alert di test
+		- Configurare whebhook per slack, telegram o whatsapp e testarne il funzionamento con alert di test
+		- Configurare mail di alert e testarne il funzionamento con alert di test
+		- Inserire rotte statiche per raggiungere segmenti di rete indiretti
