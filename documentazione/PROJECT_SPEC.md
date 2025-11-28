@@ -1,920 +1,1408 @@
-# MicroSIEM - Project Specification
+# MicroSIEM (CyberSheppard) - Project Specification
 
-## 📋 Project Overview
+## 📋 Indice
 
-**Project Name:** MicroSIEM  
-**Version:** 1.0.0 (MVP)  
-**Type:** Security Information and Event Management System  
-**Target:** Linux Systems Hardening, Monitoring & Compliance  
-**Status:** In Development
-
-### Purpose
-Sistema centralizzato per gestione, hardening, monitoring e compliance di server Linux remoti tramite console web con dashboard real-time.
-
-### Key Features
-- ✅ Hardening automatico basato su modelli (base/severo)
-- ✅ Monitoring continuo e alerting
-- ✅ Compliance checking (NIS2, PCI-DSS, ISO)
-- ✅ Dashboard real-time personalizzabili
-- ✅ Role-based access control (sysadmin/reporter)
-- ✅ Gestione multi-target via SSH
+1. [Project Overview](#project-overview)
+2. [Requirements](#requirements)
+3. [Feature Specifications](#feature-specifications)
+4. [Development Roadmap](#development-roadmap)
+5. [Testing Strategy](#testing-strategy)
+6. [Quality Assurance](#quality-assurance)
+7. [Documentation Requirements](#documentation-requirements)
+8. [Success Criteria](#success-criteria)
 
 ---
 
-## 🏗️ Architecture Overview
+## Project Overview
 
-### System Components
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    MICROSIEM CENTRAL SERVER                  │
-│                      (cybersheppard)                         │
-├─────────────────────────────────────────────────────────────┤
-│  Frontend (React+TS)  │  Nginx  │  Backend (Flask+FastAPI)  │
-├───────────────────────┴─────────┴───────────────────────────┤
-│                    InfluxDB (Time-Series)                    │
-│                    PostgreSQL (Metadata)                     │
-└────────────────────────────┬────────────────────────────────┘
-                             │ SSH (Ed25519)
-                             │ SCP (JSON files)
-                             ▼
-              ┌──────────────────────────────┐
-              │   TARGET SYSTEMS (Debian)    │
-              ├──────────────────────────────┤
-              │  User: microsiem             │
-              │  Cron Jobs → JSON output     │
-              │  Hardening configs applied   │
-              │  Auditd, monitoring tools    │
-              └──────────────────────────────┘
-```
-
-### Communication Flow
-
-1. **User → Frontend**: HTTPS, JWT authentication
-2. **Frontend → Backend**: REST API (JSON)
-3. **Backend → Targets**: SSH (Ed25519), SCP for file transfer
-4. **Targets → Backend**: JSON files via SCP (every 30s)
-5. **Backend → Databases**: Write parsed data
-6. **Frontend → Databases**: Query for dashboards
-
----
-
-## 🛠️ Technology Stack
-
-### Frontend
-- **Framework**: React 18+
-- **Language**: TypeScript 5+
-- **State Management**: TanStack Query (React Query)
-- **UI Components**: shadcn/ui or Material-UI
-- **Charts**: Recharts or Chart.js
-- **Build Tool**: Vite
-- **HTTP Client**: Axios
-
-### Backend
-- **Frameworks**: 
-  - **Flask** (main application, auth, business logic)
-  - **FastAPI** (API endpoints, async operations, WebSocket)
-- **Language**: Python 3.11+
-- **SSH Library**: Paramiko
-- **Data Validation**: Pydantic
-- **Task Queue**: Celery (optional for async tasks)
-- **WSGI Server**: Gunicorn
-
-### Databases
-- **InfluxDB 2.x**: Time-series data (metrics, logs)
-- **PostgreSQL 15+**: Metadata (users, hosts, models, configs)
-
-### Infrastructure
-- **Web Server**: Nginx (reverse proxy, static files)
-- **OS**: Debian/Ubuntu (server + targets)
-- **Containerization**: Docker + Docker Compose
-- **Process Manager**: systemd
-
-### Security
-- **Authentication**: JWT (JSON Web Tokens)
-- **SSH Keys**: Ed25519 (elliptic curve)
-- **Password Hashing**: bcrypt or Argon2
-- **Secrets Management**: Environment variables + .env files
-- **HTTPS**: Let's Encrypt (production)
-
-### Data Format
-- **Exchange Format**: JSON (standard for all data transfers)
-- **Configuration**: YAML (optional, for readability)
-
----
-
-## 📁 Project Structure
-
-```
-microsiem/
-├── docs/                          # Documentation
-│   ├── PROJECT_SPEC.md           # This file
-│   ├── ARCHITECTURE.md           # Architecture details
-│   ├── API_CONTRACT.md           # API documentation
-│   ├── SECURITY.md               # Security guidelines
-│   ├── DEPLOYMENT.md             # Deployment guide
-│   └── DEVELOPMENT.md            # Development setup
-│
-├── frontend/                      # React + TypeScript
-│   ├── src/
-│   │   ├── components/           # React components
-│   │   ├── pages/                # Page components
-│   │   ├── services/             # API calls
-│   │   ├── hooks/                # Custom hooks
-│   │   ├── types/                # TypeScript types
-│   │   ├── utils/                # Utilities
-│   │   └── App.tsx
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── backend/                       # Flask + FastAPI
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py               # FastAPI app
-│   │   ├── flask_app.py          # Flask app
-│   │   ├── models/               # Database models
-│   │   ├── schemas/              # Pydantic schemas
-│   │   ├── api/                  # API endpoints
-│   │   ├── services/             # Business logic
-│   │   ├── auth/                 # Authentication
-│   │   └── utils/                # Utilities
-│   ├── requirements.txt
-│   └── config.py
-│
-├── modules/                       # Core system modules
-│   ├── hardening/                # Hardening module
-│   │   ├── models/               # Hardening templates
-│   │   ├── validators/           # Config validators
-│   │   └── applier.py            # Apply hardening
-│   │
-│   ├── monitoring/               # Monitoring module
-│   │   ├── collectors/           # Data collectors
-│   │   ├── parsers/              # JSON parsers
-│   │   └── scheduler.py          # Cron management
-│   │
-│   ├── checking/                 # Checking module
-│   │   ├── compliance/           # Compliance checks
-│   │   ├── security/             # Security checks
-│   │   └── scripts/              # Custom scripts
-│   │
-│   └── alerting/                 # Alerting module
-│       ├── email.py
-│       ├── webhook.py
-│       └── templates/
-│
-├── target-scripts/                # Scripts deployed on targets
-│   ├── monitoring.sh             # Main monitoring script
-│   ├── collectors/               # Individual collectors
-│   └── setup.sh                  # Initial setup script
-│
-├── database/                      # Database schemas
-│   ├── influxdb/
-│   │   └── schema.flux           # InfluxDB schema
-│   └── postgresql/
-│       ├── migrations/           # Alembic migrations
-│       └── schema.sql            # PostgreSQL schema
-│
-├── docker/                        # Docker configuration
-│   ├── Dockerfile.frontend
-│   ├── Dockerfile.backend
-│   ├── docker-compose.yml
-│   └── nginx.conf
-│
-├── tests/                         # Test suite
-│   ├── frontend/
-│   ├── backend/
-│   └── integration/
-│
-├── .env.example                   # Environment variables template
-├── .gitignore
-└── README.md
-```
-
----
-
-## 🎯 Core Modules Specification
-
-### 1. Hardening Module
-**Purpose**: Apply security configurations to target systems
-
-**Features**:
-- Pre-built templates (base/severo)
-- Compliance-based (NIS2, PCI-DSS, ISO)
-- Role-based (web, dns, db, gateway)
-- Model validation and error detection
-- SHA512 integrity checking
-- Testing on non-production machines
-
-**Technologies**:
-- `sysctl` (kernel parameters)
-- `apparmor/selinux` (mandatory access control)
-- `iptables/nftables` (firewall)
-- `systemd` (service management)
-- `sudoers` (privilege management)
-
-### 2. Monitoring Module
-**Purpose**: Collect system metrics and security events
-
-**Features**:
-- Continuous monitoring (30s intervals)
-- Asynchronous data collection
-- JSON output standardization
-- Automatic cron setup
-
-**Tools**:
-- `auditd` (audit daemon)
-- `ulogd2` (netfilter logging)
-- `netstat/ss` (network connections)
-- `lsof` (open files)
-- `find` (file system checks)
-- `strace` (system calls)
-
-### 3. Checking Module
-**Purpose**: Verify system state and compliance
-
-**Data Collected**:
-- Hardening status
-- Compliance state
-- Active connections (SSH, RDP, VNC)
-- Connected users and activities
-- Privilege escalation vectors
-- Service states
-- File integrity (SHA256/SHA512 hashes)
-- Suspicious activities
-
-**Extensibility**:
-- Custom scripts support
-- Standardized JSON output
-- Database schema mapping
-
-### 4. Alerting Module
-**Purpose**: Notify administrators of security events
-
-**Channels**:
-- Email (SMTP)
-- Slack (webhook)
-- Telegram (webhook)
-- WhatsApp (webhook)
-
-**Triggers**:
-- Unauthorized configuration changes
-- Unexpected service starts
-- Suspicious user activities
-- Failed compliance checks
-- File integrity violations
-- Anomalous connections
-
----
-
-## 📦 Hardening Models Structure
-
-### Model Organization
-
-Hardening models are collections of **real configuration files** ready to be deployed on target systems. Each model is stored as a directory containing configuration files with a special naming convention.
-
-**Base Directory**: `modules/hardening/models/`
-
-```
-modules/hardening/models/
-├── README.md                          # Documentation and conventions
-│
-├── base/                              # Level "base" (lighter hardening)
-│   ├── web_generic/
-│   ├── web_nis2/
-│   ├── web_pci/
-│   ├── database_generic/
-│   ├── database_pci/
-│   ├── dns_generic/
-│   └── gateway_generic/
-│
-├── severo/                            # Level "severo" (strict hardening)
-│   ├── web_generic/
-│   ├── web_nis2/
-│   ├── web_pci/
-│   ├── database_generic/
-│   ├── database_pci/
-│   ├── dns_generic/
-│   └── gateway_generic/
-│
-└── custom/                            # User-created custom models
-    └── [user_created_models]/
-```
-
-### File Naming Convention
-
-Configuration files use **dot notation** to represent the target path on the system.
-
-**Format**: `path.components.separated.by.dots`
-
-| Target Path | Model Filename |
-|-------------|----------------|
-| `/etc/ssh/sshd_config` | `etc.ssh.sshd_config` |
-| `/etc/sysctl.d/99-hardening.conf` | `etc.sysctl.d.99-hardening.conf` |
-| `/etc/audit/rules.d/audit.rules` | `etc.audit.rules.d.audit.rules` |
-| `/etc/iptables/rules.v4` | `etc.iptables.rules.v4` |
-| `/etc/sudoers.d/microsiem` | `etc.sudoers.d.microsiem` |
-| `/etc/apparmor.d/usr.sbin.nginx` | `etc.apparmor.d.usr.sbin.nginx` |
-
-### Example Model Structure
-
-```
-modules/hardening/models/severo/web_nis2/
-├── model.json                                    # Metadata (optional)
-├── etc.sysctl.d.99-hardening.conf               # Kernel parameters
-├── etc.ssh.sshd_config                          # SSH hardening
-├── etc.iptables.rules.v4                        # Firewall rules
-├── etc.audit.rules.d.audit.rules                # Audit rules
-├── etc.apparmor.d.usr.sbin.nginx                # AppArmor profile
-├── etc.fail2ban.jail.local                      # Fail2ban config
-├── etc.ulogd.conf                               # Netfilter logging
-└── etc.sudoers.d.microsiem                      # Sudo permissions
-```
-
-### Model Metadata (model.json)
-
-Optional metadata file with model information:
-
-```json
-{
-  "name": "web_severo_nis2",
-  "version": "1.0.0",
-  "description": "Strict hardening for web servers with NIS2 compliance",
-  "role": "web",
-  "compliance": "nis2",
-  "level": "severo",
-  "author": "MicroSIEM Team",
-  "created_at": "2025-10-30",
-  "supported_os": ["debian11", "debian12", "ubuntu20.04", "ubuntu22.04"],
-  
-  "services_to_enable": ["nginx", "auditd", "ulogd2", "fail2ban"],
-  "services_to_disable": ["apache2", "telnet", "ftp", "vsftpd"],
-  
-  "packages_to_install": ["fail2ban", "ulogd2", "apparmor-utils"],
-  "packages_to_remove": ["telnetd", "rsh-server", "rsh-client"],
-  
-  "requires_reboot": false,
-  "estimated_apply_time_seconds": 120,
-  
-  "notes": [
-    "This model enforces strict NIS2 compliance",
-    "AppArmor profiles are set to enforce mode",
-    "All unnecessary services are disabled"
-  ]
-}
-```
-
-### Model Application Process
-
-1. **Selection**: User selects machine role + compliance + level
-2. **Listing**: System lists all files in model directory
-3. **Backup**: Creates backup of existing files on target
-4. **Transfer**: Copies each file to target via SFTP
-5. **Deployment**: Moves files from temp to final location (with sudo)
-6. **Post-Steps**: Applies metadata instructions (enable/disable services, install packages)
-7. **Verification**: Runs validation checks
-8. **Logging**: Records all changes in audit log
-
-### Example Configuration Files
-
-**etc.sysctl.d.99-hardening.conf**:
-```conf
-# Network hardening
-net.ipv4.tcp_syncookies = 1
-net.ipv4.conf.all.rp_filter = 1
-net.ipv4.conf.default.rp_filter = 1
-net.ipv4.icmp_echo_ignore_broadcasts = 1
-net.ipv4.conf.all.accept_source_route = 0
-net.ipv4.conf.default.accept_source_route = 0
-
-# Kernel hardening
-kernel.dmesg_restrict = 1
-kernel.kptr_restrict = 2
-kernel.yama.ptrace_scope = 1
-```
-
-**etc.ssh.sshd_config** (excerpt):
-```conf
-# SSH Hardening - MicroSIEM
-Protocol 2
-Port 22
-PermitRootLogin no
-PasswordAuthentication no
-PubkeyAuthentication yes
-ChallengeResponseAuthentication no
-MaxAuthTries 3
-MaxSessions 2
-ClientAliveInterval 300
-ClientAliveCountMax 2
-AllowUsers microsiem
-```
-
-**etc.sudoers.d.microsiem**:
-```conf
-# MicroSIEM monitoring user permissions
-microsiem ALL=(root) NOPASSWD: /usr/bin/systemctl status *
-microsiem ALL=(root) NOPASSWD: /usr/sbin/netstat
-microsiem ALL=(root) NOPASSWD: /usr/bin/ss
-microsiem ALL=(root) NOPASSWD: /usr/bin/lsof
-microsiem ALL=(root) NOPASSWD: /usr/bin/find /etc -type f
-microsiem ALL=(root) NOPASSWD: /usr/bin/apt list --upgradable
-microsiem ALL=(root) NOPASSWD: /usr/sbin/auditctl -l
-
-# Deny everything else
-microsiem ALL=(ALL) !ALL
-
-# Log all sudo commands
-Defaults:microsiem log_output
-```
-
-### Creating Custom Models
-
-Users can create custom models by:
-
-1. Creating a new directory in `modules/hardening/models/custom/`
-2. Adding configuration files using dot notation
-3. Optionally creating a `model.json` with metadata
-4. Testing on non-production machines
-5. Applying to production targets
-
-**Example**:
-```bash
-mkdir -p modules/hardening/models/custom/my_web_server/
-cd modules/hardening/models/custom/my_web_server/
-
-# Create configuration files
-echo "..." > etc.ssh.sshd_config
-echo "..." > etc.sysctl.d.99-hardening.conf
-echo "..." > etc.iptables.rules.v4
-
-# Create metadata
-cat > model.json <<EOF
-{
-  "name": "my_web_server",
-  "version": "1.0.0",
-  "description": "Custom hardening for my web servers",
-  "role": "web",
-  "level": "custom"
-}
-EOF
-```
-
-### Model Integrity
-
-**SHA512 Hashing**: Each model directory is hashed to detect unauthorized modifications.
-
-```python
-def calculate_model_hash(model_dir: Path) -> str:
-    """Calculate SHA512 hash of all files in model"""
-    hasher = hashlib.sha512()
-    
-    for file_path in sorted(model_dir.glob('*')):
-        if file_path.is_file() and file_path.name != 'model.json':
-            with open(file_path, 'rb') as f:
-                hasher.update(f.read())
-    
-    return hasher.hexdigest()
-```
-
-**Integrity Check**: Before applying any model, the system verifies its hash against the stored value in the database. If mismatch is detected, an alert is triggered and the application is blocked.
-
-### Model Validation
-
-Before applying to production, models should be validated:
-
-1. **Syntax Check**: Verify configuration file syntax
-2. **Compatibility Check**: Ensure OS compatibility
-3. **Conflict Check**: Detect conflicting settings
-4. **Test Application**: Apply to test machine first
-5. **Rollback Test**: Verify rollback capability
-
-### Model Rollback
-
-When hardening is applied, the system creates backups:
-
-```bash
-/etc/ssh/sshd_config.backup.20251030_103045
-/etc/sysctl.d/99-hardening.conf.backup.20251030_103045
-```
-
-Rollback process:
-1. Identify backup timestamp
-2. Restore all backed-up files
-3. Restart affected services
-4. Verify system stability
-5. Log rollback event
-
----
-
-## 👥 User Roles & Permissions
-
-### Role: Sysadmin
-**Permissions**: Full access
-
-- ✅ All Reporter permissions
-- ✅ Add/modify/remove target machines
-- ✅ Apply/modify/remove hardening models
-- ✅ Launch ARP scans
-- ✅ Upload IP lists
-- ✅ Configure system settings
-- ✅ Manage SSH keys rotation
-- ✅ Configure alerting (SMTP, webhooks)
-- ✅ Manage users and roles
-- ✅ Access audit logs
-
-### Role: Reporter
-**Permissions**: Read-only + reporting
-
-- ✅ View all dashboards
-- ✅ Create custom dashboards
-- ✅ View machine status
-- ✅ Generate executive reports
-- ✅ Export data
-- ❌ Cannot modify configurations
-- ❌ Cannot manage machines
-- ❌ Cannot manage users
-
----
-
-## 🔐 Security Requirements
-
-### Authentication
-- JWT-based authentication
-- Secure password storage (bcrypt/Argon2)
-- Session timeout (configurable)
-- MFA support (future enhancement)
-
-### SSH Key Management
-- Ed25519 keys only
-- Automatic key rotation (configurable interval)
-- Key pair generation on first setup
-- Secure key storage on server
-
-### Target System Security
-- Dedicated user: `microsiem`
-- Restricted sudoers permissions
-- Auditd monitoring of microsiem user
-- SSH hardening (sshd_config)
-- Alert on unauthorized activities
-
-### Data Security
-- HTTPS only (TLS 1.3)
-- Encrypted database connections
-- Secure secrets management
-- Input validation (all inputs)
-- SQL injection prevention (parameterized queries)
-- XSS prevention (React escaping + CSP)
-- CSRF protection (tokens)
-
-### OWASP Top 10 Compliance
-- [ ] A01: Broken Access Control → RBAC implementation
-- [ ] A02: Cryptographic Failures → TLS, encrypted storage
-- [ ] A03: Injection → Input validation, parameterized queries
-- [ ] A04: Insecure Design → Threat modeling, secure architecture
-- [ ] A05: Security Misconfiguration → Hardened defaults
-- [ ] A06: Vulnerable Components → Dependency scanning
-- [ ] A07: Authentication Failures → Strong auth, JWT, MFA ready
-- [ ] A08: Software/Data Integrity → Hash verification, signed packages
-- [ ] A09: Logging Failures → Comprehensive audit logs
-- [ ] A10: SSRF → URL validation, network segmentation
-
----
-
-## 📊 Data Flow Specification
-
-### Target → Server (Every 30s)
-
-1. **Target**: Cron executes monitoring script
-2. **Target**: Script collects data asynchronously
-3. **Target**: Generates JSON file: `/tmp/microsiem_<timestamp>.json`
-4. **Server**: SCP pulls JSON file
-5. **Server**: Parses JSON
-6. **Server**: Writes to InfluxDB (metrics) + PostgreSQL (events)
-7. **Target**: Removes old JSON files (cleanup)
-
-### JSON Output Structure
-
-```json
-{
-  "timestamp": "2025-10-30T10:30:00Z",
-  "hostname": "webserver-01",
-  "ip_address": "192.168.1.10",
-  "collection_duration_ms": 1250,
-  "hardening": {
-    "status": "compliant",
-    "score": 95,
-    "last_applied": "2025-10-29T08:00:00Z",
-    "model": "web_severo_nis2",
-    "violations": []
-  },
-  "compliance": {
-    "standard": "nis2",
-    "status": "compliant",
-    "checks_passed": 45,
-    "checks_failed": 0,
-    "details": []
-  },
-  "connections": [
-    {
-      "protocol": "tcp",
-      "local_addr": "0.0.0.0",
-      "local_port": 22,
-      "remote_addr": "192.168.1.100",
-      "remote_port": 54321,
-      "state": "ESTABLISHED",
-      "process": "sshd"
-    }
-  ],
-  "users": [
-    {
-      "username": "admin",
-      "login_time": "2025-10-30T09:00:00Z",
-      "terminal": "pts/0",
-      "from": "192.168.1.100",
-      "activities": [
-        {
-          "timestamp": "2025-10-30T10:25:00Z",
-          "command": "sudo systemctl restart nginx",
-          "suspicious": false
-        }
-      ]
-    }
-  ],
-  "services": {
-    "running": ["nginx", "sshd", "auditd", "ulogd2"],
-    "stopped": [],
-    "unexpected": [],
-    "disabled": ["telnet", "ftp", "rlogin"]
-  },
-  "packages": {
-    "total": 456,
-    "upgradable": 3,
-    "security_updates": 1,
-    "vulnerable": [
-      {
-        "name": "openssl",
-        "version": "1.1.1f-1ubuntu2",
-        "cve": ["CVE-2024-XXXX"]
-      }
-    ]
-  },
-  "file_integrity": [
-    {
-      "path": "/etc/passwd",
-      "hash": "abc123...",
-      "changed": false
-    },
-    {
-      "path": "/etc/shadow",
-      "hash": "def456...",
-      "changed": false
-    }
-  ],
-  "privilege_escalation": {
-    "suid_files": [
-      "/usr/bin/sudo",
-      "/usr/bin/passwd"
-    ],
-    "writable_by_others": [],
-    "suspicious_binaries": []
-  },
-  "auditd_events": [
-    {
-      "timestamp": "2025-10-30T10:29:45Z",
-      "type": "SYSCALL",
-      "user": "microsiem",
-      "command": "cat /var/log/auth.log",
-      "result": "success"
-    }
-  ]
-}
-```
-
----
-
-## 🚀 Deployment Architecture
-
-### Production Environment
-
-**Server Requirements**:
-- OS: Debian 12 or Ubuntu 22.04 LTS
-- RAM: 8GB minimum (16GB recommended)
-- CPU: 4 cores minimum
-- Disk: 100GB SSD (depends on retention)
-- Network: Static IP, firewall configured
-
-**Target Requirements**:
-- OS: Debian 11/12 or Ubuntu 20.04/22.04 LTS
-- User: `microsiem` with sudo privileges
-- SSH: Port 22 accessible from server
-- Python 3: Installed (for scripts)
-
-### Docker Compose Setup
+### Project Information
 
 ```yaml
-version: '3.8'
-services:
-  nginx:
-    image: nginx:alpine
-    ports: ["80:80", "443:443"]
-    
-  frontend:
-    build: ./frontend
-    
-  backend-flask:
-    build: ./backend
-    command: gunicorn -w 4 app.flask_app:app
-    
-  backend-fastapi:
-    build: ./backend
-    command: uvicorn app.main:app --host 0.0.0.0
-    
-  influxdb:
-    image: influxdb:2.7
-    volumes: ["influxdb-data:/var/lib/influxdb2"]
-    
-  postgresql:
-    image: postgres:15-alpine
-    volumes: ["postgres-data:/var/lib/postgresql/data"]
+Project Name: MicroSIEM (CyberSheppard)
+Version: 1.0.0
+Type: Security Information and Event Management (SIEM) Platform
+Target Market: Enterprise Linux Security Management
+Development Start: 2025-11-28
+Target Release: Q2 2026
+Status: In Development
+
+Company: Dognet Technologies
+Integration Ecosystem:
+  - Sentinel Core (Vulnerability Management)
+  - FireDog (Firewall Management)
+  - MicroSIEM (Security Hardening & Monitoring)
+```
+
+### Vision Statement
+
+Creare una piattaforma SIEM production-ready completa per hardening, monitoring e compliance management di sistemi Linux, con focus su automazione, integrazione e usabilità enterprise.
+
+### Mission Statement
+
+Fornire alle organizzazioni uno strumento professionale per:
+- Automatizzare l'hardening di sistemi Linux secondo standard di compliance
+- Monitorare continuamente la security posture dei sistemi
+- Rilevare e correlare minacce e vulnerabilità in tempo reale
+- Garantire compliance con standard NIS2, PCI-DSS, ISO27001
+- Integrare seamlessly con altri security tools (Sentinel Core, FireDog)
+
+### Key Differentiators
+
+1. **Hardening automatico** - Modelli pre-configurati pronti all'uso
+2. **Real-time monitoring** - Dati ogni 30 secondi
+3. **Security correlation** - Vulnerabilità + minacce + hardening status
+4. **Production-ready** - Non MVP, sistema completo
+5. **Enterprise-grade** - Scalabile, sicuro, audit completo
+6. **Integration-first** - API-based integration con Sentinel Core e FireDog
+
+---
+
+## Requirements
+
+### Functional Requirements
+
+#### FR-001: Authentication & Authorization
+**Priority**: P0 (Critical)
+
+```yaml
+Description: Sistema di autenticazione e autorizzazione completo
+Features:
+  - Login con username/password
+  - JWT tokens (30 min access + 7 days refresh)
+  - CSRF protection per mutazioni
+  - Role-based access control (admin/user)
+  - Account lockout dopo 5 tentativi falliti
+  - Password strength validation
+  - Session management
+  - Audit logging completo
+  
+Acceptance Criteria:
+  - ✓ Login funziona con credenziali valide
+  - ✓ Token JWT valido per 30 minuti
+  - ✓ Refresh token valido per 7 giorni
+  - ✓ CSRF token richiesto per POST/PUT/DELETE
+  - ✓ Account bloccato dopo 5 tentativi falliti per 15 minuti
+  - ✓ Admin può fare tutte le operazioni
+  - ✓ User può solo leggere e creare dashboard
+  - ✓ Tutte le azioni sono loggiate in audit_logs
+```
+
+#### FR-002: Target Management
+**Priority**: P0 (Critical)
+
+```yaml
+Description: Gestione completa dei sistemi target
+Features:
+  - Aggiunta target manuale (IP, hostname, SSH details)
+  - ARP scan per discovery automatico
+  - Import da file (lista IP)
+  - Test connessione SSH
+  - Organizzazione in gruppi
+  - Tagging per categorizzazione
+  - Status tracking (active/inactive/error)
+  - Network interfaces management
+  - SSH key rotation automatico
+  
+Acceptance Criteria:
+  - ✓ Possibile aggiungere target con tutti i parametri
+  - ✓ Test SSH connessione funziona
+  - ✓ ARP scan rileva target nella rete
+  - ✓ Import da file TXT funziona
+  - ✓ Target possono essere raggruppati
+  - ✓ Tags possono essere assegnati
+  - ✓ Status viene aggiornato automaticamente
+  - ✓ SSH keys ruotano automaticamente ogni 90 giorni
+```
+
+#### FR-003: Hardening System
+**Priority**: P0 (Critical)
+
+```yaml
+Description: Sistema completo per hardening configurazioni
+Features:
+  - Modelli pre-configurati (base/severo)
+  - Modelli per ruolo (web/database/dns/gateway)
+  - Modelli per compliance (NIS2/PCI/ISO27001)
+  - Model validator (SSH safety, syntax checks)
+  - Model integrity check (SHA512 hash)
+  - Application workflow completo (13+ steps)
+  - Backup automatico prima dell'applicazione
+  - Rollback su richiesta o failure
+  - Progress tracking in real-time
+  - Custom model support
+  
+Acceptance Criteria:
+  - ✓ Almeno 8 modelli pre-configurati disponibili
+  - ✓ Validator rileva configurazioni non sicure
+  - ✓ Backup viene creato sempre prima dell'applicazione
+  - ✓ Hardening completa in < 3 minuti
+  - ✓ Rollback funziona correttamente
+  - ✓ Progress viene mostrato in UI real-time
+  - ✓ Custom model può essere creato e applicato
+  - ✓ Model integrity verificata prima applicazione
+```
+
+#### FR-004: Monitoring System
+**Priority**: P0 (Critical)
+
+```yaml
+Description: Sistema di monitoring continuo dei target
+Features:
+  - 9 collectors per diversi aspetti security
+  - Collection ogni 30 secondi
+  - Async collection (parallel execution)
+  - JSON aggregation automatico
+  - Storage in InfluxDB (time-series)
+  - Storage in PostgreSQL (events)
+  - Real-time dashboard updates (WebSocket)
+  - Historical data query
+  - Configurable retention policies
+  
+Collectors:
+  1. auditd.sh - Audit daemon events
+  2. sudolog.sh - Sudo commands
+  3. connections.sh - Network connections
+  4. users.sh - User activity
+  5. services.sh - Services status
+  6. packages.sh - Package vulnerabilities
+  7. files.sh - File integrity
+  8. system.sh - System metrics (CPU, RAM, disk)
+  9. syscalls.sh - System calls (optional)
+  
+Acceptance Criteria:
+  - ✓ Tutti 9 collectors funzionano correttamente
+  - ✓ Collection completa in < 5 secondi per target
+  - ✓ Dati scritti in InfluxDB e PostgreSQL
+  - ✓ Dashboard si aggiorna in real-time
+  - ✓ Historical data queryable fino a 90 giorni
+  - ✓ Collectors eseguono in parallelo
+  - ✓ Error handling robusto per fallimenti individuali
+```
+
+#### FR-005: Compliance Checking
+**Priority**: P1 (High)
+
+```yaml
+Description: Verifica compliance con standard security
+Features:
+  - Support per NIS2, PCI-DSS, ISO27001
+  - Checks automatici per ogni standard
+  - Compliance scoring (0-100)
+  - Detailed check results con evidence
+  - Compliance reports (PDF export)
+  - Delta reports (cambiamenti da ultimo check)
+  - Recommendations per remediation
+  - Scheduling automatico checks
+  
+Acceptance Criteria:
+  - ✓ Almeno 3 standard implementati (NIS2, PCI, ISO)
+  - ✓ Almeno 40 checks per standard
+  - ✓ Score calculation corretto
+  - ✓ Evidence salvata per ogni check
+  - ✓ PDF report generabile
+  - ✓ Delta report mostra cambiamenti
+  - ✓ Recommendations sono actionable
+```
+
+#### FR-006: Integration System
+**Priority**: P1 (High)
+
+```yaml
+Description: Integrazione con Sentinel Core e FireDog
+Features:
+  - Sentinel Core API client
+  - FireDog API client
+  - Asset synchronization bidirectional
+  - Vulnerability data import da Sentinel Core
+  - Threat data import da FireDog
+  - Security correlation engine
+  - Automated response actions
+  - Sync scheduling (every 5 minutes)
+  
+Acceptance Criteria:
+  - ✓ Sentinel Core client funziona
+  - ✓ FireDog client funziona
+  - ✓ Asset sync bidirezionale completo
+  - ✓ Vulnerabilities importate correttamente
+  - ✓ Threats importate correttamente
+  - ✓ Correlations calcolate correttamente
+  - ✓ Auto-block IP funziona (se configurato)
+  - ✓ Sync ogni 5 minuti automatico
+```
+
+#### FR-007: Alert & Notification System
+**Priority**: P1 (High)
+
+```yaml
+Description: Sistema di alerting e notifiche multi-channel
+Features:
+  - Alert rules configurabili
+  - Multiple notification channels (Email, Slack, Discord)
+  - Alert deduplication (cooldown period)
+  - Alert severity levels
+  - Alert acknowledgment
+  - Alert history
+  - Notification templates
+  - Test notification capability
+  
+Alert Types:
+  - suspicious_connection
+  - unexpected_service
+  - compliance_failure
+  - hardening_failed
+  - critical_vulnerability
+  - high_risk_correlation
+  - file_integrity_violation
+  - excessive_sudo_usage
+  
+Acceptance Criteria:
+  - ✓ Almeno 7 alert types implementati
+  - ✓ Email notifications funzionano
+  - ✓ Slack notifications funzionano
+  - ✓ Discord notifications funzionano
+  - ✓ Deduplication previene spam (15 min cooldown)
+  - ✓ Alerts possono essere acknowledged
+  - ✓ Alert history visualizzabile
+  - ✓ Test notification funziona
+```
+
+#### FR-008: Dashboard & Visualization
+**Priority**: P1 (High)
+
+```yaml
+Description: Dashboard interattivo con visualizzazioni real-time
+Features:
+  - Overview dashboard (system status)
+  - Target-specific dashboards
+  - Real-time metrics (WebSocket)
+  - Historical charts (Recharts)
+  - Custom dashboard creation
+  - Widget library
+  - Export data (CSV, JSON)
+  - Filters and date range selection
+  
+Widgets:
+  - System metrics (CPU, RAM, disk)
+  - Connection monitoring
+  - Services status
+  - Compliance score
+  - Alert panel
+  - Top vulnerabilities
+  - Recent activities
+  - Hardening score
+  
+Acceptance Criteria:
+  - ✓ Overview dashboard mostra tutti i target
+  - ✓ Target dashboard mostra dettagli specifici
+  - ✓ Real-time updates via WebSocket
+  - ✓ Charts sono responsive e interattivi
+  - ✓ Custom dashboard creabile
+  - ✓ Almeno 8 widget types disponibili
+  - ✓ Export funziona per CSV e JSON
+```
+
+#### FR-009: User Management
+**Priority**: P2 (Medium)
+
+```yaml
+Description: Gestione utenti e permessi
+Features:
+  - User CRUD operations
+  - Role assignment (admin/user)
+  - Password management
+  - Account activation/deactivation
+  - Last login tracking
+  - Failed login tracking
+  - User activity audit
+  
+Acceptance Criteria:
+  - ✓ Admin può creare/modificare/eliminare utenti
+  - ✓ Password change funziona
+  - ✓ Role assignment funziona
+  - ✓ Account può essere disattivato
+  - ✓ Last login viene tracciato
+  - ✓ Failed attempts vengono tracciati
+  - ✓ User activity è auditata
+```
+
+#### FR-010: System Configuration
+**Priority**: P2 (Medium)
+
+```yaml
+Description: Configurazione sistema globale
+Features:
+  - Monitoring settings (interval, retention)
+  - SSH settings (port, timeout, key rotation)
+  - Security settings (session timeout, lockout)
+  - Integration settings (enable/disable, API keys)
+  - Notification settings (SMTP, webhooks)
+  - System health monitoring
+  
+Acceptance Criteria:
+  - ✓ Settings possono essere modificate
+  - ✓ Changes sono validati
+  - ✓ Changes richiedono permission admin
+  - ✓ Changes sono loggati in audit
+  - ✓ Settings persistono dopo restart
 ```
 
 ---
 
-## 📝 Configuration Management
+### Non-Functional Requirements
 
-### Environment Variables
+#### NFR-001: Performance
+**Priority**: P0 (Critical)
 
-```bash
-# Application
-APP_ENV=production
-APP_SECRET_KEY=<random-secret>
-APP_DEBUG=false
+```yaml
+Requirements:
+  API Response Time:
+    - p50: < 50ms
+    - p95: < 100ms
+    - p99: < 200ms
+  
+  Dashboard Load Time:
+    - Initial load: < 2s
+    - Subsequent navigation: < 500ms
+  
+  WebSocket Latency:
+    - < 50ms for real-time updates
+  
+  Data Collection:
+    - Complete cycle: < 5s per target
+    - Support: 100+ targets per instance
+  
+  Database Queries:
+    - PostgreSQL: < 10ms (p95)
+    - InfluxDB reads: < 50ms (p95)
+    - InfluxDB writes: < 5ms (p95)
+  
+  Hardening Application:
+    - Complete: < 3 minutes per target
+    - Progress updates: every 5 seconds
+```
 
-# JWT
-JWT_SECRET_KEY=<jwt-secret>
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_HOURS=24
+#### NFR-002: Scalability
+**Priority**: P1 (High)
 
-# Database - InfluxDB
-INFLUX_URL=http://influxdb:8086
-INFLUX_TOKEN=<influx-token>
-INFLUX_ORG=microsiem
-INFLUX_BUCKET=metrics
+```yaml
+Requirements:
+  Single Instance:
+    - Targets: 100-200 concurrent
+    - Users: 50 concurrent
+    - API requests: 1000 req/s
+    - WebSocket connections: 100 concurrent
+  
+  Database:
+    - PostgreSQL: 10M+ rows (with partitioning)
+    - InfluxDB: TBs of data (with retention)
+  
+  Horizontal Scaling (Future):
+    - Multiple backend instances
+    - Load balancing
+    - Database replication
+```
 
-# Database - PostgreSQL
-POSTGRES_HOST=postgresql
-POSTGRES_PORT=5432
-POSTGRES_DB=microsiem
-POSTGRES_USER=microsiem
-POSTGRES_PASSWORD=<postgres-password>
+#### NFR-003: Security
+**Priority**: P0 (Critical)
 
-# SSH
-SSH_PRIVATE_KEY_PATH=/app/keys/microsiem_ed25519
-SSH_USER=microsiem
-SSH_PORT=22
-SSH_TIMEOUT=30
+```yaml
+Requirements:
+  Authentication:
+    - JWT with secure secret (256-bit)
+    - Tokens expire after 30 minutes
+    - Refresh tokens expire after 7 days
+    - CSRF protection mandatory
+  
+  Password Security:
+    - Argon2 hashing (work factor 19)
+    - Min 12 characters
+    - Complexity requirements
+    - No common passwords
+  
+  Data Encryption:
+    - TLS 1.3 only for external connections
+    - Fernet encryption for sensitive data at rest
+    - SSH Ed25519 keys only
+  
+  Input Validation:
+    - All inputs validated
+    - SQL injection prevention
+    - XSS prevention
+    - Command injection prevention
+  
+  OWASP Compliance:
+    - All OWASP Top 10 mitigations implemented
+    - Regular security audits
+    - Penetration testing before release
+```
 
-# Monitoring
-COLLECTION_INTERVAL_SECONDS=30
-DATA_RETENTION_DAYS=90
+#### NFR-004: Reliability
+**Priority**: P0 (Critical)
 
-# Alerting
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_USER=alerts@example.com
-SMTP_PASSWORD=<smtp-password>
-SMTP_FROM=microsiem@example.com
+```yaml
+Requirements:
+  Uptime:
+    - Target: 99.5% uptime
+    - Max downtime: 3.65 hours/month
+  
+  Error Handling:
+    - Graceful degradation
+    - Automatic retry (3 attempts)
+    - Error logging completo
+    - User-friendly error messages
+  
+  Data Integrity:
+    - Database transactions
+    - Backup before hardening changes
+    - Rollback capability
+    - Data validation
+  
+  Recovery:
+    - Automatic service restart on failure
+    - Database backup daily
+    - Point-in-time recovery capability
+```
 
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/xxx
-TELEGRAM_BOT_TOKEN=<token>
-TELEGRAM_CHAT_ID=<chat-id>
+#### NFR-005: Maintainability
+**Priority**: P1 (High)
+
+```yaml
+Requirements:
+  Code Quality:
+    - Rust: clippy lints passing
+    - Python: pylint score > 8.0
+    - TypeScript: strict mode enabled
+    - Code coverage: > 70%
+  
+  Documentation:
+    - All public APIs documented
+    - Architecture documented
+    - Deployment documented
+    - Troubleshooting guide
+  
+  Monitoring:
+    - Application metrics exposed
+    - Structured logging (JSON)
+    - Health check endpoints
+    - Performance monitoring
+  
+  Upgrades:
+    - Zero-downtime deployment (future)
+    - Database migrations automated
+    - Backward compatibility for 1 version
+```
+
+#### NFR-006: Usability
+**Priority**: P1 (High)
+
+```yaml
+Requirements:
+  User Interface:
+    - Responsive design (desktop, tablet, mobile)
+    - Consistent UI/UX
+    - Max 3 clicks to any feature
+    - Loading indicators for async operations
+    - Error messages are actionable
+  
+  Documentation:
+    - User manual available
+    - In-app help tooltips
+    - Video tutorials (optional)
+  
+  Internationalization (Future):
+    - English (primary)
+    - Italian (secondary)
 ```
 
 ---
 
-## 📋 Development Roadmap
+## Feature Specifications
 
-### Phase 1: Foundation (Weeks 1-2)
-- [ ] Setup project structure
-- [ ] Database schemas (PostgreSQL + InfluxDB)
-- [ ] Basic authentication (JWT)
-- [ ] User management (CRUD)
+### Phase 1: Core Foundation (Weeks 1-4)
 
-### Phase 2: Core Backend (Weeks 3-4)
-- [ ] SSH connection manager
-- [ ] Hardening module (model storage, validation)
-- [ ] Basic monitoring data collection
-- [ ] JSON parser and DB writer
+#### 1.1 Project Setup
+- [x] Initialize Git repository
+- [x] Setup project structure
+- [x] Create documentation templates
+- [ ] Setup CI/CD pipeline (GitHub Actions)
+- [ ] Setup development environment (Docker Compose)
 
-### Phase 3: Frontend (Weeks 5-6)
-- [ ] Authentication UI
-- [ ] Dashboard framework
-- [ ] Machine management UI
-- [ ] Basic charts/visualizations
+#### 1.2 Database Schema
+- [ ] Design PostgreSQL schema (20 tables)
+- [ ] Create migration scripts (Alembic/sqlx)
+- [ ] Design InfluxDB schema (14 measurements)
+- [ ] Create seed data for testing
+- [ ] Implement database connection pool
 
-### Phase 4: Modules Integration (Weeks 7-8)
-- [ ] Hardening application workflow
-- [ ] Monitoring cron setup
-- [ ] Checking module
-- [ ] Alerting system
+#### 1.3 Authentication System
+- [ ] Implement JWT generation/validation (Rust)
+- [ ] Implement refresh token mechanism
+- [ ] Implement CSRF token system
+- [ ] Create login endpoint
+- [ ] Create logout endpoint
+- [ ] Create token refresh endpoint
+- [ ] Implement password hashing (Argon2)
+- [ ] Implement account lockout mechanism
 
-### Phase 5: Advanced Features (Weeks 9-10)
-- [ ] Custom dashboards
-- [ ] Compliance checks
-- [ ] Privilege escalation detection
-- [ ] File integrity monitoring
-
-### Phase 6: Testing & Polish (Weeks 11-12)
-- [ ] Integration testing
-- [ ] Security audit
-- [ ] Documentation completion
-- [ ] Deployment automation
-
----
-
-## 🧪 Testing Strategy
-
-### Unit Tests
-- Backend: pytest
-- Frontend: Vitest + React Testing Library
-
-### Integration Tests
-- API endpoint testing
-- Database operations
-- SSH connectivity
-
-### Security Tests
-- OWASP ZAP scanning
-- Dependency vulnerability scanning
-- Penetration testing
-
-### Performance Tests
-- Load testing (100+ targets)
-- Database query optimization
-- Real-time data streaming
+#### 1.4 Basic API Structure
+- [ ] Setup Axum web framework
+- [ ] Implement error handling
+- [ ] Implement logging (tracing)
+- [ ] Create health check endpoint
+- [ ] Implement CORS middleware
+- [ ] Implement rate limiting middleware
+- [ ] Implement audit logging middleware
 
 ---
 
-## 📚 Documentation Requirements
+### Phase 2: Target Management (Weeks 5-6)
 
-### Developer Documentation
-- [ ] Setup instructions
-- [ ] API documentation (auto-generated)
-- [ ] Code style guide
-- [ ] Contributing guidelines
+#### 2.1 Target CRUD
+- [ ] Create target model (Rust struct)
+- [ ] Implement POST /api/v1/targets
+- [ ] Implement GET /api/v1/targets
+- [ ] Implement GET /api/v1/targets/{id}
+- [ ] Implement PUT /api/v1/targets/{id}
+- [ ] Implement DELETE /api/v1/targets/{id}
+- [ ] Implement input validation
+
+#### 2.2 SSH Management
+- [ ] Implement SSH key generation (Ed25519)
+- [ ] Implement SSH connection test
+- [ ] Implement SSH key storage (encrypted)
+- [ ] Implement SSH key rotation
+- [ ] Create SSHManager utility (from FireDog)
+
+#### 2.3 Target Discovery
+- [ ] Implement ARP scan functionality
+- [ ] Implement IP import from file
+- [ ] Implement target grouping
+- [ ] Implement target tagging
+
+---
+
+### Phase 3: Hardening System (Weeks 7-9)
+
+#### 3.1 Python Hardening Engine
+- [ ] Create Flask API server
+- [ ] Implement ModelLoader
+- [ ] Implement ModelValidator
+- [ ] Implement HardeningApplier
+- [ ] Implement BackupManager
+- [ ] Implement RollbackManager
+- [ ] Create hardening models (base/severo)
+
+#### 3.2 Hardening Models
+- [ ] Create base/generic model
+- [ ] Create base/web model
+- [ ] Create base/database model
+- [ ] Create severo/web model
+- [ ] Create severo/database model
+- [ ] Create NIS2 compliance models
+- [ ] Create PCI compliance models
+- [ ] Create ISO27001 compliance models
+
+#### 3.3 Hardening API Integration
+- [ ] Create Rust client for Python engine
+- [ ] Implement POST /api/v1/hardening/apply
+- [ ] Implement GET /api/v1/hardening/applications/{id}
+- [ ] Implement POST /api/v1/hardening/rollback
+- [ ] Implement WebSocket progress updates
+
+---
+
+### Phase 4: Monitoring System (Weeks 10-12)
+
+#### 4.1 Target Collectors (Bash)
+- [ ] Implement auditd.sh collector
+- [ ] Implement sudolog.sh collector
+- [ ] Implement connections.sh collector
+- [ ] Implement users.sh collector
+- [ ] Implement services.sh collector
+- [ ] Implement packages.sh collector
+- [ ] Implement files.sh collector
+- [ ] Implement system.sh collector
+- [ ] Implement syscalls.sh collector (optional)
+
+#### 4.2 Collection Orchestration
+- [ ] Create monitoring.sh orchestrator
+- [ ] Implement aggregate_json.py
+- [ ] Setup cron/systemd timer on targets
+- [ ] Implement cleanup mechanism
+
+#### 4.3 Data Collection Service (Rust)
+- [ ] Implement DataCollectorService
+- [ ] Implement SCP file retrieval
+- [ ] Implement JSON parsing
+- [ ] Implement InfluxDB writer
+- [ ] Implement PostgreSQL writer
+- [ ] Implement error handling & retry
+
+#### 4.4 Monitoring API
+- [ ] Implement GET /api/v1/monitoring/targets/{id}/metrics
+- [ ] Implement GET /api/v1/monitoring/targets/{id}/connections
+- [ ] Implement GET /api/v1/monitoring/targets/{id}/users
+- [ ] Implement GET /api/v1/monitoring/targets/{id}/services
+- [ ] Implement GET /api/v1/monitoring/targets/{id}/auditd
+
+---
+
+### Phase 5: Frontend Development (Weeks 13-15)
+
+#### 5.1 Core UI Components
+- [ ] Setup React + TypeScript project (Vite)
+- [ ] Implement authentication UI (login/logout)
+- [ ] Implement layout components (Header, Sidebar)
+- [ ] Implement routing (React Router)
+- [ ] Implement protected routes
+
+#### 5.2 Dashboard
+- [ ] Implement overview dashboard
+- [ ] Implement metrics cards
+- [ ] Implement charts (Recharts)
+- [ ] Implement real-time updates (WebSocket)
+- [ ] Implement alert panel
+
+#### 5.3 Target Management UI
+- [ ] Implement target list view
+- [ ] Implement target details view
+- [ ] Implement add target modal
+- [ ] Implement edit target modal
+- [ ] Implement connection status indicators
+
+#### 5.4 Hardening UI
+- [ ] Implement model list view
+- [ ] Implement model details view
+- [ ] Implement apply hardening modal
+- [ ] Implement progress tracker
+- [ ] Implement rollback functionality
+
+#### 5.5 Monitoring UI
+- [ ] Implement metrics charts
+- [ ] Implement connections table
+- [ ] Implement services status
+- [ ] Implement auditd events viewer
+- [ ] Implement historical data query
+
+---
+
+### Phase 6: Integration & Correlation (Weeks 16-17)
+
+#### 6.1 Sentinel Core Integration
+- [ ] Implement SentinelCoreClient (Rust)
+- [ ] Implement vulnerability sync
+- [ ] Implement asset sync
+- [ ] Implement scan triggering
+- [ ] Test integration end-to-end
+
+#### 6.2 FireDog Integration
+- [ ] Implement FireDogClient (Rust)
+- [ ] Implement threat sync
+- [ ] Implement statistics sync
+- [ ] Implement IP blocking
+- [ ] Test integration end-to-end
+
+#### 6.3 Correlation Engine
+- [ ] Implement CorrelationEngine
+- [ ] Implement vulnerability-threat matching
+- [ ] Implement risk scoring
+- [ ] Implement recommended actions
+- [ ] Create correlations UI
+
+---
+
+### Phase 7: Compliance & Alerts (Weeks 18-19)
+
+#### 7.1 Compliance System
+- [ ] Implement compliance check engine
+- [ ] Create NIS2 checks (45+ checks)
+- [ ] Create PCI-DSS checks (50+ checks)
+- [ ] Create ISO27001 checks (40+ checks)
+- [ ] Implement compliance scoring
+- [ ] Implement PDF report generation
+
+#### 7.2 Alert System
+- [ ] Implement AlertService
+- [ ] Implement alert rules evaluation
+- [ ] Implement alert deduplication
+- [ ] Implement alert acknowledgment
+- [ ] Create alert history UI
+
+#### 7.3 Notification System
+- [ ] Implement NotificationService
+- [ ] Implement email notifications (SMTP)
+- [ ] Implement Slack notifications
+- [ ] Implement Discord notifications
+- [ ] Implement notification configuration UI
+- [ ] Implement test notification
+
+---
+
+### Phase 8: User Management & Config (Weeks 20-21)
+
+#### 8.1 User Management
+- [ ] Implement user CRUD API
+- [ ] Implement password change
+- [ ] Implement role assignment
+- [ ] Create user management UI
+- [ ] Implement user activity audit
+
+#### 8.2 System Configuration
+- [ ] Implement configuration API
+- [ ] Create system settings UI
+- [ ] Implement SSH key management UI
+- [ ] Implement integration configuration UI
+- [ ] Implement notification configuration UI
+
+---
+
+### Phase 9: Testing & QA (Weeks 22-24)
+
+#### 9.1 Unit Testing
+- [ ] Backend unit tests (Rust) - coverage > 70%
+- [ ] Python engine unit tests - coverage > 70%
+- [ ] Frontend unit tests - coverage > 60%
+
+#### 9.2 Integration Testing
+- [ ] API integration tests
+- [ ] Database integration tests
+- [ ] External API integration tests
+- [ ] End-to-end workflow tests
+
+#### 9.3 Performance Testing
+- [ ] Load testing (1000 req/s)
+- [ ] Stress testing (200 targets)
+- [ ] WebSocket connection testing
+- [ ] Database performance testing
+
+#### 9.4 Security Testing
+- [ ] OWASP ZAP scanning
+- [ ] SQL injection testing
+- [ ] XSS testing
+- [ ] CSRF testing
+- [ ] Authentication bypass testing
+- [ ] Penetration testing (external)
+
+---
+
+### Phase 10: Documentation & Deployment (Weeks 25-26)
+
+#### 10.1 Documentation
+- [ ] API documentation (OpenAPI/Swagger)
+- [ ] User manual
+- [ ] Administrator guide
+- [ ] Deployment guide
+- [ ] Troubleshooting guide
+- [ ] Video tutorials (optional)
+
+#### 10.2 Deployment Preparation
+- [ ] Create production Docker images
+- [ ] Create LXC template
+- [ ] Write deployment scripts
+- [ ] Configure monitoring (Prometheus)
+- [ ] Configure logging (centralized)
+- [ ] Setup backup procedures
+
+#### 10.3 Release
+- [ ] Create release notes
+- [ ] Tag v1.0.0 release
+- [ ] Publish documentation
+- [ ] Deploy to staging environment
+- [ ] Final QA on staging
+- [ ] Deploy to production
+
+---
+
+## Development Roadmap
+
+### Timeline Overview
+
+```
+Months 1-2: Core Foundation & Target Management
+  - Database schema
+  - Authentication
+  - Target CRUD
+  - SSH management
+
+Months 3-4: Hardening & Monitoring
+  - Python hardening engine
+  - Hardening models
+  - Bash collectors
+  - Data collection service
+
+Months 5-6: Frontend & Integration
+  - React UI complete
+  - Sentinel Core integration
+  - FireDog integration
+  - Correlation engine
+
+Months 7: Compliance & Alerts
+  - Compliance checks
+  - Alert system
+  - Notification system
+
+Months 8: Polish & Testing
+  - User management
+  - System configuration
+  - Comprehensive testing
+  - Documentation
+
+Total: 8 months (Q2 2026 release)
+```
+
+### Milestones
+
+**M1: Foundation Complete (End Month 2)**
+- ✓ Database schema implemented
+- ✓ Authentication working
+- ✓ Target management working
+- ✓ Basic API structure complete
+
+**M2: Hardening Working (End Month 4)**
+- ✓ Python engine functional
+- ✓ At least 4 hardening models available
+- ✓ Hardening can be applied to targets
+- ✓ Rollback working
+
+**M3: Monitoring Working (End Month 4)**
+- ✓ All 9 collectors functional
+- ✓ Data collection every 30s
+- ✓ Data stored in InfluxDB & PostgreSQL
+- ✓ Basic monitoring API working
+
+**M4: Frontend Complete (End Month 6)**
+- ✓ All major UI components implemented
+- ✓ Real-time dashboard working
+- ✓ Target management UI complete
+- ✓ Hardening UI complete
+- ✓ Monitoring UI complete
+
+**M5: Integration Complete (End Month 6)**
+- ✓ Sentinel Core integration working
+- ✓ FireDog integration working
+- ✓ Security correlation functional
+- ✓ Integration UI complete
+
+**M6: Feature Complete (End Month 7)**
+- ✓ Compliance checking working
+- ✓ Alert system functional
+- ✓ Notification system working
+- ✓ All P0/P1 features implemented
+
+**M7: Production Ready (End Month 8)**
+- ✓ All tests passing (unit, integration, E2E)
+- ✓ Security audit passed
+- ✓ Performance targets met
+- ✓ Documentation complete
+- ✓ Deployment procedures tested
+
+---
+
+## Testing Strategy
+
+### Unit Testing
+
+```yaml
+Backend (Rust):
+  Framework: cargo test
+  Coverage Target: > 70%
+  
+  Test Areas:
+    - Models (validation, serialization)
+    - Services (business logic)
+    - API endpoints (request/response)
+    - Utilities (validation, crypto)
+  
+  Example:
+    ```rust
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        
+        #[test]
+        fn test_validate_ip_address() {
+            assert!(validate_ip_address("192.168.1.1").is_ok());
+            assert!(validate_ip_address("invalid").is_err());
+        }
+    }
+    ```
+
+Python Engine:
+  Framework: pytest
+  Coverage Target: > 70%
+  
+  Test Areas:
+    - ModelLoader
+    - ModelValidator
+    - HardeningApplier
+    - BackupManager
+  
+  Example:
+    ```python
+    def test_load_model():
+        loader = ModelLoader()
+        model = loader.load_model("base/web")
+        assert model is not None
+        assert model["name"] == "web_base_generic"
+    ```
+
+Frontend (TypeScript):
+  Framework: Vitest + React Testing Library
+  Coverage Target: > 60%
+  
+  Test Areas:
+    - Components (rendering, interactions)
+    - Hooks (state management)
+    - Services (API calls)
+    - Utils (formatters, validators)
+  
+  Example:
+    ```typescript
+    test('LoginForm submits credentials', async () => {
+      const mockLogin = vi.fn();
+      render(<LoginForm onLogin={mockLogin} />);
+      
+      await userEvent.type(screen.getByLabelText('Username'), 'admin');
+      await userEvent.type(screen.getByLabelText('Password'), 'password');
+      await userEvent.click(screen.getByText('Login'));
+      
+      expect(mockLogin).toHaveBeenCalledWith({
+        username: 'admin',
+        password: 'password'
+      });
+    });
+    ```
+```
+
+### Integration Testing
+
+```yaml
+API Integration Tests:
+  Framework: cargo test + reqwest
+  
+  Test Scenarios:
+    - Complete authentication flow
+    - Target CRUD operations
+    - Hardening application workflow
+    - Data collection and storage
+    - Integration sync flows
+    - Alert triggering and notification
+  
+  Example:
+    ```rust
+    #[tokio::test]
+    async fn test_complete_hardening_flow() {
+        // 1. Create target
+        let target = create_test_target().await;
+        
+        // 2. Apply hardening
+        let application = apply_hardening(target.id, model_id).await;
+        assert_eq!(application.status, "completed");
+        
+        // 3. Verify target updated
+        let target = get_target(target.id).await;
+        assert!(target.hardening_applied);
+        
+        // 4. Verify audit log
+        let logs = get_audit_logs().await;
+        assert!(logs.iter().any(|l| l.action == "hardening_applied"));
+    }
+    ```
+
+Database Integration Tests:
+  - PostgreSQL connection pool
+  - CRUD operations
+  - Transactions
+  - Migrations
+  - InfluxDB writes/queries
+  
+External API Integration Tests:
+  - Sentinel Core API (mocked)
+  - FireDog API (mocked)
+  - SMTP server (mocked)
+  - Webhook endpoints (mocked)
+```
+
+### End-to-End Testing
+
+```yaml
+Framework: Playwright or Cypress
+
+Test Scenarios:
+  1. Complete User Journey:
+     - Login as admin
+     - Add new target
+     - Apply hardening
+     - Monitor progress
+     - View monitoring data
+     - Check compliance status
+     - Configure alerts
+     - Logout
+  
+  2. Hardening Workflow:
+     - Select target without hardening
+     - Choose hardening model
+     - Preview changes
+     - Apply hardening
+     - Monitor progress (real-time)
+     - Verify completion
+     - Check hardening score
+  
+  3. Alert Flow:
+     - Trigger suspicious activity
+     - Verify alert created
+     - Verify notification sent
+     - Acknowledge alert
+     - Verify alert acknowledged
+  
+  4. Integration Flow:
+     - Enable Sentinel Core
+     - Sync vulnerabilities
+     - Enable FireDog
+     - Sync threats
+     - View correlations
+     - Block attacker IP
+```
+
+### Performance Testing
+
+```yaml
+Load Testing:
+  Tool: Apache JMeter or k6
+  
+  Scenarios:
+    - API endpoints: 1000 req/s sustained
+    - WebSocket: 100 concurrent connections
+    - Data collection: 200 targets simultaneously
+    - Dashboard load: 50 concurrent users
+  
+  Metrics:
+    - Response time (p50, p95, p99)
+    - Throughput (req/s)
+    - Error rate (< 0.1%)
+    - Resource usage (CPU, RAM)
+
+Stress Testing:
+  - Gradually increase load until failure
+  - Identify breaking point
+  - Verify graceful degradation
+  - Verify recovery after stress
+
+Database Performance:
+  - PostgreSQL: 1000 queries/second
+  - InfluxDB: 10000 points/second write
+  - Query performance with large datasets
+```
+
+### Security Testing
+
+```yaml
+Automated Security Scanning:
+  Tools:
+    - OWASP ZAP
+    - Bandit (Python)
+    - cargo-audit (Rust)
+    - npm audit (Frontend)
+  
+  Checks:
+    - SQL injection
+    - XSS vulnerabilities
+    - CSRF vulnerabilities
+    - Authentication bypass
+    - Authorization flaws
+    - Sensitive data exposure
+    - Dependency vulnerabilities
+
+Manual Security Testing:
+  - Penetration testing by security expert
+  - Code review for security issues
+  - Configuration review
+  - Access control testing
+  - Session management testing
+
+Compliance Checks:
+  - OWASP Top 10 2021 compliance
+  - GDPR compliance (data handling)
+  - Secure coding standards
+```
+
+---
+
+## Quality Assurance
+
+### Code Quality Standards
+
+```yaml
+Rust:
+  - clippy lints: all warnings addressed
+  - rustfmt: code formatted
+  - No unsafe code without justification
+  - All public APIs documented
+  - Error handling: Result<T, E> pattern
+  - No unwrap() in production code
+
+Python:
+  - pylint score: > 8.0
+  - black formatted
+  - Type hints for all functions
+  - Docstrings for all public functions
+  - PEP 8 compliant
+
+TypeScript:
+  - strict mode enabled
+  - ESLint: all errors fixed
+  - Prettier formatted
+  - No 'any' types without justification
+  - All components documented
+```
+
+### Code Review Process
+
+```yaml
+Requirements:
+  - All code must be reviewed before merge
+  - At least 1 approval required
+  - No merge with failing tests
+  - No merge with security vulnerabilities
+  
+Review Checklist:
+  - Code follows style guide
+  - Tests are included and passing
+  - Documentation is updated
+  - No obvious bugs or security issues
+  - Performance considerations addressed
+  - Error handling is appropriate
+```
+
+### Continuous Integration
+
+```yaml
+CI Pipeline (GitHub Actions):
+  
+  On Pull Request:
+    1. Lint check (Rust, Python, TypeScript)
+    2. Unit tests (all components)
+    3. Integration tests
+    4. Security scan (cargo-audit, bandit, npm audit)
+    5. Build check
+    6. Code coverage report
+  
+  On Merge to Main:
+    1. Full test suite
+    2. Build Docker images
+    3. Tag with commit SHA
+    4. Deploy to staging (optional)
+  
+  On Release Tag:
+    1. Full test suite
+    2. Build production images
+    3. Generate release notes
+    4. Publish documentation
+```
+
+---
+
+## Documentation Requirements
+
+### Technical Documentation
+
+```yaml
+Architecture Documentation:
+  ✓ ARCHITECTURE.md (complete)
+  ✓ DATABASE_SCHEMA.md (complete)
+  ✓ API_CONTRACT.md (complete)
+  ✓ HARDENING_SPEC.md (complete)
+  ✓ MONITORING_SPEC.md (complete)
+  ✓ INTEGRATION_SPEC.md (complete)
+
+Code Documentation:
+  - Inline comments for complex logic
+  - Function/method documentation
+  - Module-level documentation
+  - README in each major directory
+```
 
 ### User Documentation
-- [ ] Installation guide
-- [ ] User manual
-- [ ] Dashboard creation tutorial
-- [ ] Troubleshooting guide
 
-### Operations Documentation
-- [ ] Deployment procedures
-- [ ] Backup/restore procedures
-- [ ] Monitoring/alerting setup
-- [ ] Upgrade procedures
+```yaml
+User Manual:
+  - Getting started guide
+  - Target management
+  - Hardening system usage
+  - Monitoring dashboard
+  - Compliance checking
+  - Alert configuration
+  - FAQ
 
----
+Administrator Guide:
+  - Installation instructions
+  - Configuration guide
+  - User management
+  - System maintenance
+  - Backup and restore
+  - Troubleshooting
+  - Performance tuning
+```
 
-## ✅ Definition of Done (MVP)
+### Deployment Documentation
 
-The MVP is considered complete when:
-
-1. ✅ User can login (JWT authentication)
-2. ✅ User can add target machines (manual + ARP scan)
-3. ✅ System can connect to targets via SSH
-4. ✅ User can apply hardening (base/severo model)
-5. ✅ Monitoring collects data every 30s
-6. ✅ Data is stored in InfluxDB
-7. ✅ User can view at least 3 dashboards:
-   - System overview
-   - Connection monitoring
-   - Compliance status
-8. ✅ Alerting works (email + one webhook)
-9. ✅ RBAC works (sysadmin vs reporter)
-10. ✅ Basic security measures implemented (OWASP)
-
----
-
-## 📞 Support & Maintenance
-
-### Logging
-- Application logs: `/var/log/microsiem/app.log`
-- Nginx logs: `/var/log/nginx/`
-- Systemd journal: `journalctl -u microsiem`
-
-### Monitoring
-- Health check endpoint: `/api/health`
-- Metrics endpoint: `/api/metrics`
-- Database connection status
-
-### Backup Strategy
-- PostgreSQL: Daily automated backups
-- InfluxDB: Retention policy + manual backups
-- Configuration files: Version controlled
+```yaml
+Deployment Guide:
+  ✓ DEPLOYMENT_GUIDE.md
+  - LXC deployment
+  - Docker deployment
+  - VM deployment
+  - Network configuration
+  - SSL certificate setup
+  - Database initialization
+  - Post-deployment checklist
+```
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2025-10-30  
-**Maintained By**: Development Team
+## Success Criteria
+
+### Definition of Done
+
+**A feature is considered "done" when:**
+
+1. ✓ Code is written and reviewed
+2. ✓ Unit tests pass (coverage > 70%)
+3. ✓ Integration tests pass
+4. ✓ Security checks pass
+5. ✓ Performance targets met
+6. ✓ Documentation updated
+7. ✓ Deployed to staging and tested
+8. ✓ Approved by product owner
+
+### Release Criteria (v1.0.0)
+
+**The product is ready for release when:**
+
+1. ✓ All P0 features complete and tested
+2. ✓ All P1 features complete and tested
+3. ✓ Performance targets met:
+   - API p95 < 100ms
+   - Dashboard load < 2s
+   - Support 100+ targets
+4. ✓ Security audit passed
+5. ✓ All critical bugs fixed
+6. ✓ Documentation complete
+7. ✓ Deployment procedures tested
+8. ✓ Backup/restore procedures tested
+9. ✓ Staging environment stable for 2 weeks
+10. ✓ Load testing passed
+
+### Success Metrics
+
+```yaml
+Technical Metrics:
+  - System uptime: > 99.5%
+  - API error rate: < 0.1%
+  - Test coverage: > 70%
+  - Security vulnerabilities: 0 critical, 0 high
+
+Performance Metrics:
+  - API response time (p95): < 100ms
+  - Dashboard load time: < 2s
+  - Data collection cycle: < 5s
+  - Targets supported: 100+
+
+User Metrics (Post-Launch):
+  - User satisfaction: > 4.0/5.0
+  - Feature adoption: > 80% of users use core features
+  - Support tickets: < 10 per week
+  - Bugs reported: < 5 per week
+```
+
+---
+
+## Risk Management
+
+### Identified Risks
+
+```yaml
+Technical Risks:
+  1. SSH connectivity issues with targets
+     Mitigation: Robust error handling, retry mechanism
+  
+  2. Performance degradation with many targets
+     Mitigation: Async processing, connection pooling, caching
+  
+  3. Integration API changes (Sentinel Core, FireDog)
+     Mitigation: API versioning, integration tests, fallback logic
+  
+  4. Data loss during hardening
+     Mitigation: Always create backup, rollback capability
+  
+  5. Security vulnerabilities
+     Mitigation: OWASP compliance, security audits, pen testing
+
+Operational Risks:
+  1. Inadequate documentation
+     Mitigation: Documentation as part of DoD
+  
+  2. Insufficient testing
+     Mitigation: Comprehensive test suite, CI/CD
+  
+  3. Deployment failures
+     Mitigation: Deployment scripts, staging environment
+  
+  4. Resource constraints
+     Mitigation: Clear resource requirements, monitoring
+
+Business Risks:
+  1. Delayed release
+     Mitigation: Agile methodology, regular checkpoints
+  
+  2. Scope creep
+     Mitigation: Clear requirements, change control
+  
+  3. Competitive pressure
+     Mitigation: Focus on differentiators, MVP approach
+```
+
+---
+
+## Appendices
+
+### Appendix A: Glossary
+
+```yaml
+Terms:
+  SIEM: Security Information and Event Management
+  Hardening: Process of securing a system by reducing vulnerabilities
+  Compliance: Adherence to security standards (NIS2, PCI-DSS, ISO27001)
+  Target: A Linux system managed by MicroSIEM
+  Model: A hardening configuration template
+  Collector: A bash script that gathers monitoring data
+  Correlation: Linking vulnerabilities with active threats
+  JWT: JSON Web Token (authentication mechanism)
+  CSRF: Cross-Site Request Forgery
+  Ed25519: Elliptic curve cryptography for SSH keys
+```
+
+### Appendix B: References
+
+```yaml
+Standards:
+  - OWASP Top 10 2021
+  - NIS2 Directive (EU)
+  - PCI-DSS v4.0
+  - ISO/IEC 27001:2022
+  - CIS Benchmarks
+
+Technologies:
+  - Rust: https://www.rust-lang.org/
+  - Axum: https://github.com/tokio-rs/axum
+  - React: https://react.dev/
+  - PostgreSQL: https://www.postgresql.org/
+  - InfluxDB: https://www.influxdata.com/
+```
+
+---
+
+**Versione**: 1.0.0  
+**Data**: 2025-11-28  
+**Autore**: Development Team  
+**Status**: In Development
