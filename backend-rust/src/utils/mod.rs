@@ -2,4 +2,5 @@
 // CYBERSHEPPARD (MicroSIEM) - Utilities Module
 // ============================================================================
 
-// TODO: Implement utility functions (hashing, encryption, etc.)
+pub mod jwt;
+pub mod auth;

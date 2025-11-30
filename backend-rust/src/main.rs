@@ -10,6 +10,7 @@ mod services;
 mod utils;
 
 use axum::{
+    middleware as axum_middleware,
     routing::{get, post},
     Router,
 };
@@ -23,6 +24,8 @@ use tower_http::{
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::db::{influxdb::InfluxDbClient, postgresql::PostgresPool};
+use crate::middleware::auth::auth_middleware;
+use crate::middleware::csrf::csrf_middleware;
 
 /// Application state shared across handlers
 #[derive(Clone)]
@@ -72,27 +75,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Build the main application router
 fn build_router(state: AppState) -> Router {
-    Router::new()
-        // Health check
+    // Public routes (no authentication required)
+    let public_routes = Router::new()
         .route("/health", get(health_check))
+        .nest("/api/auth", api::auth::routes());
 
-        // API routes
-        .nest("/api/auth", api::auth::routes())
+    // Protected routes (require authentication)
+    let protected_routes = Router::new()
+        .nest("/api/auth", api::auth::protected_routes())
         .nest("/api/targets", api::targets::routes())
         .nest("/api/hardening", api::hardening::routes())
         .nest("/api/monitoring", api::monitoring::routes())
         .nest("/api/compliance", api::compliance::routes())
         .nest("/api/settings", api::settings::routes())
         .nest("/api/integrations", api::integrations::routes())
-
-        // WebSocket routes
         .route("/ws/logs", get(api::websocket::log_stream_handler))
         .route("/ws/monitoring/:target_id", get(api::websocket::monitoring_stream_handler))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            csrf_middleware,
+        ))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
 
-        // State
+    // Combine routes
+    Router::new()
+        .merge(public_routes)
+        .merge(protected_routes)
         .with_state(state)
-
-        // Middleware layers
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::default()))
