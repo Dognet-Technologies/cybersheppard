@@ -206,8 +206,63 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-
-# OS
+# Sistema Operativo
 .gitignore
 README_PRIV.md
 Microsiem.sublime-*
+
+# ============================================================================
+# CYBERSHEPPARD SPECIFIC
+# ============================================================================
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Rust
+backend-rust/target/
+backend-rust/Cargo.lock
+
+# Node.js / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Django
+backend-django/db.sqlite3
+backend-django/*.pyc
+backend-django/staticfiles/
+backend-django/media/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+*.tmp
+
+# Backups
+backups/
+
+# SSH Keys (NEVER commit!)
+ssh-keys/
+*.pem
+*.key
+!*.pub
+
+# Database dumps
+*.dump
+*.sql.gz
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
