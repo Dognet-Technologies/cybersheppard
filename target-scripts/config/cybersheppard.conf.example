@@ -1,0 +1,25 @@
+# ============================================================================
+# CYBERSHEPPARD - Target Configuration
+# ============================================================================
+# This file should be placed at /etc/cybersheppard/config.conf
+
+# Backend API Configuration
+CYBERSHEPPARD_API_URL="http://your-backend-server:8080"
+CYBERSHEPPARD_API_KEY="your-api-key-here"
+CYBERSHEPPARD_TARGET_ID="1"
+
+# Collection Interval (seconds)
+# Default: 30 seconds
+INTERVAL=30
+
+# Enable verbose logging
+# Default: false
+VERBOSE=false
+
+# Collectors to Enable
+# Uncomment to disable specific collectors
+# DISABLE_SYSTEM_METRICS=true
+# DISABLE_AUDITD=true
+# DISABLE_SUDO=true
+# DISABLE_NETWORK=true
+# DISABLE_PROCESS=true
