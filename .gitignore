@@ -207,6 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 # Sistema Operativo
+# OS
 .gitignore
 README_PRIV.md
 Microsiem.sublime-*
