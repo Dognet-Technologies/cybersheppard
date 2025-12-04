@@ -147,6 +147,78 @@
 	},
 	"buffers":
 	[
+		{
+			"file": "backend-django/hardening_engine/applier/applier.py",
+			"settings":
+			{
+				"buffer_size": 15326,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/home/simone/Lavoro/DOGNET/Documentazione_Lavoro/Progetti/SitoWeb_TemaWP/index_svg_version.html",
+			"settings":
+			{
+				"buffer_size": 19932,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			},
+			"undo_stack":
+			[
+				[
+					5,
+					1,
+					"insert",
+					{
+						"characters": "\n"
+					},
+					"AQAAAMMIAAAAAAAAzAgAAAAAAAAAAAAA",
+					"AQAAAAAAAAABAAAAwwgAAAAAAADDCAAAAAAAAAAAAAAAAFVA"
+				],
+				[
+					7,
+					1,
+					"",
+					null,
+					"AQAAAMwIAAAAAAAA0wsAAAAAAAAAAAAA",
+					"AQAAAAAAAAABAAAAzAgAAAAAAADMCAAAAAAAAAAAAAAAAPC/"
+				],
+				[
+					13,
+					1,
+					"indent",
+					null,
+					"NgAAANsIAAAAAAAA3wgAAAAAAAAAAAAA9AgAAAAAAAD4CAAAAAAAAAAAAAAKCQAAAAAAAA4JAAAAAAAAAAAAAB0JAAAAAAAAIQkAAAAAAAAAAAAAQgkAAAAAAABGCQAAAAAAAAAAAABeCQAAAAAAAGIJAAAAAAAAAAAAAHcJAAAAAAAAewkAAAAAAAAAAAAAkgkAAAAAAACWCQAAAAAAAAAAAACxCQAAAAAAALUJAAAAAAAAAAAAAMkJAAAAAAAAzQkAAAAAAAAAAAAAEQoAAAAAAAAVCgAAAAAAAAAAAAAuCgAAAAAAADIKAAAAAAAAAAAAAEMKAAAAAAAARwoAAAAAAAAAAAAAcQoAAAAAAAB1CgAAAAAAAAAAAACfCgAAAAAAAKMKAAAAAAAAAAAAAMwKAAAAAAAA0AoAAAAAAAAAAAAA4goAAAAAAADmCgAAAAAAAAAAAAAJCwAAAAAAAA0LAAAAAAAAAAAAACYLAAAAAAAAKgsAAAAAAAAAAAAALQsAAAAAAAAxCwAAAAAAAAAAAABWCwAAAAAAAFoLAAAAAAAAAAAAAG8LAAAAAAAAcwsAAAAAAAAAAAAAgwsAAAAAAACHCwAAAAAAAAAAAACwCwAAAAAAALQLAAAAAAAAAAAAANwLAAAAAAAA4AsAAAAAAAAAAAAACAwAAAAAAAAMDAAAAAAAAAAAAAA5DAAAAAAAAD0MAAAAAAAAAAAAANsIAAAAAAAA3wgAAAAAAAAAAAAA+AgAAAAAAAD8CAAAAAAAAAAAAAASCQAAAAAAABYJAAAAAAAAAAAAACkJAAAAAAAALQkAAAAAAAAAAAAAUgkAAAAAAABWCQAAAAAAAAAAAAByCQAAAAAAAHYJAAAAAAAAAAAAAI8JAAAAAAAAkwkAAAAAAAAAAAAArgkAAAAAAACyCQAAAAAAAAAAAADRCQAAAAAAANUJAAAAAAAAAAAAAO0JAAAAAAAA8QkAAAAAAAAAAAAAOQoAAAAAAAA9CgAAAAAAAAAAAABaCgAAAAAAAF4KAAAAAAAAAAAAAHMKAAAAAAAAdwoAAAAAAAAAAAAApQoAAAAAAACpCgAAAAAAAAAAAADXCgAAAAAAANsKAAAAAAAAAAAAAAgLAAAAAAAADAsAAAAAAAAAAAAAIgsAAAAAAAAmCwAAAAAAAAAAAABNCwAAAAAAAFELAAAAAAAAAAAAAG4LAAAAAAAAcgsAAAAAAAAAAAAAeQsAAAAAAAB9CwAAAAAAAAAAAACmCwAAAAAAAKoLAAAAAAAAAAAAAMMLAAAAAAAAxwsAAAAAAAAAAAAA2wsAAAAAAADfCwAAAAAAAAAAAAAMDAAAAAAAABAMAAAAAAAAAAAAADwMAAAAAAAAQAwAAAAAAAAAAAAAbAwAAAAAAABwDAAAAAAAAAAAAAChDAAAAAAAAKUMAAAAAAAAAAAAAA",
+					"AQAAAAAAAAABAAAA0gsAAAAAAADbCAAAAAAAAAAAAAAAAPC/"
+				],
+				[
+					41,
+					1,
+					"insert",
+					{
+						"characters": "\n"
+					},
+					"AQAAAJRNAAAAAAAAmU0AAAAAAAAAAAAA",
+					"AQAAAAAAAAABAAAAlE0AAAAAAACUTQAAAAAAAAAAAAAAAPC/"
+				],
+				[
+					43,
+					1,
+					"",
+					null,
+					"AQAAAJlNAAAAAAAA0k0AAAAAAAAAAAAA",
+					"AQAAAAAAAAABAAAAmU0AAAAAAACZTQAAAAAAAAAAAAAAAPC/"
+				],
+				[
+					52,
+					1,
+					"",
+					null,
+					"AQAAAKNNAAAAAAAArE0AAAAAAAAQAAAAb3JpZ2luZS1lLXN0b3JpYQ",
+					"AQAAAAAAAAABAAAAs00AAAAAAACjTQAAAAAAAAAAAAAAAPC/"
+				]
+			]
+		}
 	],
 	"build_system": "",
 	"build_system_choices":
@@ -213,7 +285,12 @@
 	"expanded_folders":
 	[
 		"/home/simone/Repos/Progetti/CyberSheppard-Microsiem",
-		"/home/simone/Repos/Progetti/CyberSheppard-Microsiem/microsiem"
+		"/home/simone/Repos/Progetti/CyberSheppard-Microsiem/backend-django",
+		"/home/simone/Repos/Progetti/CyberSheppard-Microsiem/backend-django/cybersheppard",
+		"/home/simone/Repos/Progetti/CyberSheppard-Microsiem/backend-django/hardening_engine",
+		"/home/simone/Repos/Progetti/CyberSheppard-Microsiem/backend-django/hardening_engine/applier",
+		"/home/simone/Repos/Progetti/CyberSheppard-Microsiem/backend-django/integrations",
+		"/home/simone/Repos/Progetti/CyberSheppard-Microsiem/backend-django/notifications"
 	],
 	"file_history":
 	[
@@ -434,6 +511,232 @@
 		{
 			"sheets":
 			[
+				{
+					"buffer": 0,
+					"file": "backend-django/hardening_engine/applier/applier.py",
+					"semi_transient": true,
+					"settings":
+					{
+						"buffer_size": 15326,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"bracket_highlighter.busy": false,
+							"bracket_highlighter.locations":
+							{
+								"close":
+								{
+								},
+								"icon":
+								{
+								},
+								"open":
+								{
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.regions":
+							[
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_angle_content",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_c_define_content",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_curly_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_double_quote_content",
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_regex_content",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_round_content",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close",
+								"bh_single_quote_content",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_square_content",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_tag_content",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content"
+							],
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1548.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"stack_multiselect": false,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "/home/simone/Lavoro/DOGNET/Documentazione_Lavoro/Progetti/SitoWeb_TemaWP/index_svg_version.html",
+					"selected": true,
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 19932,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								19884,
+								19884
+							]
+						],
+						"settings":
+						{
+							"bracket_highlighter.busy": false,
+							"bracket_highlighter.locations":
+							{
+								"close":
+								{
+									"1":
+									[
+										19884,
+										19885
+									]
+								},
+								"icon":
+								{
+									"1":
+									[
+										"Packages/BracketHighlighter/icons/double_quote.png",
+										"scope"
+									]
+								},
+								"open":
+								{
+									"1":
+									[
+										19873,
+										19874
+									]
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.regions":
+							[
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_angle_content",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_c_define_content",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_curly_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_double_quote_content",
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_regex_content",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_round_content",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close",
+								"bh_single_quote_content",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_square_content",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_tag_content",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content"
+							],
+							"syntax": "Packages/HTML/HTML.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1441.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"stack_multiselect": false,
+					"type": "text"
+				}
 			]
 		},
 		{

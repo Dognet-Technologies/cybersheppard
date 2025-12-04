@@ -267,3 +267,5 @@ ssh-keys/
 # OS
 .DS_Store
 Thumbs.db
+*.sublime-*
+.gitignore
