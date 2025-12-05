@@ -9,6 +9,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -557,7 +558,7 @@ async fn get_target_status(
     Path(id): Path<i32>,
     _auth_user: AuthUser,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
-    let target = sqlx::query_as::<_, (i32, String, String, Option<String>, Option<DateTime<_>>, Option<DateTime<_>>, bool, i32)>(
+    let target = sqlx::query_as::<_, (i32, String, String, Option<String>, Option<DateTime<Utc>>, Option<DateTime<Utc>>, bool, i32)>(
         r#"
         SELECT id, hostname, status, status_message, last_seen, last_check,
                monitoring_enabled, monitoring_errors_count
