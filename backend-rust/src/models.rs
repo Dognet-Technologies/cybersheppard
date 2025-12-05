@@ -141,3 +141,66 @@ pub struct ProcessInfo {
     pub mem: f64,
     pub command: String,
 }
+
+// ============================================================================
+// Compliance Models
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct CompliancePolicy {
+    pub id: i32,
+    pub target_id: Option<i32>,
+    pub hardening_model_id: Option<i32>,
+    pub name: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub metric_name: String,
+    pub threshold_type: String,
+    pub threshold_value_max: Option<i32>,
+    pub threshold_value_min: Option<i32>,
+    pub time_window_minutes: i32,
+    pub severity: String,
+    pub auto_notify: bool,
+    pub auto_remediate: bool,
+    pub remediation_action: Option<String>,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct ComplianceViolation {
+    pub id: i64,
+    pub target_id: i32,
+    pub policy_id: Option<i32>,
+    pub metric_name: String,
+    pub category: String,
+    pub detected_value: serde_json::Value,
+    pub threshold_value: Option<serde_json::Value>,
+    pub deviation: Option<f64>,
+    pub severity: String,
+    pub confidence: f64,
+    pub event_details: Option<serde_json::Value>,
+    pub related_events_count: i32,
+    pub status: String,
+    pub first_detected_at: DateTime<Utc>,
+    pub last_detected_at: DateTime<Utc>,
+    pub occurrences: i32,
+    pub acknowledged_by: Option<i32>,
+    pub acknowledged_at: Option<DateTime<Utc>>,
+    pub resolved_by: Option<i32>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub resolution_notes: Option<String>,
+    pub actions_taken: Option<serde_json::Value>,
+    pub notification_sent: bool,
+    pub notification_sent_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ViolationSummary {
+    pub critical: i32,
+    pub high: i32,
+    pub medium: i32,
+    pub low: i32,
+    pub total: i32,
+}

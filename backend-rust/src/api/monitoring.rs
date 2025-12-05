@@ -13,6 +13,7 @@ use chrono::Utc;
 use serde_json::json;
 
 use crate::models::MonitoringDataPayload;
+use crate::services::compliance::ComplianceEngine;
 use crate::AppState;
 
 pub fn routes() -> Router<crate::AppState> {
@@ -64,6 +65,39 @@ async fn receive_monitoring_data(
         // Continue even if InfluxDB write fails
     }
 
+    // ✨ COMPLIANCE CHECK: Evaluate behavioral compliance
+    let compliance_engine = ComplianceEngine::new(state.pg_pool.clone());
+    let mut violations_count = 0;
+    let mut compliance_status = String::from("compliant");
+
+    match compliance_engine.evaluate_compliance(target_id, &payload).await {
+        Ok(violations) => {
+            violations_count = violations.len();
+
+            if !violations.is_empty() {
+                tracing::warn!(
+                    "🚨 {} compliance violation(s) detected for target {}",
+                    violations_count,
+                    target_id
+                );
+
+                // Record violations in database
+                if let Err(e) = compliance_engine.record_violations(target_id, violations).await {
+                    tracing::error!("Failed to record violations: {}", e);
+                }
+
+                // Get updated compliance status
+                if let Ok((status, _score)) = compliance_engine.get_compliance_status(target_id).await {
+                    compliance_status = status;
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to evaluate compliance: {}", e);
+            // Continue processing even if compliance check fails
+        }
+    }
+
     // Update target's last_monitoring_at timestamp
     sqlx::query(
         "UPDATE targets SET last_monitoring_at = $1, last_seen = $1 WHERE id = $2"
@@ -77,12 +111,21 @@ async fn receive_monitoring_data(
         AppError::InternalServerError
     })?;
 
-    tracing::info!("✅ Monitoring data processed for target {}", target_id);
+    tracing::info!(
+        "✅ Monitoring data processed for target {} (violations: {}, status: {})",
+        target_id,
+        violations_count,
+        compliance_status
+    );
 
     Ok(Json(json!({
         "status": "success",
         "message": "Monitoring data received and processed",
-        "target_id": target_id
+        "target_id": target_id,
+        "compliance": {
+            "violations_detected": violations_count,
+            "status": compliance_status
+        }
     })))
 }
 
