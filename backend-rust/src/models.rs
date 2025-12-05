@@ -72,3 +72,72 @@ pub struct TargetNetworkInterface {
     pub is_primary: bool,
     pub created_at: DateTime<Utc>,
 }
+
+// ============================================================================
+// Monitoring Models
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MonitoringDataPayload {
+    pub target_id: String,
+    pub timestamp: DateTime<Utc>,
+    pub data: MonitoringData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MonitoringData {
+    pub system_metrics: Option<SystemMetrics>,
+    pub auditd: Option<AuditdMetrics>,
+    pub sudo: Option<SudoMetrics>,
+    pub network: Option<NetworkMetrics>,
+    pub processes: Option<ProcessesMetrics>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SystemMetrics {
+    pub cpu_usage: Option<f64>,
+    pub memory_usage: Option<f64>,
+    pub disk_usage: Option<f64>,
+    pub load_average: Option<String>,
+    pub uptime: Option<String>,
+    pub failed_services: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuditdMetrics {
+    pub status: Option<String>,
+    pub events_last_hour: Option<i64>,
+    pub failed_logins: Option<i64>,
+    pub config_changes: Option<i64>,
+    pub privilege_escalations: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SudoMetrics {
+    pub commands_last_hour: Option<i64>,
+    pub failed_attempts: Option<i64>,
+    pub unique_users: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NetworkMetrics {
+    pub active_connections: Option<i64>,
+    pub listening_ports: Option<Vec<i32>>,
+    pub failed_ssh_attempts: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProcessesMetrics {
+    pub total_processes: Option<i64>,
+    pub zombie_processes: Option<i64>,
+    pub high_cpu_processes: Option<Vec<ProcessInfo>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProcessInfo {
+    pub user: String,
+    pub pid: i32,
+    pub cpu: f64,
+    pub mem: f64,
+    pub command: String,
+}
