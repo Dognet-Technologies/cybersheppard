@@ -1,0 +1,771 @@
+openapi: 3.0.3
+info:
+  title: CyberSheppard (MicroSIEM) API
+  version: 1.0.0
+  description: |
+    **CyberSheppard** is a Linux hardening and behavioral compliance monitoring system.
+
+    This API provides endpoints for:
+    - Target management
+    - Hardening operations
+    - Compliance monitoring
+    - Real-time event streaming (WebSocket)
+    - Security integrations
+
+  contact:
+    name: Dognet Technologies
+    url: https://github.com/Dognet-Technologies/cybersheppard
+
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://cybersheppard.local/api
+    description: Production server
+  - url: http://localhost:8080/api
+    description: Development server
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Targets
+    description: Linux target management
+  - name: Hardening
+    description: Security hardening operations
+  - name: Monitoring
+    description: Real-time monitoring data
+  - name: Compliance
+    description: Compliance violations and policies
+  - name: WebSocket
+    description: Real-time streaming endpoints
+  - name: Integrations
+    description: External service integrations
+  - name: Settings
+    description: System configuration
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ==================================================
+  # Authentication
+  # ==================================================
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, password]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  example: admin
+                email:
+                  type: string
+                  format: email
+                  example: admin@cybersheppard.local
+                password:
+                  type: string
+                  minLength: 8
+                  example: SecurePassword123!
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: User already exists
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  example: SecurePassword123!
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  expires_in:
+                    type: integer
+                    example: 3600
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  expires_in:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================================================
+  # Targets
+  # ==================================================
+  /targets:
+    get:
+      tags: [Targets]
+      summary: List all targets
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [online, offline, error, maintenance]
+      responses:
+        '200':
+          description: List of targets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  targets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Target'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+    post:
+      tags: [Targets]
+      summary: Create new target
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTargetRequest'
+      responses:
+        '201':
+          description: Target created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Target'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /targets/{id}:
+    get:
+      tags: [Targets]
+      summary: Get target by ID
+      parameters:
+        - $ref: '#/components/parameters/TargetId'
+      responses:
+        '200':
+          description: Target details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Target'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Targets]
+      summary: Update target
+      parameters:
+        - $ref: '#/components/parameters/TargetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTargetRequest'
+      responses:
+        '200':
+          description: Target updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Target'
+
+    delete:
+      tags: [Targets]
+      summary: Delete target
+      parameters:
+        - $ref: '#/components/parameters/TargetId'
+      responses:
+        '204':
+          description: Target deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================================================
+  # Hardening
+  # ==================================================
+  /hardening/models:
+    get:
+      tags: [Hardening]
+      summary: List hardening models
+      responses:
+        '200':
+          description: List of hardening models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HardeningModel'
+
+  /hardening/apply:
+    post:
+      tags: [Hardening]
+      summary: Apply hardening to target
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_id, model_id]
+              properties:
+                target_id:
+                  type: integer
+                model_id:
+                  type: integer
+                dry_run:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Hardening applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HardeningResult'
+
+  # ==================================================
+  # Monitoring
+  # ==================================================
+  /monitoring/data:
+    post:
+      tags: [Monitoring]
+      summary: Receive monitoring data from target
+      description: Endpoint for target collectors to send monitoring metrics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MonitoringDataPayload'
+      responses:
+        '200':
+          description: Data received and processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  target_id:
+                    type: integer
+                  compliance:
+                    type: object
+                    properties:
+                      violations_detected:
+                        type: integer
+                      status:
+                        type: string
+                        enum: [compliant, non_compliant]
+
+  # ==================================================
+  # Compliance
+  # ==================================================
+  /compliance/violations:
+    get:
+      tags: [Compliance]
+      summary: List compliance violations
+      parameters:
+        - name: target_id
+          in: query
+          schema:
+            type: integer
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [new, acknowledged, investigating, resolved, false_positive]
+      responses:
+        '200':
+          description: List of violations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  violations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ComplianceViolation'
+                  summary:
+                    $ref: '#/components/schemas/ViolationSummary'
+
+  /compliance/violations/{id}:
+    get:
+      tags: [Compliance]
+      summary: Get violation details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Violation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceViolation'
+
+  /compliance/violations/{id}/acknowledge:
+    post:
+      tags: [Compliance]
+      summary: Acknowledge violation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Violation acknowledged
+
+  /compliance/violations/{id}/resolve:
+    post:
+      tags: [Compliance]
+      summary: Resolve violation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution_notes]
+              properties:
+                status:
+                  type: string
+                  enum: [resolved, false_positive]
+                  default: resolved
+                resolution_notes:
+                  type: string
+      responses:
+        '200':
+          description: Violation resolved
+
+  # ==================================================
+  # WebSocket (Documentation only - actual connection via ws://)
+  # ==================================================
+  /ws/logs:
+    get:
+      tags: [WebSocket]
+      summary: Real-time logs streaming
+      description: |
+        WebSocket endpoint for streaming audit logs in real-time.
+
+        Connect using: `ws://cybersheppard.local/ws/logs`
+
+        Message format:
+        ```json
+        {
+          "type": "log",
+          "level": "info",
+          "action": "user_login",
+          "resource": "users",
+          "user_id": 1,
+          "ip": "192.168.1.100",
+          "timestamp": "2025-12-10T10:00:00Z"
+        }
+        ```
+      responses:
+        '101':
+          description: Switching Protocols
+
+  /ws/monitoring/{target_id}:
+    get:
+      tags: [WebSocket]
+      summary: Real-time target monitoring
+      description: |
+        WebSocket endpoint for streaming target metrics.
+
+        Message types:
+        - `connected`: Connection confirmation
+        - `heartbeat`: Keep-alive (every 30s)
+        - `monitoring`: Real-time metrics data
+      parameters:
+        - $ref: '#/components/parameters/TargetId'
+      responses:
+        '101':
+          description: Switching Protocols
+
+  /ws/violations:
+    get:
+      tags: [WebSocket]
+      summary: Real-time violations streaming
+      description: Stream new compliance violations as they are detected
+      responses:
+        '101':
+          description: Switching Protocols
+
+  /ws/system:
+    get:
+      tags: [WebSocket]
+      summary: System-wide events streaming
+      description: Stream system statistics and events
+      responses:
+        '101':
+          description: Switching Protocols
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    TargetId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: Target ID
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, operator, viewer]
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    Target:
+      type: object
+      properties:
+        id:
+          type: integer
+        hostname:
+          type: string
+        ip_address:
+          type: string
+        ssh_port:
+          type: integer
+        status:
+          type: string
+          enum: [online, offline, error, maintenance, unknown]
+        environment:
+          type: string
+          enum: [production, staging, development]
+        hardening_applied:
+          type: boolean
+        hardening_score:
+          type: integer
+        monitoring_enabled:
+          type: boolean
+        last_seen:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CreateTargetRequest:
+      type: object
+      required: [hostname, ip_address, ssh_username]
+      properties:
+        hostname:
+          type: string
+        ip_address:
+          type: string
+        ssh_port:
+          type: integer
+          default: 22
+        ssh_username:
+          type: string
+        ssh_key_id:
+          type: integer
+        environment:
+          type: string
+          enum: [production, staging, development]
+        gruppo:
+          type: string
+        tags:
+          type: object
+
+    UpdateTargetRequest:
+      type: object
+      properties:
+        hostname:
+          type: string
+        status:
+          type: string
+        monitoring_enabled:
+          type: boolean
+        tags:
+          type: object
+
+    HardeningModel:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        severity:
+          type: string
+        operations:
+          type: array
+          items:
+            type: object
+
+    HardeningResult:
+      type: object
+      properties:
+        target_id:
+          type: integer
+        model_id:
+          type: integer
+        status:
+          type: string
+          enum: [success, partial, failed]
+        operations_total:
+          type: integer
+        operations_success:
+          type: integer
+        operations_failed:
+          type: integer
+        logs:
+          type: array
+          items:
+            type: string
+
+    MonitoringDataPayload:
+      type: object
+      required: [target_id, timestamp, data]
+      properties:
+        target_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          type: object
+          properties:
+            system_metrics:
+              type: object
+              properties:
+                cpu_usage:
+                  type: number
+                memory_usage:
+                  type: number
+                disk_usage:
+                  type: number
+            auditd:
+              type: object
+              properties:
+                status:
+                  type: string
+                events_last_hour:
+                  type: integer
+                failed_logins:
+                  type: integer
+            network:
+              type: object
+              properties:
+                active_connections:
+                  type: integer
+                failed_ssh_attempts:
+                  type: integer
+
+    ComplianceViolation:
+      type: object
+      properties:
+        id:
+          type: integer
+        target_id:
+          type: integer
+        metric_name:
+          type: string
+        category:
+          type: string
+        detected_value:
+          type: object
+        threshold_value:
+          type: object
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+        status:
+          type: string
+          enum: [new, acknowledged, investigating, resolved, false_positive]
+        first_detected_at:
+          type: string
+          format: date-time
+        occurrences:
+          type: integer
+
+    ViolationSummary:
+      type: object
+      properties:
+        critical:
+          type: integer
+        high:
+          type: integer
+        medium:
+          type: integer
+        low:
+          type: integer
+        total:
+          type: integer
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Unauthorized - Authentication required
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Resource not found

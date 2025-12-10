@@ -89,8 +89,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/api/compliance", api::compliance::routes())
         .nest("/api/settings", api::settings::routes())
         .nest("/api/integrations", api::integrations::routes())
-        .route("/ws/logs", get(api::websocket::log_stream_handler))
-        .route("/ws/monitoring/:target_id", get(api::websocket::monitoring_stream_handler))
+        .nest("/ws", api::websocket::routes())
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),
             csrf_middleware,
