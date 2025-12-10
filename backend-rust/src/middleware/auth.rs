@@ -62,7 +62,7 @@ pub async fn auth_middleware(
     headers: HeaderMap,
     mut request: Request,
     next: Next,
-) -> Result<Response, impl IntoResponse> {
+) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
     // Extract Authorization header
     let auth_header = headers
         .get("Authorization")
