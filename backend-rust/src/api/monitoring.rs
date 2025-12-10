@@ -131,26 +131,106 @@ async fn receive_monitoring_data(
 
 /// Store metrics in InfluxDB
 async fn store_metrics_in_influx(
-    _state: &AppState,
+    state: &AppState,
     payload: &MonitoringDataPayload,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: Implement proper InfluxDB writes
-    // For now, log metrics - full InfluxDB integration will be completed during testing
+    use influxdb::{InfluxDbWriteable, Timestamp, WriteQuery};
+    use chrono::Utc;
 
-    tracing::debug!(
-        "Would write monitoring data to InfluxDB for target {}: system_metrics={}, auditd={}, network={}, processes={}",
-        payload.target_id,
-        payload.data.system_metrics.is_some(),
-        payload.data.auditd.is_some(),
-        payload.data.network.is_some(),
-        payload.data.processes.is_some()
-    );
+    let timestamp = Timestamp::from(payload.timestamp);
+    let bucket = &state.influx_client.bucket_metrics;
+    let target_id = &payload.target_id;
 
-    // Future implementation will:
-    // 1. Create InfluxDB WriteQuery points for each metric category
-    // 2. Use state.influx_client to write points to the metrics bucket
-    // 3. Handle errors and retries appropriately
+    // Write system metrics
+    if let Some(ref metrics) = payload.data.system_metrics {
+        if let Some(cpu_usage) = metrics.cpu_usage {
+            let query = WriteQuery::new(timestamp, "system_cpu")
+                .add_tag("target_id", target_id.clone())
+                .add_field("usage", cpu_usage);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
 
+        if let Some(memory_usage) = metrics.memory_usage {
+            let query = WriteQuery::new(timestamp, "system_memory")
+                .add_tag("target_id", target_id.clone())
+                .add_field("usage", memory_usage);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+
+        if let Some(disk_usage) = metrics.disk_usage {
+            let query = WriteQuery::new(timestamp, "system_disk")
+                .add_tag("target_id", target_id.clone())
+                .add_field("usage", disk_usage);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+    }
+
+    // Write auditd metrics
+    if let Some(ref metrics) = payload.data.auditd {
+        if let Some(events) = metrics.events_last_hour {
+            let query = WriteQuery::new(timestamp, "auditd_events")
+                .add_tag("target_id", target_id.clone())
+                .add_field("count", events);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+
+        if let Some(failed_logins) = metrics.failed_logins {
+            let query = WriteQuery::new(timestamp, "auditd_failed_logins")
+                .add_tag("target_id", target_id.clone())
+                .add_field("count", failed_logins);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+
+        if let Some(privilege_esc) = metrics.privilege_escalations {
+            let query = WriteQuery::new(timestamp, "auditd_privilege_escalations")
+                .add_tag("target_id", target_id.clone())
+                .add_field("count", privilege_esc);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+
+        if let Some(config_changes) = metrics.config_changes {
+            let query = WriteQuery::new(timestamp, "auditd_config_changes")
+                .add_tag("target_id", target_id.clone())
+                .add_field("count", config_changes);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+    }
+
+    // Write network metrics
+    if let Some(ref metrics) = payload.data.network {
+        if let Some(active_conns) = metrics.active_connections {
+            let query = WriteQuery::new(timestamp, "network_connections")
+                .add_tag("target_id", target_id.clone())
+                .add_field("active", active_conns);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+
+        if let Some(failed_ssh) = metrics.failed_ssh_attempts {
+            let query = WriteQuery::new(timestamp, "network_failed_ssh")
+                .add_tag("target_id", target_id.clone())
+                .add_field("attempts", failed_ssh);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+    }
+
+    // Write process metrics
+    if let Some(ref metrics) = payload.data.processes {
+        if let Some(total) = metrics.total_processes {
+            let query = WriteQuery::new(timestamp, "processes_total")
+                .add_tag("target_id", target_id.clone())
+                .add_field("count", total);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+
+        if let Some(zombie) = metrics.zombie_processes {
+            let query = WriteQuery::new(timestamp, "processes_zombie")
+                .add_tag("target_id", target_id.clone())
+                .add_field("count", zombie);
+            state.influx_client.client.query(&query.into_query(bucket)).await?;
+        }
+    }
+
+    tracing::debug!("Metrics written to InfluxDB for target {}", target_id);
     Ok(())
 }
 
