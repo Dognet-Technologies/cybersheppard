@@ -205,7 +205,7 @@ async fn acknowledge_violation(
         WHERE id = $3
         "#,
     )
-    .bind(auth_user.id)
+    .bind(auth_user.user_id)
     .bind(payload.notes)
     .bind(id)
     .execute(&state.pg_pool)
@@ -252,7 +252,7 @@ async fn resolve_violation(
         "#,
     )
     .bind(&status)
-    .bind(auth_user.id)
+    .bind(auth_user.user_id)
     .bind(&payload.resolution_notes)
     .bind(id)
     .execute(&state.pg_pool)

@@ -187,7 +187,7 @@ impl ComplianceEngine {
             "config_changes" => {
                 let value = auditd.config_changes?;
                 // Config changes are critical - any change triggers violation
-                if value > policy.threshold_value_max.unwrap_or(0) {
+                if value > policy.threshold_value_max.unwrap_or(0) as i64 {
                     return Some(DetectedViolation {
                         policy_id: Some(policy.id),
                         metric_name: metric_name.clone(),
@@ -390,7 +390,7 @@ impl ComplianceEngine {
 
         for violation in violations {
             // Check if similar violation already exists (deduplication)
-            let existing = sqlx::query_scalar::<_, Option<i64>>(
+            let existing = sqlx::query_scalar::<_, i64>(
                 r#"
                 SELECT id FROM compliance_violations
                 WHERE target_id = $1
