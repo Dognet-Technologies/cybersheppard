@@ -1,0 +1,49 @@
+[Unit]
+Description=CyberSheppard Rust Backend (API Server)
+Documentation=https://github.com/Dognet-Technologies/cybersheppard
+After=network.target postgresql.service influxdb.service
+Wants=postgresql.service influxdb.service
+
+[Service]
+Type=simple
+User=cybersheppard
+Group=cybersheppard
+WorkingDirectory=/opt/cybersheppard/backend-rust
+EnvironmentFile=/opt/cybersheppard/.env
+
+# Security hardening
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/cybersheppard /var/lib/cybersheppard
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+PrivateDevices=true
+
+# Process limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Executable
+ExecStart=/opt/cybersheppard/backend-rust/target/release/cybersheppard-backend
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Restart policy
+Restart=always
+RestartSec=5s
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cybersheppard-rust
+
+[Install]
+WantedBy=multi-user.target
