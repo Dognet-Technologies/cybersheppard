@@ -132,16 +132,46 @@ impl NotificationService {
         subject: &str,
         body: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // Note: This is a placeholder - real SMTP implementation would use lettre crate
-        tracing::info!(
-            "Would send email to {:?}: {}",
-            config.email_recipients,
-            subject
+        use lettre::transport::smtp::authentication::Credentials;
+        use lettre::{Message, SmtpTransport, Transport};
+        use lettre::message::header::ContentType;
+
+        // Skip if no recipients
+        if config.email_recipients.is_empty() {
+            tracing::warn!("No email recipients configured, skipping email notification");
+            return Ok(());
+        }
+
+        // Build SMTP transport
+        let creds = Credentials::new(
+            config.smtp_user.clone(),
+            config.smtp_password.clone().unwrap_or_default(),
         );
 
-        // TODO: Implement actual SMTP sending with lettre crate
-        // use lettre::transport::smtp::authentication::Credentials;
-        // use lettre::{Message, SmtpTransport, Transport};
+        let mailer = SmtpTransport::relay(&config.smtp_host)?
+            .credentials(creds)
+            .port(config.smtp_port as u16)
+            .build();
+
+        // Send to all recipients
+        for recipient in &config.email_recipients {
+            let email = Message::builder()
+                .from(config.smtp_from_email.parse()?)
+                .to(recipient.parse()?)
+                .subject(subject)
+                .header(ContentType::TEXT_PLAIN)
+                .body(body.to_string())?;
+
+            match mailer.send(&email) {
+                Ok(_) => {
+                    tracing::info!("Email notification sent to {}: {}", recipient, subject);
+                }
+                Err(e) => {
+                    tracing::error!("Failed to send email to {}: {:?}", recipient, e);
+                    // Continue with other recipients even if one fails
+                }
+            }
+        }
 
         Ok(())
     }

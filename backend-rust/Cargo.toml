@@ -34,6 +34,9 @@ sha2 = "0.10"
 # HTTP client (for integrations)
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
+# Email notifications
+lettre = { version = "0.11", features = ["builder", "tokio1", "tokio1-rustls-tls", "smtp-transport"] }
+
 # Date/Time
 chrono = { version = "0.4", features = ["serde"] }
 
