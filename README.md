@@ -45,10 +45,10 @@ cybersheppard/
 
 ## 📚 Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [API Documentation](docs/API_CONTRACT.md)
-- [Database Schema](docs/DATABASE_SCHEMA.md)
-- [Hardening Guide](docs/HARDENING_SPEC.md)
+- [Architecture](documentazione/ARCHITECTURE.md)
+- [API Documentation](documentazione/API_CONTRACT.md)
+- [Database Schema](documentazione/DATABASE_SCHEMA.md)
+- [Hardening Guide](documentazione/HARDENING_SPEC.md)
 
 ---
 
