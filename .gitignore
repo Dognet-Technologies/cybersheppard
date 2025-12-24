@@ -269,3 +269,6 @@ ssh-keys/
 Thumbs.db
 *.sublime-*
 .gitignore
+ScriptUtili/
+script/
+tests/
