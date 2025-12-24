@@ -8,7 +8,7 @@ CyberSheppard is a comprehensive security platform that combines automated Linux
 
 ## 🎯 Key Features
 
-- ✅ **Automated Linux Hardening** (SSH, auditd, sysctl)
+- ✅ **Automated Linux Hardening** (services, auditd, sysctl)
 - ✅ **Real-time Compliance Monitoring** (16+ policies)
 - ✅ **Multi-Channel Notifications** (Email, Slack, Discord)
 - ✅ **Security Integrations** (Sentinel Core, FireDog)
