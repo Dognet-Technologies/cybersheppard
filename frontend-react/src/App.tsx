@@ -5,6 +5,8 @@ import Violations from './pages/Violations';
 import Targets from './pages/Targets';
 import Monitoring from './pages/Monitoring';
 import Hardening from './pages/Hardening';
+import Integrations from './pages/Integrations';
+import SecurityCorrelations from './pages/SecurityCorrelations';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import { useAuthStore } from './stores/authStore';
@@ -42,6 +44,8 @@ function App() {
             <Route path="violations" element={<Violations />} />
             <Route path="monitoring" element={<Monitoring />} />
             <Route path="hardening" element={<Hardening />} />
+            <Route path="integrations" element={<Integrations />} />
+            <Route path="correlations" element={<SecurityCorrelations />} />
           </Route>
         </Routes>
       </BrowserRouter>

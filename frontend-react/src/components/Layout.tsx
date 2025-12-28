@@ -1,6 +1,6 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { Shield, Home, AlertTriangle, Server, LogOut, Activity, User } from 'lucide-react';
+import { Shield, Home, AlertTriangle, Server, LogOut, Activity, User, Zap, Link2 } from 'lucide-react';
 import api from '../services/api';
 import clsx from 'clsx';
 
@@ -33,6 +33,8 @@ export default function Layout() {
           <NavLink to="/violations" icon={<AlertTriangle />} label="Violations" currentPath={location.pathname} />
           <NavLink to="/monitoring" icon={<Activity />} label="Monitoring" currentPath={location.pathname} />
           <NavLink to="/hardening" icon={<Shield />} label="Hardening" currentPath={location.pathname} />
+          <NavLink to="/integrations" icon={<Link2 />} label="Integrations" currentPath={location.pathname} />
+          <NavLink to="/correlations" icon={<Zap />} label="Correlations" currentPath={location.pathname} />
         </nav>
 
         <div className="absolute bottom-0 w-full p-4 border-t border-gray-800">

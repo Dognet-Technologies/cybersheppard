@@ -198,6 +198,49 @@ class ApiService {
     });
     return response.data;
   }
+
+  // ========================================================================
+  // INTEGRATIONS
+  // ========================================================================
+
+  async getIntegrationStatus() {
+    const response = await this.client.get('/api/integrations/status');
+    return response.data;
+  }
+
+  async triggerSync(integrationName: string) {
+    const response = await this.client.post(`/api/integrations/${integrationName}/sync`);
+    return response.data;
+  }
+
+  async getSecurityCorrelations(params?: Record<string, any>) {
+    const response = await this.client.get('/api/integrations/correlations', { params });
+    return response.data;
+  }
+
+  async getTargetCorrelations(targetId: number) {
+    const response = await this.client.get(`/api/integrations/correlations/target/${targetId}`);
+    return response.data;
+  }
+
+  async acknowledgeCorrelation(correlationId: number) {
+    const response = await this.client.post(
+      `/api/integrations/correlations/${correlationId}/acknowledge`,
+      { acknowledged_by: 'current_user' }
+    );
+    return response.data;
+  }
+
+  async resolveCorrelation(correlationId: number, resolutionNotes: string) {
+    const response = await this.client.post(
+      `/api/integrations/correlations/${correlationId}/resolve`,
+      {
+        resolved_by: 'current_user',
+        resolution_notes: resolutionNotes,
+      }
+    );
+    return response.data;
+  }
 }
 
 export const api = new ApiService();

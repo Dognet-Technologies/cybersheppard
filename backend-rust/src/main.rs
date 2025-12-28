@@ -4,6 +4,7 @@
 
 mod api;
 mod db;
+mod integrations;
 mod middleware;
 mod models;
 mod services;
