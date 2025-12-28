@@ -1,0 +1,119 @@
+# ============================================================================
+# CyberSheppard Hardening Model - SSH (Base)
+# ============================================================================
+# Basic SSH hardening configuration
+# Compliance: NIS2, ISO27001
+
+name: "ssh_hardening_base"
+description: "Basic SSH server hardening configuration"
+compliance_standards:
+  - "NIS2"
+  - "ISO27001"
+
+# ============================================================================
+# Package Operations
+# ============================================================================
+package_operations:
+  - name: "openssh-server"
+    action: "install"
+
+# ============================================================================
+# File Operations
+# ============================================================================
+file_operations:
+  # SSH daemon configuration
+  - path: "/etc/ssh/sshd_config"
+    action: "modify"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+    backup: true
+    content: |
+      # CyberSheppard SSH Hardening - Base Level
+
+      # Protocol and port
+      Port 22
+      Protocol 2
+
+      # Authentication
+      PermitRootLogin no
+      PubkeyAuthentication yes
+      PasswordAuthentication yes
+      PermitEmptyPasswords no
+      ChallengeResponseAuthentication no
+      UsePAM yes
+
+      # Security options
+      X11Forwarding no
+      PrintMotd no
+      AcceptEnv LANG LC_*
+
+      # Subsystem
+      Subsystem sftp /usr/lib/openssh/sftp-server
+
+      # Logging
+      SyslogFacility AUTH
+      LogLevel INFO
+
+      # Connection limits
+      MaxAuthTries 3
+      MaxSessions 10
+      LoginGraceTime 60
+
+      # Ciphers and MACs (secure but compatible)
+      Ciphers aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+      MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
+      KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256
+
+  # SSH banner
+  - path: "/etc/ssh/banner"
+    action: "create"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+    backup: false
+    content: |
+      ******************************************************************************
+      *                           AUTHORIZED ACCESS ONLY                          *
+      ******************************************************************************
+
+      This system is monitored by CyberSheppard MicroSIEM.
+      All activities are logged and may be audited.
+
+      Unauthorized access is prohibited and will be prosecuted to the full
+      extent of the law.
+
+      ******************************************************************************
+
+# ============================================================================
+# Service Operations
+# ============================================================================
+service_operations:
+  - name: "sshd"
+    action: "restart"
+    enabled: true
+
+  - name: "ssh"
+    action: "restart"
+    enabled: true
+
+# ============================================================================
+# Custom Commands
+# ============================================================================
+custom_commands:
+  # Regenerate SSH host keys if needed
+  - "test -f /etc/ssh/ssh_host_ed25519_key || ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ''"
+  - "test -f /etc/ssh/ssh_host_rsa_key || ssh-keygen -t rsa -b 4096 -f /etc/ssh/ssh_host_rsa_key -N ''"
+
+  # Set correct permissions
+  - "chmod 600 /etc/ssh/ssh_host_*_key"
+  - "chmod 644 /etc/ssh/ssh_host_*_key.pub"
+
+# ============================================================================
+# Validation Commands
+# ============================================================================
+validation_commands:
+  - "sshd -t"  # Test SSH configuration
+  - "systemctl is-active sshd || systemctl is-active ssh"
+  - "test -f /etc/ssh/ssh_host_ed25519_key"
+  - "grep -q 'PermitRootLogin no' /etc/ssh/sshd_config"

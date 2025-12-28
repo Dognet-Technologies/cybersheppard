@@ -1,0 +1,55 @@
+[Unit]
+Description=CyberSheppard Django Backend (Hardening Engine)
+Documentation=https://github.com/Dognet-Technologies/cybersheppard
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=cybersheppard
+Group=cybersheppard
+WorkingDirectory=/opt/cybersheppard/backend-django
+EnvironmentFile=/opt/cybersheppard/.env
+
+# Security hardening
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/cybersheppard /var/lib/cybersheppard /var/backups/cybersheppard
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Process limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Executable (using Gunicorn)
+ExecStart=/opt/cybersheppard/backend-django/venv/bin/gunicorn \
+    --bind 127.0.0.1:8001 \
+    --workers 4 \
+    --worker-class sync \
+    --timeout 300 \
+    --access-logfile /var/log/cybersheppard/django-access.log \
+    --error-logfile /var/log/cybersheppard/django-error.log \
+    --log-level info \
+    hardening_engine.wsgi:application
+
+# Restart policy
+Restart=always
+RestartSec=5s
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cybersheppard-django
+
+[Install]
+WantedBy=multi-user.target
