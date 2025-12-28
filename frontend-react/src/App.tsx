@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Dashboard from './pages/Dashboard';
 import Violations from './pages/Violations';
 import Targets from './pages/Targets';
+import Monitoring from './pages/Monitoring';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import { useAuthStore } from './stores/authStore';
@@ -36,8 +37,9 @@ function App() {
             }
           >
             <Route index element={<Dashboard />} />
-            <Route path="violations" element={<Violations />} />
             <Route path="targets" element={<Targets />} />
+            <Route path="violations" element={<Violations />} />
+            <Route path="monitoring" element={<Monitoring />} />
           </Route>
         </Routes>
       </BrowserRouter>
