@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Violations from './pages/Violations';
 import Targets from './pages/Targets';
 import Monitoring from './pages/Monitoring';
+import Hardening from './pages/Hardening';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import { useAuthStore } from './stores/authStore';
@@ -40,6 +41,7 @@ function App() {
             <Route path="targets" element={<Targets />} />
             <Route path="violations" element={<Violations />} />
             <Route path="monitoring" element={<Monitoring />} />
+            <Route path="hardening" element={<Hardening />} />
           </Route>
         </Routes>
       </BrowserRouter>

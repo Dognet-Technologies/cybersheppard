@@ -32,6 +32,7 @@ export default function Layout() {
           <NavLink to="/targets" icon={<Server />} label="Targets" currentPath={location.pathname} />
           <NavLink to="/violations" icon={<AlertTriangle />} label="Violations" currentPath={location.pathname} />
           <NavLink to="/monitoring" icon={<Activity />} label="Monitoring" currentPath={location.pathname} />
+          <NavLink to="/hardening" icon={<Shield />} label="Hardening" currentPath={location.pathname} />
         </nav>
 
         <div className="absolute bottom-0 w-full p-4 border-t border-gray-800">

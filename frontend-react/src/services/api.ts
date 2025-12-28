@@ -170,6 +170,24 @@ class ApiService {
     return response.data;
   }
 
+  async applyHardeningToTarget(targetId: number, modelPath: string) {
+    const response = await this.client.post(`/api/hardening/apply`, {
+      target_id: targetId,
+      model_path: modelPath,
+    });
+    return response.data;
+  }
+
+  async getHardeningApplications(params?: Record<string, any>) {
+    const response = await this.client.get('/api/hardening/applications', { params });
+    return response.data;
+  }
+
+  async getHardeningApplication(id: number) {
+    const response = await this.client.get(`/api/hardening/applications/${id}`);
+    return response.data;
+  }
+
   // ========================================================================
   // MONITORING
   // ========================================================================
