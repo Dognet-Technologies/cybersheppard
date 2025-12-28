@@ -1,0 +1,169 @@
+# ============================================================================
+# CyberSheppard Hardening Model - SSH (Severo)
+# ============================================================================
+# Strict SSH hardening configuration
+# Compliance: NIS2, ISO27001, PCI-DSS
+
+name: "ssh_hardening_severo"
+description: "Strict SSH server hardening configuration"
+compliance_standards:
+  - "NIS2"
+  - "ISO27001"
+  - "PCI-DSS"
+
+# ============================================================================
+# Package Operations
+# ============================================================================
+package_operations:
+  - name: "openssh-server"
+    action: "install"
+
+# ============================================================================
+# File Operations
+# ============================================================================
+file_operations:
+  # SSH daemon configuration - STRICT
+  - path: "/etc/ssh/sshd_config"
+    action: "modify"
+    mode: "0600"
+    owner: "root"
+    group: "root"
+    backup: true
+    content: |
+      # CyberSheppard SSH Hardening - SEVERO Level
+
+      # Protocol and port (consider changing port in production)
+      Port 22
+      Protocol 2
+
+      # Authentication - KEY ONLY, NO PASSWORDS
+      PermitRootLogin no
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      PermitEmptyPasswords no
+      ChallengeResponseAuthentication no
+      UsePAM yes
+
+      # Security options - STRICT
+      X11Forwarding no
+      PermitTunnel no
+      AllowAgentForwarding no
+      AllowTcpForwarding no
+      PrintMotd no
+      AcceptEnv LANG LC_*
+
+      # Subsystem
+      Subsystem sftp /usr/lib/openssh/sftp-server
+
+      # Logging - VERBOSE
+      SyslogFacility AUTH
+      LogLevel VERBOSE
+
+      # Connection limits - STRICT
+      MaxAuthTries 2
+      MaxSessions 5
+      MaxStartups 5:50:10
+      LoginGraceTime 30
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+
+      # Ciphers and MACs - ONLY STRONGEST
+      Ciphers aes256-gcm@openssh.com,aes256-ctr
+      MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+      KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org
+
+      # Host Key Algorithms - ED25519 only
+      HostKeyAlgorithms ssh-ed25519
+
+      # Banner
+      Banner /etc/ssh/banner
+
+      # Allow only specific users/groups (customize in production)
+      # AllowUsers microcyber admin
+      # AllowGroups ssh-users
+
+  # SSH banner - STRICT
+  - path: "/etc/ssh/banner"
+    action: "create"
+    mode: "0644"
+    owner: "root"
+    group: "root"
+    backup: false
+    content: |
+      ******************************************************************************
+      *                    CRITICAL INFRASTRUCTURE - RESTRICTED                   *
+      ******************************************************************************
+
+      WARNING: This is a high-security system monitored by CyberSheppard.
+
+      - All connections are logged with full audit trail
+      - Only authorized key-based authentication is permitted
+      - Unauthorized access attempts will be prosecuted
+      - Session recording is active
+
+      Compliance: NIS2, ISO27001, PCI-DSS
+
+      ******************************************************************************
+
+  # Restrict SSH access via PAM
+  - path: "/etc/security/access.conf"
+    action: "append"
+    backup: true
+    content: |
+      # CyberSheppard SSH Access Control
+      # Allow only from specific networks (customize in production)
+      # -:ALL EXCEPT root microcyber:ALL
+
+# ============================================================================
+# Service Operations
+# ============================================================================
+service_operations:
+  - name: "sshd"
+    action: "restart"
+    enabled: true
+
+  - name: "ssh"
+    action: "restart"
+    enabled: true
+
+# ============================================================================
+# Sysctl Parameters
+# ============================================================================
+sysctl_parameters:
+  # Network hardening for SSH
+  - name: "net.ipv4.tcp_syncookies"
+    value: "1"
+    description: "Enable TCP SYN cookies for DoS protection"
+
+  - name: "net.ipv4.tcp_max_syn_backlog"
+    value: "2048"
+    description: "Increase SYN backlog"
+
+# ============================================================================
+# Custom Commands
+# ============================================================================
+custom_commands:
+  # Remove unused SSH host keys (keep only Ed25519)
+  - "rm -f /etc/ssh/ssh_host_dsa_key* /etc/ssh/ssh_host_ecdsa_key*"
+
+  # Regenerate Ed25519 key if needed
+  - "test -f /etc/ssh/ssh_host_ed25519_key || ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ''"
+
+  # Set strict permissions
+  - "chmod 600 /etc/ssh/ssh_host_ed25519_key"
+  - "chmod 644 /etc/ssh/ssh_host_ed25519_key.pub"
+  - "chmod 600 /etc/ssh/sshd_config"
+
+  # Disable SSH password authentication at PAM level
+  - "sed -i 's/@include common-auth/#@include common-auth/' /etc/pam.d/sshd 2>/dev/null || true"
+
+# ============================================================================
+# Validation Commands
+# ============================================================================
+validation_commands:
+  - "sshd -t"  # Test SSH configuration
+  - "systemctl is-active sshd || systemctl is-active ssh"
+  - "test -f /etc/ssh/ssh_host_ed25519_key"
+  - "grep -q 'PermitRootLogin no' /etc/ssh/sshd_config"
+  - "grep -q 'PasswordAuthentication no' /etc/ssh/sshd_config"
+  - "grep -q 'PubkeyAuthentication yes' /etc/ssh/sshd_config"
