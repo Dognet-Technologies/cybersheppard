@@ -52,9 +52,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create application state
     let state = AppState {
-        pg_pool,
-        influx_client,
+        pg_pool: pg_pool.clone(),
+        influx_client: influx_client.clone(),
     };
+
+    // Start monitoring scheduler in background
+    let scheduler = std::sync::Arc::new(services::scheduler::MonitoringScheduler::new(
+        pg_pool.clone(),
+        std::sync::Arc::new(influx_client.clone()),
+    ));
+    tokio::spawn(async move {
+        scheduler.start().await;
+    });
+    tracing::info!("✅ Monitoring scheduler started");
 
     // Build application router
     let app = build_router(state);

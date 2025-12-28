@@ -14,6 +14,7 @@ tower-http = { version = "0.5", features = ["fs", "cors", "compression-gzip", "t
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"
+futures = "0.3"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -33,6 +34,9 @@ sha2 = "0.10"
 
 # HTTP client (for integrations)
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+# SSH/SCP client (for target data collection)
+ssh2 = "0.9"
 
 # Date/Time
 chrono = { version = "0.4", features = ["serde"] }
