@@ -166,9 +166,20 @@ impl MonitoringScheduler {
         .await?;
 
         if let Some((encrypted_key,)) = row {
-            // TODO: Decrypt key using Fernet
-            // For now, assume key is stored in plain text (will implement encryption later)
-            Ok(Some(encrypted_key))
+            // Decrypt key using Fernet
+            let fernet_key = std::env::var("FERNET_KEY")
+                .context("FERNET_KEY environment variable not set")?;
+
+            let fernet = fernet::Fernet::new(&fernet_key)
+                .context("Invalid FERNET_KEY format")?;
+
+            let decrypted = fernet.decrypt(&encrypted_key)
+                .context("Failed to decrypt SSH private key")?;
+
+            let decrypted_str = String::from_utf8(decrypted)
+                .context("Decrypted key is not valid UTF-8")?;
+
+            Ok(Some(decrypted_str))
         } else {
             Ok(None)
         }
