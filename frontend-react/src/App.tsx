@@ -7,6 +7,8 @@ import Monitoring from './pages/Monitoring';
 import Hardening from './pages/Hardening';
 import Integrations from './pages/Integrations';
 import SecurityCorrelations from './pages/SecurityCorrelations';
+import ComplianceFrameworks from './pages/ComplianceFrameworks';
+import Alerts from './pages/Alerts';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import { useAuthStore } from './stores/authStore';
@@ -46,6 +48,8 @@ function App() {
             <Route path="hardening" element={<Hardening />} />
             <Route path="integrations" element={<Integrations />} />
             <Route path="correlations" element={<SecurityCorrelations />} />
+            <Route path="compliance" element={<ComplianceFrameworks />} />
+            <Route path="alerts" element={<Alerts />} />
           </Route>
         </Routes>
       </BrowserRouter>

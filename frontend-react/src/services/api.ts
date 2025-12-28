@@ -241,6 +241,107 @@ class ApiService {
     );
     return response.data;
   }
+
+  // ========================================================================
+  // COMPLIANCE FRAMEWORKS
+  // ========================================================================
+
+  async getComplianceFrameworks() {
+    const response = await this.client.get('/api/compliance-frameworks/frameworks');
+    return response.data;
+  }
+
+  async getComplianceFramework(id: number) {
+    const response = await this.client.get(`/api/compliance-frameworks/frameworks/${id}`);
+    return response.data;
+  }
+
+  async getFrameworkSummary() {
+    const response = await this.client.get('/api/compliance-frameworks/frameworks/summary');
+    return response.data;
+  }
+
+  async getComplianceOverview() {
+    const response = await this.client.get('/api/compliance-frameworks/overview');
+    return response.data;
+  }
+
+  async getTargetAssessments(targetId: number) {
+    const response = await this.client.get(
+      `/api/compliance-frameworks/assessments/target/${targetId}`
+    );
+    return response.data;
+  }
+
+  async createAssessment(data: {
+    target_id: number;
+    framework_id: number;
+    total_controls: number;
+  }) {
+    const response = await this.client.post('/api/compliance-frameworks/assessments', data);
+    return response.data;
+  }
+
+  // ========================================================================
+  // ALERTS
+  // ========================================================================
+
+  async getAlerts(severity?: string, status?: string) {
+    const params: Record<string, any> = {};
+    if (severity && severity !== 'all') params.severity = severity;
+    if (status && status !== 'all') {
+      if (status === 'active') {
+        params.resolved = false;
+      } else if (status === 'new') {
+        params.status = 'new';
+      } else if (status === 'acknowledged') {
+        params.acknowledged = true;
+        params.resolved = false;
+      } else if (status === 'resolved') {
+        params.resolved = true;
+      }
+    }
+    const response = await this.client.get('/api/alerts', { params });
+    return response.data;
+  }
+
+  async getActiveAlerts() {
+    const response = await this.client.get('/api/alerts/active');
+    return response.data;
+  }
+
+  async createAlert(data: {
+    severity: string;
+    title: string;
+    message: string;
+    alert_type: string;
+    entity_type?: string;
+    entity_id?: number;
+    metadata?: any;
+  }) {
+    const response = await this.client.post('/api/alerts', data);
+    return response.data;
+  }
+
+  async acknowledgeAlert(alertId: number, acknowledgedBy: string) {
+    const response = await this.client.patch(`/api/alerts/${alertId}/acknowledge`, {
+      acknowledged_by: acknowledgedBy,
+    });
+    return response.data;
+  }
+
+  async resolveAlert(alertId: number, resolvedBy: string, resolutionNotes: string) {
+    const response = await this.client.patch(`/api/alerts/${alertId}/resolve`, {
+      resolved_by: resolvedBy,
+      resolution_notes: resolutionNotes,
+    });
+    return response.data;
+  }
+
+  async getAlertRules() {
+    const response = await this.client.get('/api/alerts/rules');
+    return response.data;
+  }
 }
 
 export const api = new ApiService();

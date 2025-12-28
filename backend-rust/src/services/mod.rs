@@ -11,3 +11,5 @@ pub mod influxdb_writer;
 pub mod scheduler;
 pub mod integration_sync;
 pub mod correlation_engine;
+pub mod compliance_engine;
+pub mod alerting;

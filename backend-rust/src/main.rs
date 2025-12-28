@@ -98,6 +98,8 @@ fn build_router(state: AppState) -> Router {
         .nest("/api/hardening", api::hardening::routes())
         .nest("/api/monitoring", api::monitoring::routes())
         .nest("/api/compliance", api::compliance::routes())
+        .nest("/api/compliance-frameworks", api::compliance_frameworks::routes())
+        .nest("/api/alerts", api::alerts::routes())
         .nest("/api/settings", api::settings::routes())
         .nest("/api/integrations", api::integrations::routes())
         .nest("/ws", api::websocket::routes())
