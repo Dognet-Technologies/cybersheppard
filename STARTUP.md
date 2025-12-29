@@ -10,20 +10,64 @@
 
 ## 🗄️ Setup Database (PRIMA VOLTA)
 
-```bash
-# 1. Copia e configura .env
-cp .env.example .env
-# Modifica .env con le tue credenziali DB
+### 1. Installa e avvia PostgreSQL e InfluxDB
 
-# 2. Applica migrazioni PostgreSQL
+**Opzione A - Docker (consigliato):**
+```bash
+# PostgreSQL
+docker run -d \
+  --name cybersheppard-postgres \
+  -e POSTGRES_USER=cybersheppard \
+  -e POSTGRES_PASSWORD=your_password \
+  -e POSTGRES_DB=cybersheppard \
+  -p 5432:5432 \
+  postgres:15
+
+# InfluxDB
+docker run -d \
+  --name cybersheppard-influxdb \
+  -p 8086:8086 \
+  influxdb:2.7
+```
+
+**Opzione B - Sistema nativo:**
+```bash
+# Ubuntu/Debian
+sudo apt install postgresql postgresql-contrib influxdb2
+
+# Crea database
+sudo -u postgres psql -c "CREATE DATABASE cybersheppard;"
+sudo -u postgres psql -c "CREATE USER cybersheppard WITH PASSWORD 'your_password';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE cybersheppard TO cybersheppard;"
+```
+
+### 2. Configura .env
+```bash
+# Copia e modifica con le credenziali scelte sopra
+cp .env.example .env
+nano .env  # Modifica POSTGRES_PASSWORD, INFLUXDB_TOKEN, ecc.
+```
+
+### 3. Applica migrazioni PostgreSQL
+```bash
 cd database/postgresql
 ./apply_migrations.sh
 cd ../..
+```
 
-# 3. Prepara SQLx (solo prima volta)
+### 4. Prepara SQLx (solo prima volta)
+```bash
 cd backend-rust
 cargo sqlx prepare
 cd ..
+```
+
+### 5. Configura InfluxDB (prima volta)
+```bash
+# Apri http://localhost:8086 nel browser
+# Crea organizzazione: "cybersheppard"
+# Crea bucket: "metrics", "logs", "correlations"
+# Copia il token generato in .env (INFLUXDB_TOKEN)
 ```
 
 ---
