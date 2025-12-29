@@ -27,8 +27,20 @@ sudo systemctl enable postgresql  # Avvio automatico al boot
 
 # Crea database e utente
 sudo -u postgres psql -c "CREATE DATABASE cybersheppard;"
-sudo -u postgres psql -c "CREATE USER cybersheppard WITH PASSWORD 'your_password';"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE cybersheppard TO cybersheppard;"
+sudo -u postgres psql cybersheppard
+
+- Dai ownership del database a vlnman
+ALTER DATABASE cybersheppard OWNER TO vlnman;
+
+-- Dai permessi completi sullo schema public
+GRANT ALL ON SCHEMA public TO vlnman;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO vlnman;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO vlnman;
+
+-- Permessi di default per oggetti futuri
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO vlnman;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO vlnman;
+
 
 # Verifica
 sudo -u postgres psql -c "\l" | grep cybersheppard
