@@ -49,8 +49,14 @@ curl http://localhost:8086/health
 ```bash
 # Copia e modifica con le credenziali scelte sopra
 cp .env.example .env
-nano .env  # Modifica POSTGRES_PASSWORD, INFLUXDB_TOKEN, ecc.
+nano .env  # Modifica POSTGRES_USER, POSTGRES_PASSWORD, INFLUXDB_TOKEN, ecc.
 ```
+
+**IMPORTANTE:** Il file .env DEVE contenere la stringa di connessione DATABASE_URL per SQLx:
+```bash
+DATABASE_URL=postgresql://TUO_USER:TUA_PASSWORD@localhost:5432/cybersheppard
+```
+Esempio: `DATABASE_URL=postgresql://vlnman:DogNET@localhost:5432/cybersheppard`
 
 ### 5. Applica migrazioni PostgreSQL
 

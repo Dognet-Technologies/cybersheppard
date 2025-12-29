@@ -8,6 +8,7 @@ use tokio::time::{interval, Duration};
 use tracing::{info, warn, error};
 use chrono::Utc;
 use std::sync::Arc;
+use anyhow::Context;
 
 use crate::db::influxdb::InfluxDbClient;
 use crate::services::collector::{CollectorClient, create_temp_key_file, cleanup_temp_key_file};

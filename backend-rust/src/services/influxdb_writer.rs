@@ -14,7 +14,7 @@ use tracing::{info, warn};
 // InfluxDB Point Structures
 // ============================================================================
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct FileIntegrityPoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -25,17 +25,13 @@ struct FileIntegrityPoint {
     file_path: String,
     #[influxdb(tag)]
     status: String,  // new/modified/unchanged
-    #[influxdb(field)]
     hash: String,
-    #[influxdb(field)]
     permissions: String,
-    #[influxdb(field)]
     owner: String,
-    #[influxdb(field)]
     size: i64,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct SuidBinaryPoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -44,15 +40,12 @@ struct SuidBinaryPoint {
     target_hostname: String,
     #[influxdb(tag)]
     file_path: String,
-    #[influxdb(field)]
     permissions: String,
-    #[influxdb(field)]
     owner: String,
-    #[influxdb(field)]
     size: i64,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct WorldWritablePoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -61,15 +54,12 @@ struct WorldWritablePoint {
     target_hostname: String,
     #[influxdb(tag)]
     file_path: String,
-    #[influxdb(field)]
     permissions: String,
-    #[influxdb(field)]
     owner: String,
-    #[influxdb(field)]
     size: i64,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct PackagePoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -80,15 +70,12 @@ struct PackagePoint {
     package_name: String,
     #[influxdb(tag)]
     manager: String,
-    #[influxdb(field)]
     version: String,
-    #[influxdb(field)]
     architecture: String,
-    #[influxdb(field)]
     security_update_available: bool,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct UserAccountPoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -97,19 +84,14 @@ struct UserAccountPoint {
     target_hostname: String,
     #[influxdb(tag)]
     username: String,
-    #[influxdb(field)]
     uid: i32,
-    #[influxdb(field)]
     gid: i32,
-    #[influxdb(field)]
     has_sudo: bool,
-    #[influxdb(field)]
     is_locked: bool,
-    #[influxdb(field)]
     shell: String,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct ActiveSessionPoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -120,15 +102,12 @@ struct ActiveSessionPoint {
     user: String,
     #[influxdb(tag)]
     from_address: String,
-    #[influxdb(field)]
     tty: String,
-    #[influxdb(field)]
     login_time: String,
-    #[influxdb(field)]
     idle: String,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct FailedLoginPoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -139,11 +118,10 @@ struct FailedLoginPoint {
     user: String,
     #[influxdb(tag)]
     from_address: String,
-    #[influxdb(field)]
     timestamp_str: String,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct SudoCommandPoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -152,13 +130,11 @@ struct SudoCommandPoint {
     target_hostname: String,
     #[influxdb(tag)]
     user: String,
-    #[influxdb(field)]
     command: String,
-    #[influxdb(field)]
     timestamp_str: String,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct SystemdServicePoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -171,17 +147,13 @@ struct SystemdServicePoint {
     active: String,
     #[influxdb(tag)]
     enabled: String,
-    #[influxdb(field)]
     load: String,
-    #[influxdb(field)]
     sub: String,
-    #[influxdb(field)]
     description: String,
-    #[influxdb(field)]
     pid: i32,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct ListeningPortPoint {
     time: DateTime<Utc>,
     #[influxdb(tag)]
@@ -192,9 +164,7 @@ struct ListeningPortPoint {
     protocol: String,
     #[influxdb(tag)]
     local_address: String,
-    #[influxdb(field)]
     local_port: i32,
-    #[influxdb(field)]
     process: String,
 }
 
@@ -202,75 +172,57 @@ struct ListeningPortPoint {
 // Metrics Summary Points (for dashboards)
 // ============================================================================
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct FileIntegritySummary {
     time: DateTime<Utc>,
     #[influxdb(tag)]
     target_id: String,
     #[influxdb(tag)]
     target_hostname: String,
-    #[influxdb(field)]
     critical_files_count: i64,
-    #[influxdb(field)]
     suid_binaries_count: i64,
-    #[influxdb(field)]
     world_writable_count: i64,
-    #[influxdb(field)]
     files_modified: i64,
-    #[influxdb(field)]
     files_new: i64,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct PackageSummary {
     time: DateTime<Utc>,
     #[influxdb(tag)]
     target_id: String,
     #[influxdb(tag)]
     target_hostname: String,
-    #[influxdb(field)]
     total_packages: i64,
-    #[influxdb(field)]
     security_updates_available: i64,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct UserActivitySummary {
     time: DateTime<Utc>,
     #[influxdb(tag)]
     target_id: String,
     #[influxdb(tag)]
     target_hostname: String,
-    #[influxdb(field)]
     total_accounts: i64,
-    #[influxdb(field)]
     sudo_accounts: i64,
-    #[influxdb(field)]
     locked_accounts: i64,
-    #[influxdb(field)]
     active_sessions: i64,
-    #[influxdb(field)]
     failed_logins: i64,
-    #[influxdb(field)]
     sudo_commands: i64,
 }
 
-#[derive(InfluxDbWriteable)]
+#[derive(Debug, InfluxDbWriteable)]
 struct ServicesSummary {
     time: DateTime<Utc>,
     #[influxdb(tag)]
     target_id: String,
     #[influxdb(tag)]
     target_hostname: String,
-    #[influxdb(field)]
     total_services: i64,
-    #[influxdb(field)]
     active_services: i64,
-    #[influxdb(field)]
     failed_services: i64,
-    #[influxdb(field)]
     listening_ports: i64,
-    #[influxdb(field)]
     docker_containers: i64,
 }
 

@@ -41,7 +41,7 @@ pub struct ValidationFinding {
     pub remediation: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum FindingStatus {
     Pass,
@@ -423,7 +423,7 @@ impl HardeningValidator {
         .bind(result.checks_failed as i32)
         .bind(result.total_checks as i32)
         .bind(result.score)
-        .bind(serde_json::to_value(&result.findings)?)
+        .bind(serde_json::to_value(&result.findings).map_err(|e| sqlx::Error::Decode(Box::new(e)))?)
         .bind(result.timestamp)
         .fetch_one(&self.pg_pool)
         .await?;
