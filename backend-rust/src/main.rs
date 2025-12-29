@@ -102,6 +102,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/api/alerts", api::alerts::routes())
         .nest("/api/settings", api::settings::routes())
         .nest("/api/integrations", api::integrations::routes())
+        .nest("/api/plugins", api::plugins::routes())
         .nest("/ws", api::websocket::routes())
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),

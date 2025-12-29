@@ -12,3 +12,4 @@ pub mod monitoring;
 pub mod settings;
 pub mod targets;
 pub mod websocket;
+pub mod plugins;

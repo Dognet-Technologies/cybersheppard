@@ -14,3 +14,4 @@ pub mod correlation_engine;
 pub mod compliance_engine;
 pub mod alerting;
 pub mod settings_manager;
+pub mod plugin_manager;
