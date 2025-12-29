@@ -10,59 +10,63 @@
 
 ## 🗄️ Setup Database (PRIMA VOLTA)
 
-### 1. Installa e avvia PostgreSQL e InfluxDB
+### 1. Installa PostgreSQL e InfluxDB (se non già installati)
 
-**Opzione A - Docker (consigliato):**
 ```bash
-# PostgreSQL
-docker run -d \
-  --name cybersheppard-postgres \
-  -e POSTGRES_USER=cybersheppard \
-  -e POSTGRES_PASSWORD=your_password \
-  -e POSTGRES_DB=cybersheppard \
-  -p 5432:5432 \
-  postgres:15
-
-# InfluxDB
-docker run -d \
-  --name cybersheppard-influxdb \
-  -p 8086:8086 \
-  influxdb:2.7
+# Linux Mint / Ubuntu / Debian
+sudo apt update
+sudo apt install postgresql postgresql-contrib influxdb2
 ```
 
-**Opzione B - Sistema nativo:**
-```bash
-# Ubuntu/Debian
-sudo apt install postgresql postgresql-contrib influxdb2
+### 2. Crea database e utente PostgreSQL
 
-# Crea database
+```bash
+# Avvia PostgreSQL (se non già in esecuzione)
+sudo systemctl start postgresql
+sudo systemctl enable postgresql  # Avvio automatico al boot
+
+# Crea database e utente
 sudo -u postgres psql -c "CREATE DATABASE cybersheppard;"
 sudo -u postgres psql -c "CREATE USER cybersheppard WITH PASSWORD 'your_password';"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE cybersheppard TO cybersheppard;"
+
+# Verifica
+sudo -u postgres psql -c "\l" | grep cybersheppard
 ```
 
-### 2. Configura .env
+### 3. Avvia InfluxDB
+
+```bash
+# Avvia InfluxDB
+sudo systemctl start influxdb
+sudo systemctl enable influxdb  # Avvio automatico al boot
+
+# Verifica che sia in esecuzione
+curl http://localhost:8086/health
+```
+
+### 4. Configura .env
 ```bash
 # Copia e modifica con le credenziali scelte sopra
 cp .env.example .env
 nano .env  # Modifica POSTGRES_PASSWORD, INFLUXDB_TOKEN, ecc.
 ```
 
-### 3. Applica migrazioni PostgreSQL
+### 5. Applica migrazioni PostgreSQL
 ```bash
 cd database/postgresql
 ./apply_migrations.sh
 cd ../..
 ```
 
-### 4. Prepara SQLx (solo prima volta)
+### 6. Prepara SQLx (solo prima volta)
 ```bash
 cd backend-rust
 cargo sqlx prepare
 cd ..
 ```
 
-### 5. Configura InfluxDB (prima volta)
+### 7. Configura InfluxDB (prima volta)
 ```bash
 # Apri http://localhost:8086 nel browser
 # Crea organizzazione: "cybersheppard"
