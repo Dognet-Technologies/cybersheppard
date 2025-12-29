@@ -418,6 +418,72 @@ class ApiService {
     const response = await this.client.post('/api/settings/reset', { confirmation });
     return response.data;
   }
+
+  // ========================================================================
+  // PLUGINS
+  // ========================================================================
+
+  async getPluginRepositories() {
+    const response = await this.client.get('/api/plugins/repositories');
+    return response.data;
+  }
+
+  async addPluginRepository(data: {
+    name: string;
+    url: string;
+    branch: string;
+    trust_level: string;
+  }) {
+    const response = await this.client.post('/api/plugins/repositories', data);
+    return response.data;
+  }
+
+  async removePluginRepository(id: number) {
+    const response = await this.client.delete(`/api/plugins/repositories/${id}`);
+    return response.data;
+  }
+
+  async fetchRepositoryPlugins(repoId: number) {
+    const response = await this.client.post(`/api/plugins/repositories/${repoId}/fetch`);
+    return response.data;
+  }
+
+  async getAvailablePlugins() {
+    const response = await this.client.get('/api/plugins/registry');
+    return response.data;
+  }
+
+  async getInstalledPlugins() {
+    const response = await this.client.get('/api/plugins/installed');
+    return response.data;
+  }
+
+  async installPlugin(registryId: number) {
+    const response = await this.client.post(`/api/plugins/install/${registryId}`);
+    return response.data;
+  }
+
+  async uninstallPlugin(pluginId: number) {
+    const response = await this.client.delete(`/api/plugins/installed/${pluginId}`);
+    return response.data;
+  }
+
+  async enablePlugin(pluginId: number) {
+    const response = await this.client.post(`/api/plugins/installed/${pluginId}/enable`);
+    return response.data;
+  }
+
+  async disablePlugin(pluginId: number) {
+    const response = await this.client.post(`/api/plugins/installed/${pluginId}/disable`);
+    return response.data;
+  }
+
+  async configurePlugin(pluginId: number, configuration: any) {
+    const response = await this.client.put(`/api/plugins/installed/${pluginId}/configure`, {
+      configuration,
+    });
+    return response.data;
+  }
 }
 
 export const api = new ApiService();
