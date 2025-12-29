@@ -53,6 +53,17 @@ nano .env  # Modifica POSTGRES_PASSWORD, INFLUXDB_TOKEN, ecc.
 ```
 
 ### 5. Applica migrazioni PostgreSQL
+
+**IMPORTANTE:** Se hai già un database con migrazioni vecchie, ricrealo da zero:
+```bash
+# Drop e ricrea database (ATTENZIONE: cancella tutti i dati!)
+sudo -u postgres psql -c "DROP DATABASE IF EXISTS cybersheppard;"
+sudo -u postgres psql -c "CREATE DATABASE cybersheppard;"
+sudo -u postgres psql -c "ALTER DATABASE cybersheppard OWNER TO vlnman;"
+sudo -u postgres psql cybersheppard -c "GRANT ALL ON SCHEMA public TO vlnman;"
+```
+
+Poi applica le migrazioni:
 ```bash
 cd database/postgresql
 ./apply_migrations.sh
