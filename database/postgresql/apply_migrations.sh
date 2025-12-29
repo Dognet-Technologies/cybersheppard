@@ -15,7 +15,7 @@ fi
 POSTGRES_HOST=${POSTGRES_HOST:-localhost}
 POSTGRES_PORT=${POSTGRES_PORT:-5432}
 POSTGRES_DB=${POSTGRES_DB:-cybersheppard}
-POSTGRES_USER=${POSTGRES_USER:-cybersheppard}
+POSTGRES_USER=${POSTGRES_USER:-vlnman}
 
 echo "🗄️  Applying PostgreSQL migrations..."
 echo ""
@@ -52,7 +52,7 @@ for MIGRATION_FILE in $MIGRATION_FILES; do
     MIGRATION_NAME=$(basename "$MIGRATION_FILE")
     echo "📝 Applying migration: $MIGRATION_NAME"
 
-    PGPASSWORD="$POSTGRES_PASSWORD" psql \
+    PGPASSWORD="DogNET" psql \
         -h "$POSTGRES_HOST" \
         -p "$POSTGRES_PORT" \
         -U "$POSTGRES_USER" \
