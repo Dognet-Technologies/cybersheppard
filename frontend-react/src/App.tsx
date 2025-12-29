@@ -9,6 +9,7 @@ import Integrations from './pages/Integrations';
 import SecurityCorrelations from './pages/SecurityCorrelations';
 import ComplianceFrameworks from './pages/ComplianceFrameworks';
 import Alerts from './pages/Alerts';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import { useAuthStore } from './stores/authStore';
@@ -50,6 +51,7 @@ function App() {
             <Route path="correlations" element={<SecurityCorrelations />} />
             <Route path="compliance" element={<ComplianceFrameworks />} />
             <Route path="alerts" element={<Alerts />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </BrowserRouter>

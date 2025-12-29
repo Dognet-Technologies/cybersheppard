@@ -342,6 +342,82 @@ class ApiService {
     const response = await this.client.get('/api/alerts/rules');
     return response.data;
   }
+
+  // ========================================================================
+  // SETTINGS
+  // ========================================================================
+
+  async getSystemSettings(category?: string) {
+    const params = category ? { category } : {};
+    const response = await this.client.get('/api/settings/system', { params });
+    return response.data;
+  }
+
+  async updateSystemSetting(key: string, value: string) {
+    const response = await this.client.put(`/api/settings/system/${key}`, { value });
+    return response.data;
+  }
+
+  async getUserSettings() {
+    const response = await this.client.get('/api/settings/user');
+    return response.data;
+  }
+
+  async setUserSetting(key: string, value: string) {
+    const response = await this.client.put(`/api/settings/user/${key}`, { value });
+    return response.data;
+  }
+
+  async getApiKeys(service?: string) {
+    const params = service ? { service } : {};
+    const response = await this.client.get('/api/settings/api-keys', { params });
+    return response.data;
+  }
+
+  async generateApiKey(data: {
+    name: string;
+    description?: string;
+    service?: string;
+    permissions?: any;
+    expires_days?: number;
+  }) {
+    const response = await this.client.post('/api/settings/api-keys', data);
+    return response.data;
+  }
+
+  async revokeApiKey(id: number) {
+    const response = await this.client.delete(`/api/settings/api-keys/${id}`);
+    return response.data;
+  }
+
+  async getHealthCheck() {
+    const response = await this.client.get('/api/settings/health');
+    return response.data;
+  }
+
+  async testConnection(service: string, url: string, apiKey?: string) {
+    const response = await this.client.post('/api/settings/test-connection', {
+      service,
+      url,
+      api_key: apiKey,
+    });
+    return response.data;
+  }
+
+  async changePassword(data: { current_password: string; new_password: string }) {
+    const response = await this.client.post('/api/settings/change-password', data);
+    return response.data;
+  }
+
+  async cleanupOldData() {
+    const response = await this.client.post('/api/settings/cleanup');
+    return response.data;
+  }
+
+  async resetDatabase(confirmation: string) {
+    const response = await this.client.post('/api/settings/reset', { confirmation });
+    return response.data;
+  }
 }
 
 export const api = new ApiService();
