@@ -1,0 +1,98 @@
+{
+  "name": "example-vulnerability-scanner",
+  "version": "1.0.0",
+  "product": "sentinelcore",
+  "stato": "stable",
+  "stability_level": "beta",
+  "description": "Example vulnerability scanner plugin for SentinelCore platform",
+  "author": "SentinelCore Team",
+  "author_email": "dev@sentinelcore.com",
+  "homepage": "https://github.com/your-org/plugins-official/tree/main/sentinelcore/example-plugin",
+  "documentation": "https://docs.sentinelcore.com/plugins/example-scanner",
+  "license": "MIT",
+  "requires_version": ">=1.0.0",
+  "entry_point": "plugin.py",
+  "checksum_sha256": "",
+  "keywords": [
+    "vulnerability",
+    "scanner",
+    "security",
+    "example"
+  ],
+  "permissions": [
+    "network.http",
+    "network.dns",
+    "storage.read",
+    "storage.write",
+    "database.read",
+    "database.write"
+  ],
+  "events": [
+    "scan.started",
+    "scan.completed",
+    "vulnerability.discovered",
+    "severity.high.detected"
+  ],
+  "configuration_schema": {
+    "scanner_api_url": {
+      "type": "string",
+      "required": true,
+      "description": "Vulnerability scanner API endpoint URL",
+      "default": "https://scanner.example.com/api/v1"
+    },
+    "api_key": {
+      "type": "string",
+      "required": true,
+      "description": "API key for scanner authentication",
+      "sensitive": true
+    },
+    "api_secret": {
+      "type": "string",
+      "required": false,
+      "description": "API secret for enhanced authentication",
+      "sensitive": true
+    },
+    "scan_timeout": {
+      "type": "integer",
+      "required": false,
+      "default": 3600,
+      "min": 300,
+      "max": 14400,
+      "description": "Maximum scan duration in seconds"
+    },
+    "max_concurrent_scans": {
+      "type": "integer",
+      "required": false,
+      "default": 5,
+      "min": 1,
+      "max": 20,
+      "description": "Maximum number of concurrent scans"
+    },
+    "severity_threshold": {
+      "type": "string",
+      "required": false,
+      "default": "medium",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Minimum severity level to report"
+    },
+    "auto_retry_failed": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Automatically retry failed scans"
+    },
+    "export_format": {
+      "type": "string",
+      "required": false,
+      "default": "json",
+      "enum": ["json", "xml", "csv", "pdf"],
+      "description": "Default export format for scan results"
+    },
+    "enable_notifications": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Send notifications for high severity findings"
+    }
+  }
+}

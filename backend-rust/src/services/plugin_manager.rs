@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use sha2::{Sha256, Digest};
 use std::path::PathBuf;
+use base64::{Engine as _, engine::general_purpose};
 
 #[derive(Clone)]
 pub struct PluginManager {
@@ -69,7 +70,7 @@ pub struct InstalledPlugin {
     pub execution_count: i64,
     pub error_count: i64,
     pub success_count: i64,
-    pub avg_execution_time_ms: Option<rust_decimal::Decimal>,
+    pub avg_execution_time_ms: Option<f64>,
     pub total_events_processed: i64,
 }
 
@@ -315,7 +316,8 @@ impl PluginManager {
 
         // Decode base64 content
         let decoded = if file.encoding == "base64" {
-            base64::decode(&file.content.replace("\n", ""))?
+            general_purpose::STANDARD.decode(&file.content.replace("\n", ""))
+                .map_err(|e| format!("Base64 decode error: {}", e))?
         } else {
             file.content.as_bytes().to_vec()
         };
