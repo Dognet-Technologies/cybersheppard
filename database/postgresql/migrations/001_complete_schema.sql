@@ -1495,3 +1495,15 @@ ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS alert_id INTEGER REFE
 -- Add indexes for new columns
 CREATE INDEX IF NOT EXISTS idx_targets_is_active ON targets(is_active);
 CREATE INDEX IF NOT EXISTS idx_compliance_violations_alert ON compliance_violations(alert_id);
+
+-- Add path column for ssh_keys (some keys may be file-based)
+ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS private_key_path VARCHAR(512);
+ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS public_key_path VARCHAR(512);
+
+-- Add compatibility aliases for compliance and alerts
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS message TEXT; -- Alias for description
+ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS framework_name VARCHAR(100); -- Alias for name
+ALTER TABLE compliance_assessments ADD COLUMN IF NOT EXISTS frameworks_assessed INTEGER DEFAULT 0;
+
+-- Update framework_name to match name initially
+UPDATE compliance_frameworks SET framework_name = name WHERE framework_name IS NULL;
