@@ -1480,3 +1480,18 @@ COMMIT;
 -- ============================================================================
 -- END OF COMPLETE SCHEMA
 -- ============================================================================
+
+-- ============================================================================
+-- SCHEMA FIXES FOR CODE COMPATIBILITY
+-- ============================================================================
+
+-- Add missing columns to existing tables
+ALTER TABLE targets ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS token VARCHAR(512); -- For compatibility
+ALTER TABLE csrf_tokens ADD COLUMN IF NOT EXISTS token VARCHAR(512); -- For compatibility  
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS alert_generated BOOLEAN DEFAULT FALSE;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS alert_id INTEGER REFERENCES alerts(id) ON DELETE SET NULL;
+
+-- Add indexes for new columns
+CREATE INDEX IF NOT EXISTS idx_targets_is_active ON targets(is_active);
+CREATE INDEX IF NOT EXISTS idx_compliance_violations_alert ON compliance_violations(alert_id);

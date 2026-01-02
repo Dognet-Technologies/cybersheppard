@@ -117,12 +117,17 @@ async fn get_target_ssh_info(
     pool: &sqlx::PgPool,
     target_id: i32,
 ) -> Result<(String, i32, String, String), (StatusCode, Json<serde_json::Value>)> {
-    // Query target info
+    // Query target info with SSH key path from ssh_keys table
     let target = sqlx::query!(
         r#"
-        SELECT ip_address, ssh_port, ssh_username, ssh_key_path
-        FROM targets
-        WHERE id = $1 AND is_active = true
+        SELECT
+            t.ip_address::text,
+            t.ssh_port,
+            t.ssh_username,
+            COALESCE(k.private_key_path, '/opt/cybersheppard/keys/default_ed25519') as key_path
+        FROM targets t
+        LEFT JOIN ssh_keys k ON t.ssh_key_id = k.id
+        WHERE t.id = $1 AND t.is_active = true
         "#,
         target_id
     )
@@ -138,10 +143,10 @@ async fn get_target_ssh_info(
     })?;
 
     Ok((
-        target.ip_address,
+        target.ip_address.unwrap_or_default(),
         target.ssh_port.unwrap_or(22),
         target.ssh_username.unwrap_or_else(|| "microcyber".to_string()),
-        target.ssh_key_path.unwrap_or_else(|| "/opt/cybersheppard/keys/default_ed25519".to_string()),
+        target.key_path.unwrap_or_else(|| "/opt/cybersheppard/keys/default_ed25519".to_string()),
     ))
 }
 

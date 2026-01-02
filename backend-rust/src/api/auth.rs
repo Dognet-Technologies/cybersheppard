@@ -323,7 +323,7 @@ async fn login(
     })?;
 
     // Check if user is active
-    if !user.is_active {
+    if !user.is_active.unwrap_or(true) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(ErrorResponse {
@@ -526,7 +526,7 @@ async fn refresh_token(
         )
     })?;
 
-    if !user.is_active {
+    if !user.is_active.unwrap_or(true) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(ErrorResponse {

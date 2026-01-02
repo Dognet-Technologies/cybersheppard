@@ -320,10 +320,10 @@ async fn handle_system_stream(socket: WebSocket, state: AppState) {
 async fn fetch_recent_logs(state: &AppState) -> Result<Vec<serde_json::Value>, sqlx::Error> {
     let logs = sqlx::query!(
         r#"
-        SELECT id, user_id, action, resource, ip_address, created_at
+        SELECT id, user_id, action, resource_type as resource, ip_address, timestamp as created_at
         FROM audit_logs
-        WHERE created_at > NOW() - INTERVAL '5 seconds'
-        ORDER BY created_at DESC
+        WHERE timestamp > NOW() - INTERVAL '5 seconds'
+        ORDER BY timestamp DESC
         LIMIT 10
         "#
     )
