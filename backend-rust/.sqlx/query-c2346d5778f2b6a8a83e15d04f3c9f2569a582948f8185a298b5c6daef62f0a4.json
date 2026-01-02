@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                sc.id,\n                sc.target_id,\n                t.hostname as target_hostname,\n                sc.correlation_type,\n                sc.risk_level,\n                sc.vulnerability_cve,\n                sc.vulnerability_cvss,\n                sc.threat_source_ip::text as threat_source_ip,\n                sc.threat_type,\n                sc.threat_score,\n                sc.correlation_confidence,\n                sc.recommended_action,\n                sc.status,\n                sc.created_at\n            FROM security_correlations sc\n            INNER JOIN targets t ON sc.target_id = t.id\n            WHERE sc.status != 'resolved'\n            ORDER BY\n                sc.created_at DESC,\n                CASE sc.risk_level\n                    WHEN 'critical' THEN 1\n                    WHEN 'high' THEN 2\n                    WHEN 'medium' THEN 3\n                    WHEN 'low' THEN 4\n                END\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "target_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "target_hostname",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "correlation_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "risk_level",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "vulnerability_cve",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "vulnerability_cvss",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 7,
+        "name": "threat_source_ip",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "threat_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "threat_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 10,
+        "name": "correlation_confidence",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 11,
+        "name": "recommended_action",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      null,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "c2346d5778f2b6a8a83e15d04f3c9f2569a582948f8185a298b5c6daef62f0a4"
+}

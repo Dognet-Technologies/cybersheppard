@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE alerts\n            SET\n                resolved = true,\n                resolved_by = $1,\n                resolved_at = NOW(),\n                resolution_notes = $2,\n                status = 'resolved'\n            WHERE id = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "57ea5c5ebc7b1e0b8f7a9ba727abf9918cd0869d7fae8fa996957193d3b2eb6c"
+}

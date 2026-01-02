@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE alerts\n            SET\n                acknowledged = true,\n                acknowledged_by = $1,\n                acknowledged_at = NOW(),\n                status = 'acknowledged'\n            WHERE id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "649b7c96be3536b0af8fd7aa179976a5e01f11edddad5156e5103c781074f122"
+}

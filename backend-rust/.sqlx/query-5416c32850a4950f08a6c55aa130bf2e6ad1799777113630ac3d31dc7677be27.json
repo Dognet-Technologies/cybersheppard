@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE compliance_assessments\n            SET\n                passed_controls = $1,\n                failed_controls = $2,\n                not_applicable = $3,\n                status = 'completed'\n            WHERE id = $4\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5416c32850a4950f08a6c55aa130bf2e6ad1799777113630ac3d31dc7677be27"
+}
