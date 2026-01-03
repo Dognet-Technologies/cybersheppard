@@ -5,7 +5,7 @@
 use sqlx::PgPool;
 use tokio::time::{interval, Duration};
 use crate::integrations::{SentinelCoreClient, FireDogClient};
-use crate::utils::BigDecimalExt;
+use crate::utils::{BigDecimalExt, ToBigDecimal, ToIpNetwork};
 use chrono::Utc;
 
 pub struct IntegrationSyncService {
@@ -108,9 +108,9 @@ impl IntegrationSyncService {
                                 vuln.title,
                                 vuln.description,
                                 vuln.severity,
-                                vuln.cvss_score,
+                                vuln.cvss_score.to_bigdecimal(),
                                 vuln.cvss_vector,
-                                vuln.epss_score,
+                                vuln.epss_score.map(|s| s.to_bigdecimal()),
                                 &vuln.affected_packages,
                                 vuln.published_date,
                                 vuln.last_modified_date
@@ -151,7 +151,7 @@ impl IntegrationSyncService {
             records_failed,
             started_at,
             completed_at,
-            duration
+            duration.to_bigdecimal()
         )
         .execute(&self.pg_pool)
         .await?;
@@ -197,12 +197,12 @@ impl IntegrationSyncService {
                             "#,
                             target.id,
                             threat.id,
-                            threat.source_ip,
-                            threat.destination_ip,
+                            threat.source_ip.to_ipnetwork(),
+                            threat.destination_ip.to_ipnetwork(),
                             threat.destination_port,
                             threat.threat_type,
                             threat.classification,
-                            threat.score,
+                            threat.score.to_bigdecimal(),
                             threat.details,
                             threat.detected_at,
                             threat.acknowledged,
@@ -244,7 +244,7 @@ impl IntegrationSyncService {
             records_failed,
             started_at,
             completed_at,
-            duration
+            duration.to_bigdecimal()
         )
         .execute(&self.pg_pool)
         .await?;
@@ -328,7 +328,7 @@ impl IntegrationSyncService {
                 correlation.source_ip,
                 correlation.threat_type,
                 correlation.threat_score,
-                0.90,
+                0.90_f64.to_bigdecimal(),
                 "Vulnerability + Active Threat",
                 "Consider applying security patches immediately and blocking attacker IP in firewall"
             )

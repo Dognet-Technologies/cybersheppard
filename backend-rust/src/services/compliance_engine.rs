@@ -20,16 +20,16 @@ pub struct ComplianceFramework {
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ComplianceAssessment {
-    pub id: i32,
+    pub id: Option<i32>,
     pub target_id: i32,
-    pub framework_id: i32,
-    pub assessment_date: DateTime<Utc>,
-    pub total_controls: i32,
-    pub passed_controls: i32,
-    pub failed_controls: i32,
-    pub not_applicable: i32,
-    pub compliance_score: Option<BigDecimal>,  // Changed from f32
-    pub status: String,
+    pub framework_id: Option<i32>,
+    pub assessment_date: Option<DateTime<Utc>>,
+    pub total_controls: Option<i32>,
+    pub passed_controls: Option<i32>,
+    pub failed_controls: Option<i32>,
+    pub not_applicable: Option<i32>,
+    pub compliance_score: Option<BigDecimal>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

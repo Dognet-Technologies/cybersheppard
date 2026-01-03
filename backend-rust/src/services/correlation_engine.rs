@@ -9,20 +9,20 @@ use bigdecimal::BigDecimal;
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SecurityCorrelation {
-    pub id: i32,
+    pub id: Option<i32>,
     pub target_id: i32,
     pub target_hostname: Option<String>,
-    pub correlation_type: String,
-    pub risk_level: String,
+    pub correlation_type: Option<String>,
+    pub risk_level: Option<String>,
     pub vulnerability_cve: Option<String>,
-    pub vulnerability_cvss: Option<BigDecimal>,  // Changed from f32
+    pub vulnerability_cvss: Option<BigDecimal>,
     pub threat_source_ip: Option<String>,
     pub threat_type: Option<String>,
-    pub threat_score: Option<BigDecimal>,  // Changed from f32
-    pub correlation_confidence: BigDecimal,  // Changed from f32
-    pub recommended_action: String,
-    pub status: String,
-    pub created_at: DateTime<Utc>,
+    pub threat_score: Option<BigDecimal>,
+    pub correlation_confidence: Option<BigDecimal>,
+    pub recommended_action: Option<String>,
+    pub status: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 pub struct CorrelationEngine {
