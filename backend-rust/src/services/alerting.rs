@@ -35,7 +35,7 @@ pub struct AlertRule {
     pub id: i32,
     pub name: String,
     pub description: Option<String>,
-    pub enabled: bool,
+    pub enabled: Option<bool>,  // Changed from bool
     pub severity: String,
     pub trigger_type: String,
 }

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            t.ip_address::text,\n            t.ssh_port,\n            t.ssh_username,\n            COALESCE(k.private_key_path, '/opt/cybersheppard/keys/default_ed25519') as key_path\n        FROM targets t\n        LEFT JOIN ssh_keys k ON t.ssh_key_id = k.id\n        WHERE t.id = $1 AND t.is_active = true\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ip_address",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "ssh_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "ssh_username",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "key_path",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "c7c31e6ea09385198a210dd8f046eca98af7ffb45dbf53dd8092c604b995e4b0"
+}

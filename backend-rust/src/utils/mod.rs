@@ -2,5 +2,6 @@
 // CYBERSHEPPARD (MicroSIEM) - Utilities Module
 // ============================================================================
 
-pub mod jwt;
-pub mod auth;
+pub mod conversions;
+
+pub use conversions::{BigDecimalExt, ToBigDecimal, IpNetworkExt, ToIpNetwork};

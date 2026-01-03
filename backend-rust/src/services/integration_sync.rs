@@ -5,6 +5,7 @@
 use sqlx::PgPool;
 use tokio::time::{interval, Duration};
 use crate::integrations::{SentinelCoreClient, FireDogClient};
+use crate::utils::BigDecimalExt;
 use chrono::Utc;
 
 pub struct IntegrationSyncService {
@@ -177,7 +178,7 @@ impl IntegrationSyncService {
             Ok(threats) => {
                 for threat in threats {
                     let target = sqlx::query!(
-                        "SELECT id FROM targets WHERE ip_address = $1::text",
+                        "SELECT id FROM targets WHERE ip_address::text = $1",
                         threat.destination_ip
                     )
                     .fetch_optional(&self.pg_pool)
@@ -289,9 +290,12 @@ impl IntegrationSyncService {
         .await?;
 
         for correlation in correlations {
-            let risk_level = if correlation.cvss_score.unwrap_or(0.0) >= 9.0 && correlation.threat_score >= 8.0 {
+            let cvss = correlation.cvss_score.to_f64();
+            let threat_score = correlation.threat_score.to_f64();
+
+            let risk_level = if cvss >= 9.0 && threat_score >= 8.0 {
                 "critical"
-            } else if correlation.cvss_score.unwrap_or(0.0) >= 7.0 && correlation.threat_score >= 7.0 {
+            } else if cvss >= 7.0 && threat_score >= 7.0 {
                 "high"
             } else {
                 "medium"
@@ -301,9 +305,9 @@ impl IntegrationSyncService {
                 "HIGH-RISK CORRELATION: Target {} has vulnerability {} (CVSS {}) and active threat from {} (score {})",
                 correlation.hostname,
                 correlation.cve_id,
-                correlation.cvss_score.unwrap_or(0.0),
+                cvss,
                 correlation.source_ip,
-                correlation.threat_score
+                threat_score
             );
 
             sqlx::query!(

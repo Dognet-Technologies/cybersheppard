@@ -5,6 +5,7 @@
 use sqlx::PgPool;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use bigdecimal::BigDecimal;
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ComplianceFramework {
@@ -14,7 +15,7 @@ pub struct ComplianceFramework {
     pub description: Option<String>,
     pub version: Option<String>,
     pub category: Option<String>,
-    pub enabled: bool,
+    pub enabled: Option<bool>,  // Changed from bool
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
@@ -27,7 +28,7 @@ pub struct ComplianceAssessment {
     pub passed_controls: i32,
     pub failed_controls: i32,
     pub not_applicable: i32,
-    pub compliance_score: Option<f32>,
+    pub compliance_score: Option<BigDecimal>,  // Changed from f32
     pub status: String,
 }
 
@@ -36,7 +37,7 @@ pub struct ComplianceOverview {
     pub target_id: i32,
     pub hostname: String,
     pub frameworks_assessed: i64,
-    pub avg_compliance_score: Option<f32>,
+    pub avg_compliance_score: Option<BigDecimal>,  // Changed from f32
     pub critical_violations: i64,
     pub high_violations: i64,
     pub last_assessment_date: Option<DateTime<Utc>>,
