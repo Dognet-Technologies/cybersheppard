@@ -289,7 +289,7 @@ impl IntegrationSyncService {
         .fetch_all(&self.pg_pool)
         .await?;
 
-        for correlation in correlations {
+        for correlation in &correlations {
             let cvss = correlation.cvss_score.to_f64();
             let threat_score = correlation.threat_score.to_f64();
 
