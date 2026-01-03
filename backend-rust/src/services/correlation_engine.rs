@@ -5,6 +5,7 @@
 use sqlx::PgPool;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use bigdecimal::BigDecimal;
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SecurityCorrelation {
@@ -14,11 +15,11 @@ pub struct SecurityCorrelation {
     pub correlation_type: String,
     pub risk_level: String,
     pub vulnerability_cve: Option<String>,
-    pub vulnerability_cvss: Option<f32>,
+    pub vulnerability_cvss: Option<BigDecimal>,  // Changed from f32
     pub threat_source_ip: Option<String>,
     pub threat_type: Option<String>,
-    pub threat_score: Option<f32>,
-    pub correlation_confidence: f32,
+    pub threat_score: Option<BigDecimal>,  // Changed from f32
+    pub correlation_confidence: BigDecimal,  // Changed from f32
     pub recommended_action: String,
     pub status: String,
     pub created_at: DateTime<Utc>,

@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                        INSERT INTO security_correlations\n                            (target_id, vulnerability_cve, vulnerability_cvss, threat_source_ip,\n                             threat_type, threat_score, correlation_confidence, recommended_action)\n                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n                        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar",
+        "Numeric",
+        "Inet",
+        "Varchar",
+        "Numeric",
+        "Numeric",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "53f7ab2fda0ca59d4f2accf859b012eb5b1c1ed387f7c515ec6ab97521bcdd54"
+}

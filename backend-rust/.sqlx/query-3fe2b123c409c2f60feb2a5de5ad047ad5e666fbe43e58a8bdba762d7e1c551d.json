@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT cve_id, cvss_score\n            FROM sentinel_vulnerabilities\n            WHERE target_id = $1 AND cvss_score > 7.0\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cve_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "cvss_score",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "3fe2b123c409c2f60feb2a5de5ad047ad5e666fbe43e58a8bdba762d7e1c551d"
+}

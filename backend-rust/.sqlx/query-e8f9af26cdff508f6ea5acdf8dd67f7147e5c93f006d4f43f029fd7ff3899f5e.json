@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO integration_sync_logs\n                (integration_id, sync_type, status, records_fetched, error_message, completed_at)\n            VALUES (\n                (SELECT id FROM integration_configs WHERE service_name = $1),\n                $2, $3, $4, $5, NOW()\n            )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e8f9af26cdff508f6ea5acdf8dd67f7147e5c93f006d4f43f029fd7ff3899f5e"
+}

@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, user_id, action, resource_type as resource, ip_address, timestamp as created_at\n        FROM audit_logs\n        WHERE timestamp > NOW() - INTERVAL '5 seconds'\n        ORDER BY timestamp DESC\n        LIMIT 10\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "action",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "resource",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "ip_address",
+        "type_info": "Inet"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "be6e7656b20e3566937eebc3041720f097cbfcb360e040bc28ac856af434700c"
+}

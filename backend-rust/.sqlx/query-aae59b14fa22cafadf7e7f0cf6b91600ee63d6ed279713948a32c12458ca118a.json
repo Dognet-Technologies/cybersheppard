@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO csrf_tokens (user_id, token, expires_at)\n        VALUES ($1, $2, NOW() + INTERVAL '1 hour')\n        ON CONFLICT (user_id)\n        DO UPDATE SET\n            token = EXCLUDED.token,\n            expires_at = EXCLUDED.expires_at,\n            created_at = NOW()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "aae59b14fa22cafadf7e7f0cf6b91600ee63d6ed279713948a32c12458ca118a"
+}

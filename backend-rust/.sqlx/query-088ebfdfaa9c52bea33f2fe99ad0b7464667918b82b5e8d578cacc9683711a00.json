@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id, target_id, framework_id, assessment_date,\n                total_controls, passed_controls, failed_controls,\n                not_applicable, compliance_score, status\n            FROM compliance_assessments\n            WHERE target_id = $1\n            ORDER BY assessment_date DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "target_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "framework_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "assessment_date",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "total_controls",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "passed_controls",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "failed_controls",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "not_applicable",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "compliance_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "status",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "088ebfdfaa9c52bea33f2fe99ad0b7464667918b82b5e8d578cacc9683711a00"
+}

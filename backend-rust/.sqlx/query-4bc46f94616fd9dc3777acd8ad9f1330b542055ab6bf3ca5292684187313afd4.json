@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, model_path, success, steps_completed, steps_failed,\n               backup_path, duration_seconds, result_log, applied_at\n        FROM hardening_applications\n        WHERE target_id = $1\n        ORDER BY applied_at DESC\n        LIMIT 50\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "model_path",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "success",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "steps_completed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "steps_failed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "backup_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "duration_seconds",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "result_log",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "applied_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "4bc46f94616fd9dc3777acd8ad9f1330b542055ab6bf3ca5292684187313afd4"
+}

@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, target_id, metric_name, severity, detected_value, first_detected_at\n        FROM compliance_violations\n        WHERE first_detected_at > NOW() - INTERVAL '5 seconds'\n        AND status = 'new'\n        ORDER BY first_detected_at DESC\n        LIMIT 10\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "target_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "metric_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "severity",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "detected_value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "first_detected_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "49ce3db95135e9408abf47cc84debea01d07f6863f4ef4217033612e2c0ee558"
+}
