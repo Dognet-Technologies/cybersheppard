@@ -1377,15 +1377,15 @@ CREATE OR REPLACE VIEW target_compliance_overview AS
 SELECT
     t.id as target_id,
     t.hostname,
-    t.ip_address,
-    COUNT(DISTINCT cv.id) FILTER (WHERE cv.status IN ('new', 'acknowledged')) as active_violations,
+    COALESCE(COUNT(DISTINCT ca.framework_id), 0)::bigint as frameworks_assessed,
+    calculate_compliance_score(t.id) as avg_compliance_score,
     COUNT(DISTINCT cv.id) FILTER (WHERE cv.severity = 'critical') as critical_violations,
     COUNT(DISTINCT cv.id) FILTER (WHERE cv.severity = 'high') as high_violations,
-    calculate_compliance_score(t.id) as compliance_score,
-    MAX(cv.first_detected_at) as last_violation_at
+    MAX(GREATEST(cv.first_detected_at, ca.assessment_date)) as last_assessment_date
 FROM targets t
 LEFT JOIN compliance_violations cv ON t.id = cv.target_id
-GROUP BY t.id, t.hostname, t.ip_address;
+LEFT JOIN compliance_assessments ca ON t.id = ca.target_id
+GROUP BY t.id, t.hostname;
 
 COMMENT ON VIEW target_compliance_overview IS 'Compliance status overview per target';
 
@@ -1421,16 +1421,18 @@ COMMENT ON VIEW active_alerts IS 'All active (unresolved) alerts with delivery s
 CREATE OR REPLACE VIEW framework_compliance_summary AS
 SELECT
     cf.id as framework_id,
-    cf.name,
-    cf.display_name,
+    cf.name as framework_name,
+    cf.category,
     COUNT(DISTINCT ca.id) as assessments_count,
     AVG(ca.compliance_score) as avg_compliance_score,
     COUNT(DISTINCT ca.target_id) as targets_assessed,
+    0::integer as total_controls,
+    0::integer as automated_controls,
     MAX(ca.assessment_date) as last_assessment_date
 FROM compliance_frameworks cf
 LEFT JOIN compliance_assessments ca ON cf.id = ca.framework_id
-WHERE cf.enabled = true
-GROUP BY cf.id, cf.name, cf.display_name
+WHERE cf.enabled = true OR cf.enabled IS NULL
+GROUP BY cf.id, cf.name, cf.category
 ORDER BY avg_compliance_score DESC NULLS LAST;
 
 COMMENT ON VIEW framework_compliance_summary IS 'Compliance summary per framework across all targets';
