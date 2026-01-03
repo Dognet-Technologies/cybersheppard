@@ -106,8 +106,8 @@ impl IntegrationService {
                 target_id,
                 vuln.cve_id,
                 vuln.severity,
-                vuln.cvss_score.as_ref().map(|v| v.to_f32()),
-                vuln.epss_score.as_ref().map(|v| v.to_f32()),
+                vuln.cvss_score,
+                vuln.epss_score,
                 vuln.description,
                 vuln.published_date
             )
