@@ -69,7 +69,7 @@ async fn integration_status(
 
     let sentinel_info = if let Ok(Some(info)) = sentinel_status {
         IntegrationInfo {
-            enabled: info.enabled,
+            enabled: info.enabled.unwrap_or(false),
             last_sync: info.last_sync_at.map(|dt| dt.to_string()),
             status: info.last_sync_status.unwrap_or_else(|| "never_synced".to_string()),
         }
@@ -83,7 +83,7 @@ async fn integration_status(
 
     let firedog_info = if let Ok(Some(info)) = firedog_status {
         FireDogInfo {
-            enabled: info.enabled,
+            enabled: info.enabled.unwrap_or(false),
             last_sync: info.last_sync_at.map(|dt| dt.to_string()),
             status: info.last_sync_status.unwrap_or_else(|| "never_synced".to_string()),
         }

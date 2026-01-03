@@ -21,7 +21,7 @@
       {
         "ordinal": 3,
         "name": "avg_compliance_score",
-        "type_info": "Int4"
+        "type_info": "Numeric"
       },
       {
         "ordinal": 4,

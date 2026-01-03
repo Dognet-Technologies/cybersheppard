@@ -34,12 +34,12 @@ pub struct ComplianceAssessment {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ComplianceOverview {
-    pub target_id: i32,
-    pub hostname: String,
-    pub frameworks_assessed: i64,
-    pub avg_compliance_score: Option<BigDecimal>,  // Changed from f32
-    pub critical_violations: i64,
-    pub high_violations: i64,
+    pub target_id: Option<i32>,
+    pub hostname: Option<String>,
+    pub frameworks_assessed: Option<i64>,
+    pub avg_compliance_score: Option<BigDecimal>,
+    pub critical_violations: Option<i64>,
+    pub high_violations: Option<i64>,
     pub last_assessment_date: Option<DateTime<Utc>>,
 }
 

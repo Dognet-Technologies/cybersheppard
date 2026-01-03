@@ -176,7 +176,7 @@ impl CorrelationEngine {
                 th.source_ip::text as threat_source_ip,
                 th.threat_type,
                 th.score as threat_score,
-                0.90::real as correlation_confidence,
+                0.90::numeric as correlation_confidence,
                 'Apply security patches immediately and block attacker IP in firewall' as recommended_action,
                 'new' as status,
                 NOW() as created_at
