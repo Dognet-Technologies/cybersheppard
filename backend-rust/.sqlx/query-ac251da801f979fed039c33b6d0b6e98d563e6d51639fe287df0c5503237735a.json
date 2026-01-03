@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                framework_id as id,\n                framework_name,\n                category,\n                targets_assessed,\n                avg_compliance_score,\n                total_controls,\n                automated_controls\n            FROM framework_compliance_summary\n            ORDER BY framework_name\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "framework_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "category",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "targets_assessed",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "avg_compliance_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "total_controls",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "automated_controls",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "ac251da801f979fed039c33b6d0b6e98d563e6d51639fe287df0c5503237735a"
+}
