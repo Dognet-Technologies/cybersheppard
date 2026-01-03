@@ -255,7 +255,7 @@ impl AlertingService {
             WHERE id = $2
             "#,
             alert_id,
-            violation_id
+            violation_id as i64
         )
         .execute(&self.pg_pool)
         .await?;

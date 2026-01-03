@@ -669,7 +669,7 @@ async fn log_audit(
         "#,
         user_id,
         action,
-        details
+        serde_json::json!({"message": details})
     )
     .execute(pool)
     .await?;
