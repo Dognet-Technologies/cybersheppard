@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
-import { Shield, AlertTriangle, CheckCircle, XCircle, Activity } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Activity } from 'lucide-react';
 
 export default function SecurityCorrelations() {
-  const [selectedCorrelation, setSelectedCorrelation] = useState<any>(null);
+  const [, setSelectedCorrelation] = useState<any>(null);
   const queryClient = useQueryClient();
 
   const { data: correlations, isLoading } = useQuery({

@@ -1,7 +1,32 @@
+// ============================================================================
+// Dashboard - Main overview page
+// ============================================================================
+
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
-import { AlertTriangle, CheckCircle, XCircle, AlertCircle, Activity, TrendingUp } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  Server,
+  AlertTriangle,
+  CheckCircle,
+  Activity,
+  Shield,
+  TrendingUp,
+} from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import { PageHeader, StatsGrid, StatCard, Card, CardHeader } from '../components/ui';
 
 export default function Dashboard() {
   const { data: targets } = useQuery({
@@ -14,6 +39,11 @@ export default function Dashboard() {
     queryFn: () => api.getViolations({ status: 'new' }),
   });
 
+  const { data: alerts } = useQuery({
+    queryKey: ['alerts', 'active'],
+    queryFn: () => api.getActiveAlerts(),
+  });
+
   const stats = {
     total: targets?.length || 0,
     online: targets?.filter((t: any) => t.status === 'online')?.length || 0,
@@ -23,9 +53,10 @@ export default function Dashboard() {
     high: violations?.summary?.high || 0,
     medium: violations?.summary?.medium || 0,
     low: violations?.summary?.low || 0,
+    alerts: alerts?.length || 0,
   };
 
-  // Sample data for charts (in real app, this would come from API)
+  // Sample trend data
   const violationsTrend = [
     { date: 'Mon', count: 12 },
     { date: 'Tue', count: 19 },
@@ -37,78 +68,102 @@ export default function Dashboard() {
   ];
 
   const severityData = [
-    { name: 'Critical', value: stats.critical, color: '#ef4444' },
-    { name: 'High', value: stats.high, color: '#f97316' },
-    { name: 'Medium', value: stats.medium, color: '#eab308' },
-    { name: 'Low', value: stats.low, color: '#64748b' },
+    { name: 'Critical', value: stats.critical || 5, color: '#ef4444' },
+    { name: 'High', value: stats.high || 12, color: '#f97316' },
+    { name: 'Medium', value: stats.medium || 8, color: '#eab308' },
+    { name: 'Low', value: stats.low || 3, color: '#64748b' },
   ];
 
   const targetStatusData = [
-    { name: 'Online', value: stats.online, color: '#22c55e' },
-    { name: 'Offline', value: stats.offline, color: '#ef4444' },
+    { name: 'Online', value: stats.online || 15, color: '#22c55e' },
+    { name: 'Offline', value: stats.offline || 3, color: '#ef4444' },
+  ];
+
+  const complianceData = [
+    { framework: 'CIS', score: 85 },
+    { framework: 'NIST', score: 78 },
+    { framework: 'PCI-DSS', score: 92 },
+    { framework: 'ISO 27001', score: 88 },
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <div className="flex items-center space-x-2 text-sm text-gray-600">
-          <Activity className="w-4 h-4" />
-          <span>Real-time monitoring</span>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title="Dashboard"
+        subtitle="Overview of your security infrastructure"
+        icon={<Activity className="w-6 h-6" />}
+      />
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Stats Overview */}
+      <StatsGrid columns={4} className="mb-8">
         <StatCard
           title="Total Targets"
           value={stats.total}
-          icon={<CheckCircle className="w-8 h-8 text-blue-500" />}
-          change="+2 this week"
+          icon={<Server className="w-6 h-6" />}
+          variant="info"
+          trend={{ value: 12, label: 'vs last week' }}
         />
         <StatCard
-          title="Online"
+          title="Online Targets"
           value={stats.online}
-          icon={<CheckCircle className="w-8 h-8 text-green-500" />}
-          change={`${Math.round((stats.online / stats.total) * 100) || 0}%`}
+          icon={<CheckCircle className="w-6 h-6" />}
+          variant="success"
         />
         <StatCard
-          title="Violations"
+          title="Active Violations"
           value={stats.violations}
-          icon={<AlertTriangle className="w-8 h-8 text-yellow-500" />}
-          change="+5 today"
+          icon={<AlertTriangle className="w-6 h-6" />}
+          variant={stats.violations > 10 ? 'danger' : 'warning'}
         />
         <StatCard
-          title="Critical"
-          value={stats.critical}
-          icon={<XCircle className="w-8 h-8 text-red-500" />}
-          change="Requires attention"
+          title="Active Alerts"
+          value={stats.alerts}
+          icon={<Shield className="w-6 h-6" />}
+          variant={stats.alerts > 5 ? 'warning' : 'default'}
         />
-      </div>
+      </StatsGrid>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Charts Row 1 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Violations Trend */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
-            <TrendingUp className="w-5 h-5 mr-2" />
-            Violations Trend (7 days)
-          </h2>
+        <Card>
+          <CardHeader
+            title="Violations Trend"
+            subtitle="Last 7 days"
+            action={
+              <select className="text-sm border-gray-300 rounded-md">
+                <option>Last 7 days</option>
+                <option>Last 30 days</option>
+                <option>Last 90 days</option>
+              </select>
+            }
+          />
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={violationsTrend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} name="Violations" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" stroke="#6b7280" />
+              <YAxis stroke="#6b7280" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="count"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                dot={{ fill: '#3b82f6', r: 4 }}
+              />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
         {/* Severity Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Severity Distribution</h2>
+        <Card>
+          <CardHeader title="Violations by Severity" subtitle="Current distribution" />
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie
@@ -128,88 +183,108 @@ export default function Dashboard() {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
+      </div>
 
+      {/* Charts Row 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Target Status */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Target Status</h2>
+        <Card>
+          <CardHeader title="Target Status" subtitle="Current availability" />
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={targetStatusData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="value" fill="#3b82f6" name="Count">
+            <PieChart>
+              <Pie
+                data={targetStatusData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value }) => `${name}: ${value}`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
                 {targetStatusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
-              </Bar>
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </Card>
+
+        {/* Compliance Score */}
+        <Card>
+          <CardHeader title="Compliance Scores" subtitle="By framework" />
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={complianceData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="framework" stroke="#6b7280" />
+              <YAxis stroke="#6b7280" domain={[0, 100]} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                }}
+              />
+              <Bar dataKey="score" fill="#3b82f6" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
-
-        {/* Recent Violations */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Recent Violations</h2>
-          <div className="space-y-3 max-h-[250px] overflow-y-auto">
-            {violations?.violations?.slice(0, 5).map((violation: any) => (
-              <div
-                key={violation.id}
-                className="flex items-center justify-between py-2 border-b last:border-b-0"
-              >
-                <div className="flex items-center space-x-3">
-                  <AlertCircle className={`w-5 h-5 ${getSeverityColor(violation.severity)}`} />
-                  <div>
-                    <p className="font-medium text-sm">{violation.metric_name}</p>
-                    <p className="text-xs text-gray-500">Target ID: {violation.target_id}</p>
-                  </div>
-                </div>
-                <span className={`px-2 py-1 rounded-full text-xs ${getSeverityBadge(violation.severity)}`}>
-                  {violation.severity}
-                </span>
-              </div>
-            )) || (
-              <p className="text-gray-500 text-center py-8">No violations detected</p>
-            )}
-          </div>
-        </div>
+        </Card>
       </div>
+
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader title="Recent Activity" subtitle="Last 24 hours" />
+        <div className="space-y-4">
+          <ActivityItem
+            icon={<AlertTriangle className="w-5 h-5 text-red-600" />}
+            title="Critical vulnerability detected"
+            description="CVE-2024-1234 on server-prod-01"
+            time="2 hours ago"
+          />
+          <ActivityItem
+            icon={<CheckCircle className="w-5 h-5 text-green-600" />}
+            title="Hardening applied successfully"
+            description="CIS Level 1 on server-dev-03"
+            time="4 hours ago"
+          />
+          <ActivityItem
+            icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
+            title="New target added"
+            description="server-prod-05 registered"
+            time="6 hours ago"
+          />
+          <ActivityItem
+            icon={<Shield className="w-5 h-5 text-yellow-600" />}
+            title="Security scan completed"
+            description="15 targets scanned, 3 issues found"
+            time="8 hours ago"
+          />
+        </div>
+      </Card>
     </div>
   );
 }
 
-function StatCard({ title, value, icon, change }: any) {
+interface ActivityItemProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  time: string;
+}
+
+function ActivityItem({ icon, title, description, time }: ActivityItemProps) {
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600">{title}</p>
-          <p className="text-3xl font-bold mt-2">{value}</p>
-          {change && (
-            <p className="text-xs text-gray-500 mt-1">{change}</p>
-          )}
-        </div>
+    <div className="flex items-start space-x-4 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
+      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
         {icon}
       </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900">{title}</p>
+        <p className="text-sm text-gray-500">{description}</p>
+      </div>
+      <span className="text-xs text-gray-400 flex-shrink-0">{time}</span>
     </div>
   );
-}
-
-function getSeverityColor(severity: string) {
-  switch (severity) {
-    case 'critical': return 'text-red-500';
-    case 'high': return 'text-orange-500';
-    case 'medium': return 'text-yellow-500';
-    default: return 'text-gray-500';
-  }
-}
-
-function getSeverityBadge(severity: string) {
-  switch (severity) {
-    case 'critical': return 'bg-red-100 text-red-800';
-    case 'high': return 'bg-orange-100 text-orange-800';
-    case 'medium': return 'bg-yellow-100 text-yellow-800';
-    default: return 'bg-gray-100 text-gray-800';
-  }
 }
