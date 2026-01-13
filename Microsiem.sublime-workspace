@@ -148,12 +148,10 @@
 	"buffers":
 	[
 		{
-			"contents": "E' sostanzialmente una web console molto sofisticata in react e typescript su server web nginx presente sulla macchina server \"cybersheppard\" con framework flask o django per dashbord e visualizzazioni in tempo reale dalla quale è possibile gestire e inviare impostazioni di hardening tramite comandi pure linux basata su dei modelli prestabiliti. E' possibile suddividere il software in parti: \n\n- Hardening: usando \" \"sysctl\" - \"apparmour/selinux\" - \"iptables\" - \"systemd/systemctl\" - \"sudoers\"\n- Monitoring: \"auditd\" - \"ulog2d\" - \"netstat\" - \"lsof\" - \"find\" - \"strace\" \n- Alerting: inviare mail di allerta a destinatari e/o tramite webhook (slack o telegram o whatsAPP)\n- Checking: \"bash/python\" per interrogare e ottenere l'output dei tool usati in hardening e monitoring. Il checking di default deve poter recuperare queste informazioni :\n\t\t- stato dell'hardening\n\t\t- stato della compliance\n\t\t- connessioni presenti (con particolare attenzione a rdp/vnc o ssh)\n\t\t- utenti connessi e operazioni che eseguono (tramite modifica del file sudoers o tramite auditd) soprattutto se sospette.\n\t\t- Ad ogni modo il sistema di checking deve essere possibile ampliarlo con degli script personalizzati tramite output standardizzato, sarà premuta nella documentazione specificare le variabili (o nomi delle variabili) in output correlate con i dati (serie/colonne/tabelle) del db. L'utente deve poter essere in grado di creare le dashbord interrogando il db e quindi poter selezionare i dati rappresentabili.\n\t\t- listare le priv-escalation possibili tramite controlli della presenza di file/directory owner root con permessi troppo permissivi, la presenza di software conosciuti per privesc possibili come vim, link di librerie esterne non standard\n\t\t- tramite le regole di auditd estrarre tutti i dati che potrebbero indicare compromissioni o comunque dati utili che sarà possibile rappresentare su dashboard\n\t\t- devono essere terminati i servizi non essenziali riducendo la superficie d'attacco adeguatamente alla destinazione d'uso della macchina\n\t\t- Se i servizi non previsti vengono avviati senza permesso generano alert\n\t\t- è possibilie hashare i file importanti per segnalare una possible compromissione\n\nIn base alla destinazione d'uso della macchina (es. web o dns o db o gateway) o in base alla compliance (es. nis2 o pci o iso) viene proposto l'hardening o la modifica più adatta (sempre tramite i modelli prestabiliti) e poi viene integra nel sistema tramite connessione ssh con chiave pubblica/privata.\nI modelli sono lunghe liste di file di config, quindi è possibile anche aggiungere o personalizzare questi modelli e poterli selezionare nel caso di bisogno, deve essere possibile riconoscere errori in questi modelli e suggerire le dovute correzioni per fare in modo che funziono e non rendano il sistema instabile o inutilizzabile utilizzando delle macchine di testing selezionate dall'utente, può essere utile creare un alert che indichi che l'applicazione diretta delle modifiche senza prima un test è richioso, ma sta all'utente la responsabilità di testare le configurazioni su macchine non in produzione. I modelli vengono hashati e ogni modifica non autorizzata viene segnalata tramite check dell'hash sha512. Per generare i modelli e standardizzarne il risultato potrebbe essere utile una funzione di standardizzazione.\nIl checking o il monitoring viene eseguito direttamente sulla macchina target, tramite scrittura del file cron e generando un file di output tipo JSON con tutti i dati necessari. Dal server centrale viene poi importato il file di output tramite scp. Sulla macchina server viene poi parsato l'output e inseriti i dati nel db pronti per la rappresentazione. La scrittura del file cron deve prevedere l'esecuzione asincrona dei comandi di monitoring/checking e quindi il recupero delle informazioni deve essere sempre superiore al tempo totale di esecuzione del cron in modo di avere sempre tutti risultati utili.\n\nL'utente deve poter aggiungere una macchina target tramite un pulsante \"Aggiungi\" oppure tramite un menù a tendina selezionare gli host presenti che sono stati rilevati tramite \"arpscan\" o upload di un file tipo txt con una serie di indirizzi ip uno per riga. All'inserimento viene chiesto il nome host e la funzione della macchina, inoltre può essere definita anche una compliance cioè se la macchina deve rispettare delle specifiche. Con queste informazioni vengono proposti 2 modelli di hardening:\n\t- base\n\t- severo\n\nEntrambde devono comunque rispettare le esigenze di compliance o comunque devono rispettare le richieste, la differenza consistene nel livello di hardening il \"base\" è più leggero il \"severo\" è più profondo.\nSul sistema target deve essere presente l'utente \"microsiem\", al primo avvio viene creata la chiave ellittica e aggiunta sul target, poi viene modificato e hardenizzato il file sshd_server con le impostazioni utili al nostro scopo indipendentemente dalla impostazioni selezionate dall'utente, è inoltre utile inserire limitazione dei permessi tramite file sudoers e auditd, monitorando constantemente l'attività e segnalando attività non standard.\nQuando l'utente ha segnalato le impostazioni volute inizia la fase di modifica della macchina target applicando le impostazioni previste nei modelli suggeriti.\nOgni 30 secondi viene fatto il fetch dal sistema target e importanti i dati nel nostro microsiem, i dati vengono salvati tramite db postgresql o influxdb e poi le serie possono essere rappresentate su dashbord. Il sistema deve essere scritto in python e i comandi da lanciare sui sistemi target in bash.\n\nTramite interfaccia (tasti/bottone o pagina dedicata) l'utente ha la possibilità di:\n- creare altri utenti e assegnare un ruolo: \"sysadmin\" o \"reporter\". L'utente di default è sysadmin e autenticano tramite jws e può compiere ogni operazione. \n\t- il RUOLO reporter: può solo creare dashbord, vedere lo stato delle macchine, selezionarle per creare una reportistica executive\n\t- Il ruolo sysadmin: può fare tutto quello che fa reporter, più aggiungere/modificare/rimuovere macchine, applicare/modificare/rimuovere i modelli, lanciare scansioni arp delle rete o upload di file per l'aggiunta di nuove macchine target.\n\t- Deve essere possibile poter fare queste cose (una parte di queste possono essere considerate \"checking\" di fatto, ma sarà l'utente a lanciare la richiesta, non viene fatta di default, è questa la differenza con la parte \"checking\" vera e propria):\n\t\t- cambiare password di accesso\n\t\t- aggiornare le chiavi ssh (possibile solo chiavi ellittiche) e impostare il tempo di rotazione delle credenziali\n\t\t- recuperare liste dei pacchetti presenti/installate sulle macchine, confrontarle con vulnerabilità note presenti con apt buglist \n\t\t- configurare ogni quanti secondi recuperare i dati dal sistema e per quanto tempo conservarli\n\t\t- Controllare lo stato delle connessioni con le macchine e con il db\n\t\t- Configurare smtp per invio alert e testarne il funzionamento con alert di test\n\t\t- Configurare whebhook per slack, telegram o whatsapp e testarne il funzionamento con alert di test\n\t\t- Configurare mail di alert e testarne il funzionamento con alert di test\n\t\t- Inserire rotte statiche per raggiungere segmenti di rete indiretti",
-			"file": "info.txt",
-			"file_size": 7254,
-			"file_write_time": 134063794027211160,
+			"file": "/home/simone/Repos/Progetti/LAVORO/WpHardeningGenerator/UPDATE_INSTRUCTIONS.md",
 			"settings":
 			{
+<<<<<<< HEAD
 				"buffer_size": 7236,
 				"line_ending": "Unix",
 				"name": "E' sostanzialmente una web console molto sofistica"
@@ -3964,6 +3962,21 @@
 					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAABTAgAAAAAAAFMCAAAAAAAAAAAAAAAA8L8"
 				]
 			]
+=======
+				"buffer_size": 1651,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/home/simone/Repos/Progetti/LAVORO/WpHardeningGenerator/hardening-app/DEPLOYMENT_CHECKLIST.md",
+			"settings":
+			{
+				"buffer_size": 6086,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+>>>>>>> 24ef50e6844b9d8d348e25f4685359623f23e258
 		}
 	],
 	"build_system": "",
@@ -4031,11 +4044,28 @@
 	"expanded_folders":
 	[
 		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem",
+<<<<<<< HEAD
+=======
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/backend-rust",
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/backend-rust/src",
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/backend-rust/src/api",
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/backend-rust/src/services",
+>>>>>>> 24ef50e6844b9d8d348e25f4685359623f23e258
 		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/database",
 		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/database/postgresql"
 	],
 	"file_history":
 	[
+<<<<<<< HEAD
+=======
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/backend-rust/src/services/settings_manager.rs",
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/backend-rust/src/services/plugin_manager.rs",
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/backend-rust/src/api/plugins.rs",
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/token64",
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/database/postgresql/apply_migrations.sh",
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/info.txt",
+		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/STARTUP.md",
+>>>>>>> 24ef50e6844b9d8d348e25f4685359623f23e258
 		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/.env",
 		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/.env.example",
 		"/home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/README.md",
@@ -4156,6 +4186,7 @@
 		"/home/noyse/VirtualBox VMs/MiddleManV2-Final/1.txt",
 		"/home/noyse/Scrivania/Collegamento a Lavoro/Sysdat/LavoroP.I/VAPT_2021/PrimoGiro/Vapt-Esterno_PrimoGruppoSaronno_15.03.3.2021/ListaIP.txt",
 		"/home/noyse/Lavoro/DOGNET/CSV/os\r",
+<<<<<<< HEAD
 		"/home/noyse/Lavoro/Sysdat/LavoroP.I/VAPT_2021/SecondoGiro/Vapt-Esterno_PrimoGruppoSaronno_02.12.2021/Report/Consegnato/INFO.txt",
 		"/home/noyse/Lavoro/Sysdat/LavoroP.I/VAPT_2021/SecondoGiro/Vapt-Esterno_PrimoGruppoSaronno_02.12.2021/Report/Consegnato/Documento senza nome",
 		"/home/noyse/Lavoro/Sysdat/LavoroP.I/VAPT_2021/SecondoGiro/Vapt-Esterno_PrimoGruppoSaronno_02.12.2021/Report/Consegnato/INFO.txt.txt",
@@ -4164,6 +4195,9 @@
 		"/home/noyse/BACK_13:22:49.txt",
 		"/home/noyse/Repos/NoyseSysStuff/upd-noyse/PluginUpdate.sh",
 		"/home/noyse/Repos/noyse_hack/noyse_hack.plugin.zsh"
+=======
+		"/home/noyse/Lavoro/Sysdat/LavoroP.I/VAPT_2021/SecondoGiro/Vapt-Esterno_PrimoGruppoSaronno_02.12.2021/Report/Consegnato/INFO.txt"
+>>>>>>> 24ef50e6844b9d8d348e25f4685359623f23e258
 	],
 	"find":
 	{
@@ -4255,24 +4289,28 @@
 			[
 				{
 					"buffer": 0,
-					"file": "info.txt",
+					"file": "/home/simone/Repos/Progetti/LAVORO/WpHardeningGenerator/UPDATE_INSTRUCTIONS.md",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 7236,
+						"buffer_size": 1651,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
+<<<<<<< HEAD
 								717,
 								717
+=======
+								0,
+								0
+>>>>>>> 24ef50e6844b9d8d348e25f4685359623f23e258
 							]
 						],
 						"settings":
 						{
-							"auto_name": "E' sostanzialmente una web console molto sofistica",
 							"bracket_highlighter.busy": false,
 							"bracket_highlighter.locations":
 							{
@@ -4347,14 +4385,14 @@
 								"bh_unmatched_close",
 								"bh_unmatched_content"
 							],
-							"git_gutter_is_enabled": false,
-							"lsp_uri": "file:///home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/info.txt",
-							"syntax": "Packages/Text/Plain text.tmLanguage",
-							"tab_size": 4,
-							"translate_tabs_to_spaces": false
+							"git_gutter_is_enabled": true,
+							"lsp_uri": "file:///home/simone/Repos/Progetti/LAVORO/WpHardeningGenerator/UPDATE_INSTRUCTIONS.md",
+							"syntax": "Packages/Markdown/Markdown.sublime-syntax",
+							"tab_size": 3,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 61.0,
+						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 3,
@@ -4363,20 +4401,20 @@
 				},
 				{
 					"buffer": 1,
-					"file": "STARTUP.md",
+					"file": "/home/simone/Repos/Progetti/LAVORO/WpHardeningGenerator/hardening-app/DEPLOYMENT_CHECKLIST.md",
 					"selected": true,
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 5061,
+						"buffer_size": 6086,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								1865,
-								1933
+								0,
+								0
 							]
 						],
 						"settings":
@@ -4471,11 +4509,13 @@
 								"bh_unmatched_content"
 							],
 							"git_gutter_is_enabled": true,
-							"lsp_uri": "file:///home/simone/Repos/Progetti/LAVORO/CyberSheppard-Microsiem/STARTUP.md",
-							"syntax": "Packages/Markdown/Markdown.sublime-syntax"
+							"lsp_uri": "file:///home/simone/Repos/Progetti/LAVORO/WpHardeningGenerator/hardening-app/DEPLOYMENT_CHECKLIST.md",
+							"syntax": "Packages/Markdown/Markdown.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 1241.0,
+						"translation.y": 3221.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
@@ -4826,18 +4866,15 @@
 				0,
 				1,
 				1
-			],
-			[
-				1,
-				0,
-				2,
-				1
 			]
 		],
 		"cols":
 		[
 			0.0,
+<<<<<<< HEAD
 			0.527922994957,
+=======
+>>>>>>> 24ef50e6844b9d8d348e25f4685359623f23e258
 			1.0
 		],
 		"rows":
@@ -4934,7 +4971,7 @@
 	"show_open_files": true,
 	"show_tabs": true,
 	"side_bar_visible": true,
-	"side_bar_width": 379.0,
+	"side_bar_width": 313.0,
 	"status_bar_visible": true,
 	"template_settings":
 	{
