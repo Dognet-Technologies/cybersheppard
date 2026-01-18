@@ -89,7 +89,8 @@ fn build_router(state: AppState) -> Router {
     // Public routes (no authentication required)
     let public_routes = Router::new()
         .route("/health", get(health_check))
-        .nest("/api/auth", api::auth::routes());
+        .nest("/api/auth", api::auth::routes())
+        .nest("/api/agents", api::agents::routes());
 
     // Protected routes (require authentication)
     let protected_routes = Router::new()

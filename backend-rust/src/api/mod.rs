@@ -2,6 +2,7 @@
 // CYBERSHEPPARD (MicroSIEM) - API Routes Module
 // ============================================================================
 
+pub mod agents;
 pub mod auth;
 pub mod compliance;
 pub mod compliance_frameworks;
