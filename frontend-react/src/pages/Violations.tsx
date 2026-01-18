@@ -1,12 +1,26 @@
+// ============================================================================
+// Violations Page - Compliance violations management
+// ============================================================================
+
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
+import { AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
+import { PageHeader, Table, SeverityBadge, StatusBadge, Button, StatsGrid, StatCard } from '../components/ui';
 
 export default function Violations() {
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [severityFilter, setSeverityFilter] = useState('all');
+
   const queryClient = useQueryClient();
-  const { data } = useQuery({
-    queryKey: ['violations'],
-    queryFn: () => api.getViolations(),
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['violations', statusFilter, severityFilter],
+    queryFn: () => api.getViolations({
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      severity: severityFilter !== 'all' ? severityFilter : undefined
+    }),
   });
 
   const acknowledgeMutation = useMutation({
@@ -19,73 +33,181 @@ export default function Violations() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['violations'] }),
   });
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Compliance Violations</h1>
-        <div className="flex space-x-4 text-sm">
-          <span>Critical: <strong className="text-red-600">{data?.summary?.critical || 0}</strong></span>
-          <span>High: <strong className="text-orange-600">{data?.summary?.high || 0}</strong></span>
-          <span>Medium: <strong className="text-yellow-600">{data?.summary?.medium || 0}</strong></span>
+  const columns = [
+    {
+      key: 'severity',
+      label: 'Severity',
+      sortable: true,
+      render: (row: any) => <SeverityBadge severity={row.severity} />,
+    },
+    {
+      key: 'metric_name',
+      label: 'Metric',
+      sortable: true,
+      render: (row: any) => (
+        <div>
+          <div className="font-medium text-gray-900">{row.metric_name}</div>
+          {row.description && (
+            <div className="text-sm text-gray-500 mt-1">{row.description}</div>
+          )}
         </div>
+      ),
+    },
+    {
+      key: 'target_id',
+      label: 'Target',
+      sortable: true,
+      render: (row: any) => (
+        <div className="text-sm">
+          <div className="font-medium text-gray-900">Target #{row.target_id}</div>
+          {row.target_hostname && (
+            <div className="text-gray-500">{row.target_hostname}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'detected_value',
+      label: 'Value',
+      render: (row: any) => (
+        <span className="text-sm font-mono text-gray-900">{row.detected_value}</span>
+      ),
+    },
+    {
+      key: 'first_detected_at',
+      label: 'Detected',
+      sortable: true,
+      render: (row: any) => (
+        <div className="text-sm text-gray-600">
+          {format(new Date(row.first_detected_at), 'PPp')}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: true,
+      render: (row: any) => <StatusBadge status={row.status} />,
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row: any) => (
+        <div className="flex items-center gap-2">
+          {row.status === 'new' && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => acknowledgeMutation.mutate(row.id)}
+              loading={acknowledgeMutation.isPending}
+            >
+              Acknowledge
+            </Button>
+          )}
+          {row.status === 'acknowledged' && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => resolveMutation.mutate({ id: row.id, notes: 'Resolved' })}
+              loading={resolveMutation.isPending}
+            >
+              Resolve
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        title="Compliance Violations"
+        subtitle="Monitor and manage policy violations"
+        icon={<AlertTriangle className="w-6 h-6" />}
+      />
+
+      {/* Stats Cards */}
+      <StatsGrid columns={4} className="mb-6">
+        <StatCard
+          title="Critical"
+          value={data?.summary?.critical || 0}
+          icon={<XCircle className="w-6 h-6" />}
+          variant="danger"
+        />
+        <StatCard
+          title="High"
+          value={data?.summary?.high || 0}
+          icon={<AlertTriangle className="w-6 h-6" />}
+          variant="warning"
+        />
+        <StatCard
+          title="Medium"
+          value={data?.summary?.medium || 0}
+          icon={<Clock className="w-6 h-6" />}
+          variant="info"
+        />
+        <StatCard
+          title="Resolved"
+          value={data?.summary?.resolved || 0}
+          icon={<CheckCircle className="w-6 h-6" />}
+          variant="success"
+        />
+      </StatsGrid>
+
+      {/* Filters */}
+      <div className="flex items-center gap-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          >
+            <option value="all">All Status</option>
+            <option value="new">New</option>
+            <option value="acknowledged">Acknowledged</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Severity</label>
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value)}
+            className="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          >
+            <option value="all">All Severities</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+
+        {(statusFilter !== 'all' || severityFilter !== 'all') && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setStatusFilter('all');
+              setSeverityFilter('all');
+            }}
+            className="mt-6"
+          >
+            Clear Filters
+          </Button>
+        )}
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Detected</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {data?.violations?.map((v: any) => (
-              <tr key={v.id}>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs rounded-full ${getSeverityClass(v.severity)}`}>
-                    {v.severity}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm">{v.metric_name}</td>
-                <td className="px-6 py-4 text-sm">{v.target_id}</td>
-                <td className="px-6 py-4 text-sm">{format(new Date(v.first_detected_at), 'PP')}</td>
-                <td className="px-6 py-4 text-sm">{v.status}</td>
-                <td className="px-6 py-4 text-sm space-x-2">
-                  {v.status === 'new' && (
-                    <button
-                      onClick={() => acknowledgeMutation.mutate(v.id)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      Acknowledge
-                    </button>
-                  )}
-                  {v.status === 'acknowledged' && (
-                    <button
-                      onClick={() => resolveMutation.mutate({ id: v.id, notes: 'Resolved' })}
-                      className="text-green-600 hover:text-green-800"
-                    >
-                      Resolve
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Table */}
+      <Table
+        data={data?.violations || []}
+        columns={columns}
+        loading={isLoading}
+        emptyMessage="No violations found"
+      />
     </div>
   );
-}
-
-function getSeverityClass(severity: string) {
-  switch (severity) {
-    case 'critical': return 'bg-red-100 text-red-800';
-    case 'high': return 'bg-orange-100 text-orange-800';
-    case 'medium': return 'bg-yellow-100 text-yellow-800';
-    default: return 'bg-gray-100 text-gray-800';
-  }
 }
