@@ -19,6 +19,7 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{error, info, warn};
 
 use crate::services::agent_registry::AgentSender;
+use crate::services::hardening_executor::HardeningResponse;
 use crate::AppState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,11 +90,12 @@ async fn handle_agent_socket(socket: WebSocket, state: AppState) {
     // Handle incoming messages from agent
     let mut recv_task = tokio::spawn({
         let pg_pool = state.pg_pool.clone();
+        let hardening_executor = state.hardening_executor.clone();
         async move {
             while let Some(msg) = ws_receiver.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
-                        if let Err(e) = handle_agent_message(&text, target_id, &pg_pool).await {
+                        if let Err(e) = handle_agent_message(&text, target_id, &pg_pool, &hardening_executor).await {
                             error!("Error handling message: {}", e);
                         }
                     }
@@ -168,6 +170,7 @@ async fn handle_agent_message(
     text: &str,
     target_id: i32,
     db: &PgPool,
+    hardening_executor: &std::sync::Arc<crate::services::hardening_executor::HardeningExecutor>,
 ) -> anyhow::Result<()> {
     let msg: AgentMessage = serde_json::from_str(text)?;
 
@@ -187,6 +190,14 @@ async fn handle_agent_message(
             )
             .execute(db)
             .await?;
+        }
+        MessageType::CommandResponse => {
+            // Handle hardening execution response
+            if let Ok(response) = serde_json::from_value::<HardeningResponse>(msg.payload) {
+                hardening_executor.handle_agent_response(response).await?;
+            } else {
+                error!("Failed to parse hardening response from agent {}", target_id);
+            }
         }
         _ => {}
     }

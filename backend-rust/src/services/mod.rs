@@ -8,6 +8,7 @@ pub mod collector;
 pub mod compliance;
 pub mod compliance_engine;
 pub mod correlation_engine;
+pub mod hardening_executor;
 pub mod influxdb_writer;
 pub mod integration_sync;
 pub mod integrations;
