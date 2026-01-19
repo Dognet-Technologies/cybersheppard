@@ -11,6 +11,7 @@ import ComplianceFrameworks from './pages/ComplianceFrameworks';
 import Alerts from './pages/Alerts';
 import AuditEvents from './pages/AuditEvents';
 import EventDetails from './pages/EventDetails';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import { useAuthStore } from './stores/authStore';
@@ -54,6 +55,7 @@ function App() {
             <Route path="alerts" element={<Alerts />} />
             <Route path="audit-events" element={<AuditEvents />} />
             <Route path="audit-events/:id" element={<EventDetails />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </BrowserRouter>

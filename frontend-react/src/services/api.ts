@@ -382,6 +382,157 @@ class ApiService {
     const response = await this.client.get('/api/auditd/realtime');
     return response.data;
   }
+
+  // ========================================================================
+  // SETTINGS
+  // ========================================================================
+
+  // General settings
+  async getAllSettings() {
+    const response = await this.client.get('/api/settings');
+    return response.data;
+  }
+
+  async getSetting(key: string) {
+    const response = await this.client.get(`/api/settings/${key}`);
+    return response.data;
+  }
+
+  async updateSetting(key: string, value: string, updatedBy?: string) {
+    const response = await this.client.put(`/api/settings/${key}`, {
+      value,
+      updated_by: updatedBy,
+    });
+    return response.data;
+  }
+
+  // User management
+  async getUserProfile() {
+    const response = await this.client.get('/api/settings/user/profile');
+    return response.data;
+  }
+
+  async updateUserProfile(email?: string) {
+    const response = await this.client.put('/api/settings/user/profile', { email });
+    return response.data;
+  }
+
+  async changePassword(currentPassword: string, newPassword: string) {
+    const response = await this.client.post('/api/settings/user/password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    return response.data;
+  }
+
+  // System status
+  async getSystemStatus() {
+    const response = await this.client.get('/api/settings/system/status');
+    return response.data;
+  }
+
+  async getSystemHealth() {
+    const response = await this.client.get('/api/settings/system/health');
+    return response.data;
+  }
+
+  // Database management
+  async getDatabaseStats() {
+    const response = await this.client.get('/api/settings/database/stats');
+    return response.data;
+  }
+
+  async triggerDatabaseCleanup(target: string, retentionDays: number) {
+    const response = await this.client.post('/api/settings/database/cleanup', {
+      target,
+      retention_days: retentionDays,
+    });
+    return response.data;
+  }
+
+  // API Keys
+  async listApiKeys() {
+    const response = await this.client.get('/api/settings/api-keys');
+    return response.data;
+  }
+
+  async createApiKey(data: {
+    name: string;
+    description?: string;
+    scopes: string[];
+    expires_in_days?: number;
+  }) {
+    const response = await this.client.post('/api/settings/api-keys', data);
+    return response.data;
+  }
+
+  async getApiKey(id: number) {
+    const response = await this.client.get(`/api/settings/api-keys/${id}`);
+    return response.data;
+  }
+
+  async revokeApiKey(id: number) {
+    const response = await this.client.delete(`/api/settings/api-keys/${id}`);
+    return response.data;
+  }
+
+  // Integrations
+  async listIntegrations() {
+    const response = await this.client.get('/api/settings/integrations');
+    return response.data;
+  }
+
+  async createIntegration(data: {
+    name: string;
+    type: string;
+    api_key?: string;
+    hostname?: string;
+    ip_address?: string;
+    port?: number;
+    use_ssl?: boolean;
+    sync_mode?: string;
+    sync_interval?: number;
+    config?: any;
+  }) {
+    const response = await this.client.post('/api/settings/integrations', data);
+    return response.data;
+  }
+
+  async getIntegration(id: number) {
+    const response = await this.client.get(`/api/settings/integrations/${id}`);
+    return response.data;
+  }
+
+  async updateIntegration(id: number, data: {
+    name?: string;
+    enabled?: boolean;
+    api_key?: string;
+    hostname?: string;
+    ip_address?: string;
+    port?: number;
+    use_ssl?: boolean;
+    sync_mode?: string;
+    sync_interval?: number;
+    config?: any;
+  }) {
+    const response = await this.client.put(`/api/settings/integrations/${id}`, data);
+    return response.data;
+  }
+
+  async deleteIntegration(id: number) {
+    const response = await this.client.delete(`/api/settings/integrations/${id}`);
+    return response.data;
+  }
+
+  async testIntegration(id: number) {
+    const response = await this.client.post(`/api/settings/integrations/${id}/test`);
+    return response.data;
+  }
+
+  async triggerSync(id: number) {
+    const response = await this.client.post(`/api/settings/integrations/${id}/sync`);
+    return response.data;
+  }
 }
 
 export const api = new ApiService();
