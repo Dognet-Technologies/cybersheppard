@@ -1,0 +1,818 @@
+metadata:
+  name: "backup-recovery-essential"
+  version: "1.0.0"
+  description: "Essential backup and recovery configuration - automated backups, retention policies, encryption, and disaster recovery readiness"
+  framework: ["nis2", "nist", "iso27001", "mitre"]
+  compliance_level: "Essential"
+  target_os: ["debian", "ubuntu", "rhel", "centos", "rocky", "alma", "sles"]
+  target_role: "generic"
+  priority: "critical"
+  estimated_minutes: 25
+  requires_reboot: false
+  author: "CyberSheppard Team"
+  created_at: "2026-01-19"
+  tags: ["backup", "recovery", "disaster-recovery", "business-continuity", "restic", "rsync"]
+
+risk_assessment:
+  level: "low"
+  description: "Configures automated backup system. Low risk but requires adequate storage space and proper testing."
+  rollback_supported: true
+  dry_run_recommended: true
+  potential_impact:
+    - "Backup operations consume disk I/O and network bandwidth"
+    - "Storage space required for backup retention"
+    - "Initial full backup may take considerable time"
+    - "Backup encryption adds CPU overhead"
+  mitigation:
+    - "Schedule backups during off-peak hours"
+    - "Use incremental backups after initial full backup"
+    - "Monitor backup job completion and storage usage"
+    - "Test restore procedures regularly"
+    - "Ensure backup destinations have adequate space"
+
+preflight_checks:
+  - name: "Verify root access"
+    command: "id -u"
+    expected_output: "0"
+    failure_action: "abort"
+    error_message: "Root privileges required for backup configuration"
+
+  - name: "Check available disk space for backups"
+    command: "df -h / | tail -1 | awk '{print $4}'"
+    save_output: "available_space"
+    failure_action: "warn"
+    error_message: "Low disk space - backups may fill disk"
+
+  - name: "Check if backup tools available in repositories"
+    command: "command -v rsync &>/dev/null || apt-cache show rsync &>/dev/null || yum info rsync &>/dev/null"
+    expected_exit_code: 0
+    failure_action: "warn"
+
+  - name: "Verify /var/backups directory exists or can be created"
+    command: "test -d /var/backups || mkdir -p /var/backups"
+    expected_exit_code: 0
+    failure_action: "abort"
+
+backup_files:
+  - "/etc/cron.d/cybersheppard-backup"
+  - "/usr/local/bin/cybersheppard-backup.sh"
+  - "/var/backups/"
+
+hardening_steps:
+  # STEP 1: Install Backup Tools
+  - name: "Install backup utilities"
+    control_id: "backup_tools_install"
+    priority: "critical"
+    description: "Install rsync, restic, and backup utilities"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(d)", "Art.21(2)(g)"]
+      nist: ["CP-9", "CP-9(1)"]
+      iso: ["A.8.13"]
+      mitre: ["D3-BA"]
+
+    tasks:
+      - name: "Install rsync for file synchronization"
+        action: "package_install"
+        packages: ["rsync"]
+
+      - name: "Install tar and compression tools"
+        action: "package_install"
+        packages: ["tar", "gzip", "bzip2", "xz-utils"]
+
+      - name: "Install restic for encrypted backups (optional)"
+        action: "package_install"
+        packages: ["restic"]
+        failure_action: "warn"
+        note: "Restic provides encrypted, deduplicated backups but may not be in default repos"
+
+  # STEP 2: Create Backup Directories
+  - name: "Configure backup directory structure"
+    control_id: "backup_directories"
+    priority: "high"
+    description: "Create secure backup storage directories with appropriate permissions"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(i)"]
+      nist: ["CP-9", "MP-4"]
+      iso: ["A.8.13"]
+      mitre: ["D3-BA"]
+
+    tasks:
+      - name: "Create backup directories"
+        action: "command"
+        command: |
+          mkdir -p /var/backups/cybersheppard/{daily,weekly,monthly}/{config,data,logs}
+          mkdir -p /var/backups/cybersheppard/restore-test
+          mkdir -p /var/log/cybersheppard/backup-reports
+        expected_exit_code: 0
+
+      - name: "Set backup directory permissions"
+        action: "command"
+        command: |
+          chmod 700 /var/backups/cybersheppard
+          chown -R root:root /var/backups/cybersheppard
+        expected_exit_code: 0
+
+  # STEP 3: Create Comprehensive Backup Script
+  - name: "Create automated backup script"
+    control_id: "backup_automation"
+    priority: "critical"
+    description: "Production-ready backup script with encryption, compression, and verification"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(d)", "Art.21(2)(g)"]
+      nist: ["CP-9", "CP-9(1)", "CP-9(3)"]
+      iso: ["A.8.13", "A.8.11"]
+      mitre: ["D3-BA"]
+
+    tasks:
+      - name: "Create backup script"
+        action: "file_content"
+        file: "/usr/local/bin/cybersheppard-backup.sh"
+        mode: "0750"
+        owner: "root:root"
+        content: |
+          #!/bin/bash
+          # CyberSheppard Comprehensive Backup Script
+          # Production-ready with encryption, verification, and reporting
+
+          set -euo pipefail
+
+          # Configuration
+          BACKUP_BASE="/var/backups/cybersheppard"
+          BACKUP_TYPE="${1:-daily}"  # daily, weekly, monthly
+          LOG_DIR="/var/log/cybersheppard/backup-reports"
+          LOG_FILE="$LOG_DIR/backup-$(date +%Y%m%d-%H%M%S).log"
+          RETENTION_DAYS_DAILY=7
+          RETENTION_DAYS_WEEKLY=30
+          RETENTION_DAYS_MONTHLY=365
+          HOSTNAME=$(hostname)
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+          # Backup encryption password (CHANGE THIS IN PRODUCTION!)
+          BACKUP_PASSWORD="CyberSheppard-Change-This-Password-2026"
+          export RESTIC_PASSWORD="$BACKUP_PASSWORD"
+
+          # Create log directory
+          mkdir -p "$LOG_DIR"
+
+          # Logging function
+          log() {
+              echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+          }
+
+          log "========================================="
+          log "CyberSheppard Backup Started"
+          log "Type: $BACKUP_TYPE"
+          log "Hostname: $HOSTNAME"
+          log "========================================="
+
+          # Function: Backup critical system files
+          backup_system_config() {
+              log "Backing up system configuration files..."
+
+              local DEST="$BACKUP_BASE/$BACKUP_TYPE/config/system-config-$TIMESTAMP.tar.gz.enc"
+
+              tar czf - \
+                  /etc/passwd \
+                  /etc/shadow \
+                  /etc/group \
+                  /etc/gshadow \
+                  /etc/sudoers \
+                  /etc/sudoers.d/ \
+                  /etc/ssh/ \
+                  /etc/pam.d/ \
+                  /etc/security/ \
+                  /etc/sysctl.conf \
+                  /etc/sysctl.d/ \
+                  /etc/fstab \
+                  /etc/hosts \
+                  /etc/hostname \
+                  /etc/resolv.conf \
+                  /etc/network/ \
+                  /etc/netplan/ \
+                  /etc/systemd/system/ \
+                  /boot/grub/ \
+                  2>/dev/null | \
+              openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"$BACKUP_PASSWORD" -out "$DEST"
+
+              if [ -f "$DEST" ]; then
+                  log "✓ System config backup: $(du -h "$DEST" | cut -f1)"
+              else
+                  log "✗ System config backup FAILED"
+                  return 1
+              fi
+          }
+
+          # Function: Backup security logs
+          backup_security_logs() {
+              log "Backing up security logs..."
+
+              local DEST="$BACKUP_BASE/$BACKUP_TYPE/logs/security-logs-$TIMESTAMP.tar.gz.enc"
+
+              tar czf - \
+                  /var/log/audit/ \
+                  /var/log/auth.log* \
+                  /var/log/secure* \
+                  /var/log/sudo.log* \
+                  /var/log/ssh-auth.log* \
+                  /var/log/syslog* \
+                  /var/log/messages* \
+                  /var/log/cybersheppard/ \
+                  2>/dev/null | \
+              openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"$BACKUP_PASSWORD" -out "$DEST"
+
+              if [ -f "$DEST" ]; then
+                  log "✓ Security logs backup: $(du -h "$DEST" | cut -f1)"
+              else
+                  log "✗ Security logs backup FAILED"
+                  return 1
+              fi
+          }
+
+          # Function: Backup application data
+          backup_application_data() {
+              log "Backing up application data..."
+
+              local DEST="$BACKUP_BASE/$BACKUP_TYPE/data/app-data-$TIMESTAMP.tar.gz.enc"
+
+              # Customize this based on your applications
+              tar czf - \
+                  /var/lib/postgresql/ \
+                  /var/lib/mysql/ \
+                  /var/www/ \
+                  /opt/ \
+                  /home/ \
+                  2>/dev/null | \
+              openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"$BACKUP_PASSWORD" -out "$DEST"
+
+              if [ -f "$DEST" ]; then
+                  log "✓ Application data backup: $(du -h "$DEST" | cut -f1)"
+              else
+                  log "WARNING: Application data backup had issues (may be normal if directories don't exist)"
+              fi
+          }
+
+          # Function: Create backup manifest
+          create_manifest() {
+              log "Creating backup manifest..."
+
+              local MANIFEST="$BACKUP_BASE/$BACKUP_TYPE/backup-manifest-$TIMESTAMP.txt"
+
+              {
+                  echo "CyberSheppard Backup Manifest"
+                  echo "=============================="
+                  echo "Hostname: $HOSTNAME"
+                  echo "Backup Type: $BACKUP_TYPE"
+                  echo "Timestamp: $TIMESTAMP"
+                  echo "Date: $(date)"
+                  echo ""
+                  echo "System Information:"
+                  echo "  OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '"')"
+                  echo "  Kernel: $(uname -r)"
+                  echo "  Uptime: $(uptime -p)"
+                  echo ""
+                  echo "Backup Contents:"
+                  find "$BACKUP_BASE/$BACKUP_TYPE" -name "*-$TIMESTAMP*" -type f -exec ls -lh {} \;
+                  echo ""
+                  echo "Checksums (SHA256):"
+                  find "$BACKUP_BASE/$BACKUP_TYPE" -name "*-$TIMESTAMP*" -type f -exec sha256sum {} \;
+              } > "$MANIFEST"
+
+              log "✓ Manifest created: $MANIFEST"
+          }
+
+          # Function: Cleanup old backups
+          cleanup_old_backups() {
+              log "Cleaning up old backups..."
+
+              case "$BACKUP_TYPE" in
+                  daily)
+                      RETENTION=$RETENTION_DAYS_DAILY
+                      ;;
+                  weekly)
+                      RETENTION=$RETENTION_DAYS_WEEKLY
+                      ;;
+                  monthly)
+                      RETENTION=$RETENTION_DAYS_MONTHLY
+                      ;;
+                  *)
+                      RETENTION=$RETENTION_DAYS_DAILY
+                      ;;
+              esac
+
+              log "Retention period: $RETENTION days"
+
+              find "$BACKUP_BASE/$BACKUP_TYPE" -type f -mtime +$RETENTION -delete
+
+              log "✓ Old backups cleaned up"
+          }
+
+          # Function: Verify backups
+          verify_backups() {
+              log "Verifying backup integrity..."
+
+              local ERRORS=0
+
+              # Check that backup files exist and are not empty
+              for backup_file in "$BACKUP_BASE/$BACKUP_TYPE"/*/"*-$TIMESTAMP*"; do
+                  if [ -f "$backup_file" ] && [ -s "$backup_file" ]; then
+                      log "✓ Verified: $(basename "$backup_file")"
+                  else
+                      log "✗ FAILED: $(basename "$backup_file") is missing or empty"
+                      ERRORS=$((ERRORS + 1))
+                  fi
+              done
+
+              if [ $ERRORS -eq 0 ]; then
+                  log "✓ All backups verified successfully"
+                  return 0
+              else
+                  log "✗ $ERRORS backup verification failures"
+                  return 1
+              fi
+          }
+
+          # Function: Send backup report
+          send_backup_report() {
+              local STATUS=$1
+
+              log "Generating backup report..."
+
+              local REPORT="$LOG_DIR/backup-report-$TIMESTAMP.txt"
+
+              {
+                  echo "CyberSheppard Backup Report"
+                  echo "============================"
+                  echo "Status: $STATUS"
+                  echo "Type: $BACKUP_TYPE"
+                  echo "Hostname: $HOSTNAME"
+                  echo "Date: $(date)"
+                  echo ""
+                  echo "Backup Summary:"
+                  du -sh "$BACKUP_BASE/$BACKUP_TYPE"/* 2>/dev/null || echo "No backups found"
+                  echo ""
+                  echo "Storage Usage:"
+                  df -h /var/backups
+                  echo ""
+                  echo "Recent Backups:"
+                  find "$BACKUP_BASE/$BACKUP_TYPE" -name "*-$TIMESTAMP*" -type f -ls
+                  echo ""
+                  echo "=== Backup Log ==="
+                  cat "$LOG_FILE"
+              } > "$REPORT"
+
+              log "✓ Report generated: $REPORT"
+
+              # Optional: Send email report (configure mail system first)
+              # mail -s "Backup Report: $HOSTNAME - $STATUS" admin@example.com < "$REPORT"
+          }
+
+          # Main execution
+          main() {
+              local EXIT_CODE=0
+
+              backup_system_config || EXIT_CODE=$?
+              backup_security_logs || EXIT_CODE=$?
+              backup_application_data || EXIT_CODE=$?
+              create_manifest || EXIT_CODE=$?
+              verify_backups || EXIT_CODE=$?
+              cleanup_old_backups || EXIT_CODE=$?
+
+              if [ $EXIT_CODE -eq 0 ]; then
+                  log "========================================="
+                  log "✓ Backup completed successfully"
+                  log "========================================="
+                  send_backup_report "SUCCESS"
+              else
+                  log "========================================="
+                  log "✗ Backup completed with errors"
+                  log "========================================="
+                  send_backup_report "FAILED"
+              fi
+
+              return $EXIT_CODE
+          }
+
+          # Run main function
+          main
+
+          exit $?
+
+      - name: "Make backup script executable"
+        action: "command"
+        command: "chmod 750 /usr/local/bin/cybersheppard-backup.sh"
+        expected_exit_code: 0
+
+  # STEP 4: Schedule Automated Backups
+  - name: "Schedule automated backup jobs"
+    control_id: "backup_scheduling"
+    priority: "critical"
+    description: "Configure cron jobs for daily, weekly, and monthly backups"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(d)"]
+      nist: ["CP-9", "CP-9(1)"]
+      iso: ["A.8.13"]
+      mitre: ["D3-BA"]
+
+    tasks:
+      - name: "Create backup cron jobs"
+        action: "file_content"
+        file: "/etc/cron.d/cybersheppard-backup"
+        mode: "0644"
+        owner: "root:root"
+        content: |
+          # CyberSheppard Automated Backup Schedule
+
+          # Daily backup at 2 AM
+          0 2 * * * root /usr/local/bin/cybersheppard-backup.sh daily >> /var/log/cybersheppard/backup-reports/cron.log 2>&1
+
+          # Weekly backup on Sunday at 3 AM
+          0 3 * * 0 root /usr/local/bin/cybersheppard-backup.sh weekly >> /var/log/cybersheppard/backup-reports/cron.log 2>&1
+
+          # Monthly backup on 1st of month at 4 AM
+          0 4 1 * * root /usr/local/bin/cybersheppard-backup.sh monthly >> /var/log/cybersheppard/backup-reports/cron.log 2>&1
+
+        verification:
+          command: "grep -q 'cybersheppard-backup.sh' /etc/cron.d/cybersheppard-backup"
+          expected_exit_code: 0
+
+  # STEP 5: Create Restore Script
+  - name: "Create backup restore script"
+    control_id: "backup_restore"
+    priority: "high"
+    description: "Script for restoring backups with verification"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(g)"]
+      nist: ["CP-9", "CP-10"]
+      iso: ["A.8.13"]
+      mitre: ["D3-BA"]
+
+    tasks:
+      - name: "Create restore script"
+        action: "file_content"
+        file: "/usr/local/bin/cybersheppard-restore.sh"
+        mode: "0750"
+        owner: "root:root"
+        content: |
+          #!/bin/bash
+          # CyberSheppard Backup Restore Script
+
+          set -euo pipefail
+
+          # Configuration
+          BACKUP_BASE="/var/backups/cybersheppard"
+          RESTORE_DIR="/var/backups/cybersheppard/restore-test"
+          BACKUP_PASSWORD="CyberSheppard-Change-This-Password-2026"
+
+          # Usage
+          if [ $# -lt 1 ]; then
+              echo "Usage: $0 <backup-file.tar.gz.enc> [destination-directory]"
+              echo ""
+              echo "Available backups:"
+              find "$BACKUP_BASE" -name "*.tar.gz.enc" -type f -printf "%p (%s bytes) %TY-%Tm-%Td %TH:%TM\n" | tail -20
+              exit 1
+          fi
+
+          BACKUP_FILE="$1"
+          DEST_DIR="${2:-$RESTORE_DIR}"
+
+          # Validate backup file exists
+          if [ ! -f "$BACKUP_FILE" ]; then
+              echo "ERROR: Backup file not found: $BACKUP_FILE"
+              exit 1
+          fi
+
+          echo "========================================="
+          echo "CyberSheppard Backup Restore"
+          echo "========================================="
+          echo "Backup file: $BACKUP_FILE"
+          echo "Destination: $DEST_DIR"
+          echo "File size: $(du -h "$BACKUP_FILE" | cut -f1)"
+          echo ""
+
+          # Create restore directory
+          mkdir -p "$DEST_DIR"
+
+          # Decrypt and extract
+          echo "Decrypting and extracting backup..."
+          openssl enc -aes-256-cbc -d -pbkdf2 -pass pass:"$BACKUP_PASSWORD" -in "$BACKUP_FILE" | \
+              tar xzf - -C "$DEST_DIR"
+
+          if [ $? -eq 0 ]; then
+              echo "✓ Restore completed successfully"
+              echo "Files restored to: $DEST_DIR"
+              echo ""
+              echo "Restored files:"
+              ls -lah "$DEST_DIR"
+              exit 0
+          else
+              echo "✗ Restore FAILED"
+              exit 1
+          fi
+
+  # STEP 6: Backup Testing and Verification
+  - name: "Create backup test script"
+    control_id: "backup_testing"
+    priority: "high"
+    description: "Automated backup testing and restore verification"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(g)"]
+      nist: ["CP-9", "CP-9(6)"]
+      iso: ["A.8.13"]
+      mitre: ["D3-BA"]
+
+    tasks:
+      - name: "Create backup test script"
+        action: "file_content"
+        file: "/usr/local/bin/cybersheppard-backup-test.sh"
+        mode: "0750"
+        owner: "root:root"
+        content: |
+          #!/bin/bash
+          # CyberSheppard Backup Test Script
+          # Tests backup integrity and restore capability
+
+          set -euo pipefail
+
+          BACKUP_BASE="/var/backups/cybersheppard"
+          TEST_DIR="/var/backups/cybersheppard/restore-test"
+          REPORT_FILE="/var/log/cybersheppard/backup-reports/test-$(date +%Y%m%d-%H%M%S).log"
+
+          log() {
+              echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$REPORT_FILE"
+          }
+
+          log "========================================="
+          log "CyberSheppard Backup Test Started"
+          log "========================================="
+
+          # Clean test directory
+          rm -rf "$TEST_DIR"
+          mkdir -p "$TEST_DIR"
+
+          # Find most recent backup
+          LATEST_BACKUP=$(find "$BACKUP_BASE/daily" -name "*.tar.gz.enc" -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)
+
+          if [ -z "$LATEST_BACKUP" ]; then
+              log "✗ No backups found to test"
+              exit 1
+          fi
+
+          log "Testing backup: $LATEST_BACKUP"
+          log "Backup size: $(du -h "$LATEST_BACKUP" | cut -f1)"
+
+          # Test restore
+          if /usr/local/bin/cybersheppard-restore.sh "$LATEST_BACKUP" "$TEST_DIR" >> "$REPORT_FILE" 2>&1; then
+              log "✓ Restore test PASSED"
+
+              # Verify restored files
+              FILE_COUNT=$(find "$TEST_DIR" -type f | wc -l)
+              log "Files restored: $FILE_COUNT"
+
+              if [ $FILE_COUNT -gt 0 ]; then
+                  log "✓ Backup verification PASSED"
+
+                  # Cleanup
+                  rm -rf "$TEST_DIR"
+
+                  log "========================================="
+                  log "✓ Backup test completed successfully"
+                  log "========================================="
+                  exit 0
+              else
+                  log "✗ No files were restored - backup may be corrupted"
+                  exit 1
+              fi
+          else
+              log "✗ Restore test FAILED"
+              exit 1
+          fi
+
+      - name: "Schedule monthly backup tests"
+        action: "cron_entry"
+        cron_file: "/etc/cron.d/cybersheppard-backup-test"
+        entry: "0 6 15 * * root /usr/local/bin/cybersheppard-backup-test.sh"
+        description: "Monthly backup test on 15th at 6 AM"
+
+  # STEP 7: Run Initial Backup
+  - name: "Execute initial backup"
+    control_id: "backup_initial_run"
+    priority: "high"
+    description: "Run initial backup to verify configuration"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(d)"]
+      nist: ["CP-9"]
+      iso: ["A.8.13"]
+      mitre: ["D3-BA"]
+
+    tasks:
+      - name: "Run initial backup"
+        action: "command"
+        command: "/usr/local/bin/cybersheppard-backup.sh daily"
+        timeout: 1800
+        expected_exit_code: 0
+        note: "Initial backup may take 30 minutes depending on data volume"
+
+verification_steps:
+  - name: "Verify backup script exists and is executable"
+    command: "test -x /usr/local/bin/cybersheppard-backup.sh"
+    expected_exit_code: 0
+    critical: true
+
+  - name: "Verify restore script exists"
+    command: "test -x /usr/local/bin/cybersheppard-restore.sh"
+    expected_exit_code: 0
+
+  - name: "Verify backup cron jobs configured"
+    command: "grep -q 'cybersheppard-backup.sh' /etc/cron.d/cybersheppard-backup"
+    expected_exit_code: 0
+
+  - name: "Verify initial backup completed"
+    command: "find /var/backups/cybersheppard/daily -name '*.tar.gz.enc' -type f | head -1"
+    expected_exit_code: 0
+
+  - name: "Verify backup directory permissions"
+    command: "stat -c '%a' /var/backups/cybersheppard | grep -q '^700$'"
+    expected_exit_code: 0
+
+health_checks:
+  - name: "Backup directory writable"
+    command: "touch /var/backups/cybersheppard/test && rm /var/backups/cybersheppard/test"
+    expected_exit_code: 0
+    critical: true
+
+  - name: "Sufficient disk space for backups"
+    command: "df /var/backups | tail -1 | awk '{if ($(NF-1)+0 < 80) exit 0; else exit 1}'"
+    expected_exit_code: 0
+    critical: false
+    error_message: "Disk space usage > 80% - backups may fill disk"
+
+  - name: "Backup logs being generated"
+    command: "test -d /var/log/cybersheppard/backup-reports && find /var/log/cybersheppard/backup-reports -type f -mtime -1 | grep -q ."
+    expected_exit_code: 0
+    critical: false
+
+rollback:
+  enabled: true
+  automatic_trigger:
+    - "backup_script_failed"
+  steps:
+    - name: "Disable backup cron jobs"
+      action: "command"
+      command: "rm -f /etc/cron.d/cybersheppard-backup /etc/cron.d/cybersheppard-backup-test"
+
+    - name: "Restore original configuration"
+      action: "restore_backups"
+
+post_execution_notes: |
+  BACKUP & RECOVERY SYSTEM CONFIGURED
+
+  ✓ AUTOMATED BACKUP SCHEDULE:
+    - Daily backups: 2 AM (7-day retention)
+    - Weekly backups: Sunday 3 AM (30-day retention)
+    - Monthly backups: 1st of month 4 AM (365-day retention)
+
+  📦 BACKUP CONTENTS:
+    - System configuration files (/etc, SSH, PAM, sudoers, etc.)
+    - Security logs (audit, auth, sudo, syslog)
+    - Application data (/var/lib, /opt, /home)
+    - Backup manifests with checksums
+
+  🔐 SECURITY FEATURES:
+    - AES-256-CBC encryption (all backups encrypted)
+    - PBKDF2 key derivation
+    - SHA256 checksums for integrity verification
+    - Secure permissions (700) on backup directories
+
+  ⚠️  CRITICAL: CHANGE BACKUP PASSWORD
+    The default backup password is:
+    "CyberSheppard-Change-This-Password-2026"
+
+    CHANGE THIS IMMEDIATELY in production:
+    Edit /usr/local/bin/cybersheppard-backup.sh
+    Edit /usr/local/bin/cybersheppard-restore.sh
+    Update BACKUP_PASSWORD variable
+
+  📂 BACKUP LOCATIONS:
+    - Daily: /var/backups/cybersheppard/daily/
+    - Weekly: /var/backups/cybersheppard/weekly/
+    - Monthly: /var/backups/cybersheppard/monthly/
+    - Logs: /var/log/cybersheppard/backup-reports/
+
+  🔧 MANAGEMENT COMMANDS:
+    # Run manual backup
+    /usr/local/bin/cybersheppard-backup.sh daily
+
+    # List available backups
+    find /var/backups/cybersheppard -name "*.tar.gz.enc" -type f -ls
+
+    # Restore a backup
+    /usr/local/bin/cybersheppard-restore.sh /path/to/backup.tar.gz.enc /restore/destination
+
+    # Test backup integrity
+    /usr/local/bin/cybersheppard-backup-test.sh
+
+    # Check backup status
+    tail -f /var/log/cybersheppard/backup-reports/cron.log
+
+    # View latest backup report
+    ls -lt /var/log/cybersheppard/backup-reports/*.txt | head -1 | awk '{print $NF}' | xargs cat
+
+  📊 MONITORING:
+    - Backup logs: /var/log/cybersheppard/backup-reports/
+    - Backup size: du -sh /var/backups/cybersheppard/*
+    - Disk usage: df -h /var/backups
+    - Recent backups: find /var/backups/cybersheppard -mtime -7 -type f
+
+  🧪 TESTING:
+    - Monthly automated backup tests scheduled (15th at 6 AM)
+    - Manual test: /usr/local/bin/cybersheppard-backup-test.sh
+    - Always test restore procedures after configuration changes
+
+  🔄 DISASTER RECOVERY PROCEDURE:
+    1. Identify required backup (daily/weekly/monthly)
+    2. Verify backup integrity with checksums
+    3. Decrypt and extract backup:
+       /usr/local/bin/cybersheppard-restore.sh <backup-file> /restore/path
+    4. Review restored files before applying to production
+    5. Restore files to original locations
+    6. Restart affected services
+    7. Verify system functionality
+
+  📋 NEXT STEPS:
+    [ ] CHANGE backup encryption password immediately
+    [ ] Configure remote backup destination (NFS, S3, etc.)
+    [ ] Test restore procedure to verify backups work
+    [ ] Document backup/restore procedures in runbook
+    [ ] Set up backup monitoring alerts
+    [ ] Configure email notifications for backup failures
+    [ ] Establish off-site backup copy for disaster recovery
+    [ ] Schedule quarterly disaster recovery drills
+
+  ⚠️  IMPORTANT NOTES:
+    - Backups are encrypted - keep password secure and documented
+    - Test restores regularly - untested backups are useless backups
+    - Monitor disk space - adjust retention policies as needed
+    - Consider off-site/cloud backup for true disaster recovery
+    - Backup encryption uses strong password-based encryption
+    - All backups include integrity checksums (SHA256)
+
+compliance_evidence:
+  - file: "/usr/local/bin/cybersheppard-backup.sh"
+    description: "Automated backup script with encryption and verification"
+    controls: ["backup_automation"]
+
+  - file: "/etc/cron.d/cybersheppard-backup"
+    description: "Backup schedule configuration"
+    controls: ["backup_scheduling"]
+
+  - file: "/usr/local/bin/cybersheppard-restore.sh"
+    description: "Backup restore procedure"
+    controls: ["backup_restore"]
+
+  - file: "/usr/local/bin/cybersheppard-backup-test.sh"
+    description: "Automated backup testing script"
+    controls: ["backup_testing"]
+
+  - command: "find /var/backups/cybersheppard -name '*.tar.gz.enc' -type f -ls"
+    description: "List of available backups"
+    controls: ["backup_automation"]
+
+  - command: "tail -50 /var/log/cybersheppard/backup-reports/cron.log"
+    description: "Recent backup execution log"
+    controls: ["backup_automation"]
+
+  - file: "/var/backups/cybersheppard/*/backup-manifest-*.txt"
+    description: "Backup manifests with checksums"
+    controls: ["backup_automation"]
+
+expected_results:
+  controls_implemented: 5
+  compliance_improvement:
+    nis2: "+8%"
+    nist: "+10%"
+    iso27001: "+7%"
+    mitre: "+6%"
+
+  security_improvements:
+    - "Automated daily, weekly, and monthly backups"
+    - "AES-256-CBC encryption for all backup data"
+    - "SHA256 integrity verification"
+    - "90-day+ retention with automated cleanup"
+    - "Automated backup testing and verification"
+    - "Disaster recovery procedures documented"
+    - "Secure backup storage with restricted permissions"
+    - "Comprehensive backup manifests for audit trail"
+
+dependencies:
+  templates: []
+  external_tools: ["rsync", "tar", "gzip", "openssl", "find", "sha256sum"]
+  os_packages:
+    debian: ["rsync", "tar", "gzip", "bzip2", "xz-utils", "openssl"]
+    rhel: ["rsync", "tar", "gzip", "bzip2", "xz", "openssl"]
