@@ -27,12 +27,14 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use crate::db::{influxdb::InfluxDbClient, postgresql::PostgresPool};
 use crate::middleware::auth::auth_middleware;
 use crate::middleware::csrf::csrf_middleware;
+use crate::services::agent_registry::AgentRegistry;
 
 /// Application state shared across handlers
 #[derive(Clone)]
 pub struct AppState {
     pub pg_pool: PostgresPool,
     pub influx_client: InfluxDbClient,
+    pub agent_registry: AgentRegistry,
 }
 
 #[tokio::main]
@@ -51,10 +53,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("✅ Database connections established");
 
+    // Create agent registry
+    let agent_registry = AgentRegistry::new();
+    tracing::info!("✅ Agent registry initialized");
+
     // Create application state
     let state = AppState {
         pg_pool: pg_pool.clone(),
         influx_client: influx_client.clone(),
+        agent_registry: agent_registry.clone(),
     };
 
     // Start monitoring scheduler in background

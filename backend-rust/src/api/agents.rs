@@ -15,9 +15,10 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, RwLock};
 use tracing::{error, info, warn};
 
+use crate::services::agent_registry::AgentSender;
 use crate::AppState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,62 +36,92 @@ enum MessageType {
     Metrics,
     Heartbeat,
     Command,
+    CommandResponse,
 }
 
-pub fn routes() -> Router<Arc<AppState>> {
+pub fn routes() -> Router<AppState> {
     Router::new().route("/ws", get(agent_websocket_handler))
 }
 
 async fn agent_websocket_handler(
     ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
 ) -> Response {
     ws.on_upgrade(|socket| handle_agent_socket(socket, state))
 }
 
-async fn handle_agent_socket(socket: WebSocket, state: Arc<AppState>) {
-    let (mut sender, mut receiver) = socket.split();
+async fn handle_agent_socket(socket: WebSocket, state: AppState) {
+    let (mut ws_sender, mut ws_receiver) = socket.split();
 
     info!("Agent WebSocket connected");
 
     // Wait for authentication
-    let target_id = match authenticate_agent(&mut receiver, &state.db).await {
+    let target_id = match authenticate_agent(&mut ws_receiver, &state.pg_pool).await {
         Ok(id) => {
             info!("Agent authenticated: target_id={}", id);
             id
         }
         Err(e) => {
             error!("Agent authentication failed: {}", e);
-            let _ = sender.send(Message::Close(None)).await;
+            let _ = ws_sender.send(Message::Close(None)).await;
             return;
         }
     };
 
     // Update target status to online
-    let _ = update_target_status(&state.db, target_id, "online", true).await;
+    let _ = update_target_status(&state.pg_pool, target_id, "online", true).await;
 
-    // Handle messages
-    while let Some(msg) = receiver.next().await {
-        match msg {
-            Ok(Message::Text(text)) => {
-                if let Err(e) = handle_agent_message(&text, target_id, &state.db).await {
-                    error!("Error handling message: {}", e);
+    // Create channel for sending messages to agent
+    let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
+
+    // Register agent in registry
+    state.agent_registry.register(target_id, tx).await;
+
+    // Spawn task to forward messages from channel to WebSocket
+    let mut send_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if ws_sender.send(msg).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    // Handle incoming messages from agent
+    let mut recv_task = tokio::spawn({
+        let pg_pool = state.pg_pool.clone();
+        async move {
+            while let Some(msg) = ws_receiver.next().await {
+                match msg {
+                    Ok(Message::Text(text)) => {
+                        if let Err(e) = handle_agent_message(&text, target_id, &pg_pool).await {
+                            error!("Error handling message: {}", e);
+                        }
+                    }
+                    Ok(Message::Close(_)) => {
+                        info!("Agent disconnected: target_id={}", target_id);
+                        break;
+                    }
+                    Err(e) => {
+                        error!("WebSocket error: {}", e);
+                        break;
+                    }
+                    _ => {}
                 }
             }
-            Ok(Message::Close(_)) => {
-                info!("Agent disconnected: target_id={}", target_id);
-                break;
-            }
-            Err(e) => {
-                error!("WebSocket error: {}", e);
-                break;
-            }
-            _ => {}
         }
+    });
+
+    // Wait for either task to finish
+    tokio::select! {
+        _ = (&mut send_task) => recv_task.abort(),
+        _ = (&mut recv_task) => send_task.abort(),
     }
 
+    // Unregister agent from registry
+    state.agent_registry.unregister(target_id).await;
+
     // Update target status to offline
-    let _ = update_target_status(&state.db, target_id, "offline", false).await;
+    let _ = update_target_status(&state.pg_pool, target_id, "offline", false).await;
 }
 
 async fn authenticate_agent(
