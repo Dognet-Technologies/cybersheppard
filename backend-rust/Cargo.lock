@@ -509,6 +509,7 @@ dependencies = [
  "dotenvy",
  "fernet",
  "futures",
+ "futures-util",
  "influxdb",
  "ipnetwork",
  "jsonwebtoken",

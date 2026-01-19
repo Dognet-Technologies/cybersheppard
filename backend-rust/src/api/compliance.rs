@@ -11,6 +11,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sqlx::Row;
 
 use crate::middleware::auth::AuthUser;
 use crate::models::{

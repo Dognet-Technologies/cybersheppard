@@ -4,7 +4,7 @@
 // Rust backend integration with Django Hardening Engine
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -13,6 +13,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
 use chrono::{DateTime, Utc};
+use sqlx::Row;
 use crate::AppState;
 use crate::models::{HardeningTemplate, HardeningExecution};
 use crate::middleware::auth::AuthUser;

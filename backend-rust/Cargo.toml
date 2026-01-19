@@ -15,6 +15,7 @@ tower-http = { version = "0.5", features = ["fs", "cors", "compression-gzip", "t
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"
 futures = "0.3"
+futures-util = "0.3"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
