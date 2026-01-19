@@ -28,6 +28,7 @@ use crate::db::{influxdb::InfluxDbClient, postgresql::PostgresPool};
 use crate::middleware::auth::auth_middleware;
 use crate::middleware::csrf::csrf_middleware;
 use crate::services::agent_registry::AgentRegistry;
+use crate::services::compliance_scanner::ComplianceScanner;
 use crate::services::hardening_executor::HardeningExecutor;
 use std::sync::Arc;
 
@@ -38,6 +39,7 @@ pub struct AppState {
     pub influx_client: InfluxDbClient,
     pub agent_registry: AgentRegistry,
     pub hardening_executor: Arc<HardeningExecutor>,
+    pub compliance_scanner: Arc<ComplianceScanner>,
 }
 
 #[tokio::main]
@@ -67,12 +69,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     tracing::info!("✅ Hardening executor initialized");
 
+    // Create compliance scanner
+    let compliance_scanner = std::sync::Arc::new(services::compliance_scanner::ComplianceScanner::new(
+        pg_pool.clone(),
+        agent_registry.clone(),
+    ));
+    tracing::info!("✅ Compliance scanner initialized");
+
     // Create application state
     let state = AppState {
         pg_pool: pg_pool.clone(),
         influx_client: influx_client.clone(),
         agent_registry: agent_registry.clone(),
         hardening_executor: hardening_executor.clone(),
+        compliance_scanner: compliance_scanner.clone(),
     };
 
     // Start monitoring scheduler in background
@@ -91,6 +101,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         executor_clone.start().await;
     });
     tracing::info!("✅ Hardening executor background loop started");
+
+    // Start compliance scanner background loop
+    let scanner_clone = compliance_scanner.clone();
+    tokio::spawn(async move {
+        scanner_clone.start().await;
+    });
+    tracing::info!("✅ Compliance scanner background loop started");
 
     // Build application router
     let app = build_router(state);

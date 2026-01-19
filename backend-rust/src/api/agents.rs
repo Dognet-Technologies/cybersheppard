@@ -19,6 +19,7 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{error, info, warn};
 
 use crate::services::agent_registry::AgentSender;
+use crate::services::compliance_scanner::ComplianceScanResponse;
 use crate::services::hardening_executor::HardeningResponse;
 use crate::AppState;
 
@@ -91,11 +92,12 @@ async fn handle_agent_socket(socket: WebSocket, state: AppState) {
     let mut recv_task = tokio::spawn({
         let pg_pool = state.pg_pool.clone();
         let hardening_executor = state.hardening_executor.clone();
+        let compliance_scanner = state.compliance_scanner.clone();
         async move {
             while let Some(msg) = ws_receiver.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
-                        if let Err(e) = handle_agent_message(&text, target_id, &pg_pool, &hardening_executor).await {
+                        if let Err(e) = handle_agent_message(&text, target_id, &pg_pool, &hardening_executor, &compliance_scanner).await {
                             error!("Error handling message: {}", e);
                         }
                     }
@@ -171,6 +173,7 @@ async fn handle_agent_message(
     target_id: i32,
     db: &PgPool,
     hardening_executor: &std::sync::Arc<crate::services::hardening_executor::HardeningExecutor>,
+    compliance_scanner: &std::sync::Arc<crate::services::compliance_scanner::ComplianceScanner>,
 ) -> anyhow::Result<()> {
     let msg: AgentMessage = serde_json::from_str(text)?;
 
@@ -192,11 +195,15 @@ async fn handle_agent_message(
             .await?;
         }
         MessageType::CommandResponse => {
-            // Handle hardening execution response
-            if let Ok(response) = serde_json::from_value::<HardeningResponse>(msg.payload) {
+            // Try to parse as hardening response first
+            if let Ok(response) = serde_json::from_value::<HardeningResponse>(msg.payload.clone()) {
                 hardening_executor.handle_agent_response(response).await?;
+            }
+            // Try to parse as compliance scan response
+            else if let Ok(response) = serde_json::from_value::<ComplianceScanResponse>(msg.payload) {
+                compliance_scanner.handle_scan_response(response).await?;
             } else {
-                error!("Failed to parse hardening response from agent {}", target_id);
+                error!("Failed to parse command response from agent {}", target_id);
             }
         }
         _ => {}

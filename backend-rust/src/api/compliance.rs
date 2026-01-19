@@ -36,6 +36,7 @@ pub fn routes() -> Router<crate::AppState> {
         .route("/targets", get(list_compliance_targets))
         .route("/gaps", get(list_compliance_gaps))
         .route("/targets/:target_id/score/:framework_code", get(get_target_framework_score))
+        .route("/scan/:target_id", post(trigger_compliance_scan))
 }
 
 // ============================================================================
@@ -991,4 +992,34 @@ async fn get_target_framework_score(
     })?;
 
     Ok(Json(status))
+}
+
+/// POST /api/compliance/scan/:target_id
+/// Trigger immediate compliance scan for a target
+async fn trigger_compliance_scan(
+    State(state): State<AppState>,
+    Path(target_id): Path<i32>,
+    _auth_user: AuthUser,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Check if agent is connected
+    if !state.agent_registry.is_connected(target_id).await {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": format!("Agent for target {} is not connected", target_id)})),
+        ));
+    }
+
+    // Trigger scan
+    match state.compliance_scanner.trigger_scan(target_id).await {
+        Ok(scan_id) => Ok(Json(json!({
+            "status": "success",
+            "message": "Compliance scan started",
+            "scan_id": scan_id,
+            "target_id": target_id
+        }))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        )),
+    }
 }

@@ -7,6 +7,7 @@ pub mod alerting;
 pub mod collector;
 pub mod compliance;
 pub mod compliance_engine;
+pub mod compliance_scanner;
 pub mod correlation_engine;
 pub mod hardening_executor;
 pub mod influxdb_writer;
