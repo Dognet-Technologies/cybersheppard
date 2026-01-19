@@ -204,3 +204,134 @@ pub struct ViolationSummary {
     pub low: i32,
     pub total: i32,
 }
+
+// ============================================================================
+// Compliance Framework Models (New - Migration 005)
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct ComplianceFramework {
+    pub id: i32,
+    pub code: String,
+    pub name: String,
+    pub version: String,
+    pub description: Option<String>,
+    pub published_date: Option<chrono::NaiveDate>,
+    pub active: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct ComplianceMacroarea {
+    pub id: i32,
+    pub name: String,
+    pub description: Option<String>,
+    pub display_order: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+pub struct ComplianceControl {
+    pub id: i32,
+    pub macroarea_id: i32,
+    pub sub_control: Option<String>,
+    pub sub_sub_control: Option<String>,
+    pub requirement: String,
+    pub priority: String,
+    pub implementation_complexity: Option<String>,
+    pub implementation_notes: Option<String>,
+
+    // Framework references (arrays)
+    pub nis2_references: Vec<String>,
+    pub nist_references: Vec<String>,
+    pub iso_references: Vec<String>,
+    pub mitre_references: Vec<String>,
+
+    // Framework applicability flags
+    pub applies_to_nis2: bool,
+    pub applies_to_nist: bool,
+    pub applies_to_iso: bool,
+    pub applies_to_mitre: bool,
+    pub applies_to_all_frameworks: bool,
+
+    // OS/Platform support
+    pub supports_debian_ubuntu: bool,
+    pub supports_rhel_oracle: bool,
+    pub supports_sles: bool,
+    pub supports_windows_2019: bool,
+    pub supports_windows_2022: bool,
+    pub supports_docker: bool,
+    pub supports_lxc: bool,
+
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct HardeningTemplate {
+    pub id: i32,
+    pub name: String,
+    pub description: Option<String>,
+    pub framework_code: Option<String>,
+    pub compliance_level: Option<String>,
+    pub target_os: Option<String>,
+    pub target_role: Option<String>,
+    pub version: String,
+    pub execution_order: i32,
+    pub dry_run_recommended: bool,
+    pub requires_reboot: bool,
+    pub risk_level: Option<String>,
+    pub rollback_supported: bool,
+    pub template_config: serde_json::Value, // YAML stored as JSON
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct TargetComplianceStatus {
+    pub id: i32,
+    pub target_id: i32,
+    pub framework_code: String,
+    pub total_controls: i32,
+    pub compliant_controls: i32,
+    pub non_compliant_controls: i32,
+    pub compliance_score: Option<f64>,
+    pub last_scan_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct TargetControlStatus {
+    pub id: i64,
+    pub target_id: i32,
+    pub control_id: i32,
+    pub status: String, // 'compliant', 'non_compliant', 'partial', 'not_applicable', 'not_checked', 'error'
+    pub last_check_at: Option<DateTime<Utc>>,
+    pub check_method: Option<String>,
+    pub check_output: Option<String>,
+    pub remediation_applied: bool,
+    pub evidence_data: Option<serde_json::Value>,
+    pub compliance_score: Option<f64>,
+    pub gap_description: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct HardeningExecution {
+    pub id: i64,
+    pub template_id: i32,
+    pub target_id: i32,
+    pub execution_mode: String, // 'dry_run', 'apply', 'rollback'
+    pub status: String,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub total_controls: Option<i32>,
+    pub successful_controls: Option<i32>,
+    pub failed_controls: Option<i32>,
+    pub execution_log: Option<String>,
+    pub rollback_data: Option<serde_json::Value>,
+    pub compliance_score_before: Option<f64>,
+    pub compliance_score_after: Option<f64>,
+    pub created_at: DateTime<Utc>,
+}
