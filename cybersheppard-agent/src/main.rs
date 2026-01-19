@@ -3,6 +3,7 @@
 // ============================================================================
 
 mod collectors;
+mod commands;
 mod compression;
 mod config;
 mod connection;
@@ -99,6 +100,13 @@ async fn run_agent(connection: Arc<Mutex<AgentConnection>>) -> Result<()> {
         })
     };
 
+    let command_handle = {
+        let connection = Arc::clone(&connection);
+        tokio::spawn(async move {
+            command_receive_loop(connection).await
+        })
+    };
+
     // Wait for any task to complete (or error)
     tokio::select! {
         res = collection_handle => {
@@ -109,6 +117,9 @@ async fn run_agent(connection: Arc<Mutex<AgentConnection>>) -> Result<()> {
         }
         res = health_handle => {
             error!("Health check loop ended: {:?}", res);
+        }
+        res = command_handle => {
+            error!("Command loop ended: {:?}", res);
         }
     }
 
@@ -187,5 +198,30 @@ async fn health_check_loop(connection: Arc<Mutex<AgentConnection>>) -> Result<()
         } else {
             info!("Health check: OK");
         }
+    }
+}
+
+async fn command_receive_loop(connection: Arc<Mutex<AgentConnection>>) -> Result<()> {
+    loop {
+        let mut conn = connection.lock().await;
+
+        if !conn.is_connected() {
+            drop(conn);
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            continue;
+        }
+
+        // Handle incoming commands
+        match conn.handle_commands().await {
+            Ok(_) => {
+                info!("Command handler returned normally");
+            }
+            Err(e) => {
+                error!("Command handler error: {:#}", e);
+            }
+        }
+
+        drop(conn);
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
 }

@@ -31,6 +31,7 @@ pub enum MessageType {
     Metrics,
     Heartbeat,
     Command,
+    CommandResponse,
 }
 
 pub struct AgentConnection {
@@ -42,11 +43,12 @@ pub struct AgentConnection {
 
 impl AgentConnection {
     pub fn new(config: AgentConfig) -> Self {
+        let initial_backoff = config.reconnect.initial_backoff;
         Self {
             config,
             ws: None,
             buffer: Vec::new(),
-            backoff: Duration::from_secs(config.reconnect.initial_backoff),
+            backoff: Duration::from_secs(initial_backoff),
         }
     }
 
@@ -208,8 +210,35 @@ impl AgentConnection {
     async fn handle_command(&mut self, cmd: AgentMessage) -> Result<()> {
         match cmd.msg_type {
             MessageType::Command => {
-                // Handle configuration updates, restart requests, etc.
                 info!("Processing command: {:?}", cmd.payload);
+
+                // Parse command payload
+                match serde_json::from_value::<crate::commands::CommandPayload>(cmd.payload.clone()) {
+                    Ok(command_payload) => {
+                        // Execute command asynchronously
+                        match crate::commands::handle_command(command_payload).await {
+                            Ok(response) => {
+                                // Send response back to backend
+                                let response_msg = AgentMessage {
+                                    msg_type: MessageType::CommandResponse,
+                                    target_id: self.config.target_id,
+                                    timestamp: chrono::Utc::now().timestamp(),
+                                    payload: serde_json::to_value(&response)?,
+                                };
+
+                                self.send_message(&response_msg).await?;
+                                info!("Command response sent successfully");
+                            }
+                            Err(e) => {
+                                error!("Command execution failed: {}", e);
+                                // Could send error response here
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to parse command payload: {}", e);
+                    }
+                }
             }
             _ => {}
         }
