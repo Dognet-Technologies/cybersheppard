@@ -189,6 +189,52 @@ class ApiService {
   }
 
   // ========================================================================
+  // HARDENING TEMPLATES (YAML)
+  // ========================================================================
+
+  async getHardeningTemplates(params?: {
+    framework?: string;
+    os?: string;
+    priority?: string;
+  }) {
+    const response = await this.client.get('/api/hardening/templates', { params });
+    return response.data;
+  }
+
+  async getHardeningTemplate(id: number) {
+    const response = await this.client.get(`/api/hardening/templates/${id}`);
+    return response.data;
+  }
+
+  async executeHardeningTemplate(data: {
+    template_id: number;
+    target_ids: number[];
+    execution_mode: 'dry_run' | 'apply';
+  }) {
+    const response = await this.client.post('/api/hardening/execute', data);
+    return response.data;
+  }
+
+  async getHardeningExecution(id: number) {
+    const response = await this.client.get(`/api/hardening/executions/${id}`);
+    return response.data;
+  }
+
+  async getHardeningExecutions(params?: {
+    template_id?: number;
+    target_id?: number;
+    status?: string;
+  }) {
+    const response = await this.client.get('/api/hardening/executions', { params });
+    return response.data;
+  }
+
+  async rollbackHardeningExecution(id: number) {
+    const response = await this.client.post(`/api/hardening/executions/${id}/rollback`);
+    return response.data;
+  }
+
+  // ========================================================================
   // MONITORING
   // ========================================================================
 
@@ -279,6 +325,52 @@ class ApiService {
     total_controls: number;
   }) {
     const response = await this.client.post('/api/compliance-frameworks/assessments', data);
+    return response.data;
+  }
+
+  // ========================================================================
+  // COMPLIANCE CONTROLS & MACROAREAS
+  // ========================================================================
+
+  async getComplianceMacroareas() {
+    const response = await this.client.get('/api/compliance/macroareas');
+    return response.data;
+  }
+
+  async getComplianceControls(params?: {
+    framework?: string;
+    priority?: string;
+    os?: string;
+    macroarea_id?: number;
+  }) {
+    const response = await this.client.get('/api/compliance/controls', { params });
+    return response.data;
+  }
+
+  async getComplianceControl(id: number) {
+    const response = await this.client.get(`/api/compliance/controls/${id}`);
+    return response.data;
+  }
+
+  async getComplianceDashboard(params?: { target_id?: number }) {
+    const response = await this.client.get('/api/compliance/dashboard', { params });
+    return response.data;
+  }
+
+  async getComplianceTargets() {
+    const response = await this.client.get('/api/compliance/targets');
+    return response.data;
+  }
+
+  async getComplianceGaps(params?: { framework?: string; priority?: string[] }) {
+    const response = await this.client.get('/api/compliance/gaps', { params });
+    return response.data;
+  }
+
+  async getTargetComplianceScore(targetId: number, frameworkCode: string) {
+    const response = await this.client.get(
+      `/api/compliance/targets/${targetId}/score/${frameworkCode}`
+    );
     return response.data;
   }
 
