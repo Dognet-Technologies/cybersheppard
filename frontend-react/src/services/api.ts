@@ -342,6 +342,46 @@ class ApiService {
     const response = await this.client.get('/api/alerts/rules');
     return response.data;
   }
+
+  // ========================================================================
+  // AUDITD EVENTS
+  // ========================================================================
+
+  async getAuditdEvents(params?: {
+    target_id?: number;
+    severity?: string;
+    category?: string;
+    status?: string;
+    since?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const response = await this.client.get('/api/auditd/events', { params });
+    return response.data;
+  }
+
+  async getAuditdEventDetails(eventId: number) {
+    const response = await this.client.get(`/api/auditd/events/${eventId}`);
+    return response.data;
+  }
+
+  async updateAuditdEventStatus(eventId: number, status: string, resolutionNotes?: string) {
+    const response = await this.client.post(`/api/auditd/events/${eventId}/status`, {
+      status,
+      resolution_notes: resolutionNotes,
+    });
+    return response.data;
+  }
+
+  async getAuditdStats() {
+    const response = await this.client.get('/api/auditd/stats');
+    return response.data;
+  }
+
+  async getRealtimeAuditdEvents() {
+    const response = await this.client.get('/api/auditd/realtime');
+    return response.data;
+  }
 }
 
 export const api = new ApiService();

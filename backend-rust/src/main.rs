@@ -96,6 +96,7 @@ fn build_router(state: AppState) -> Router {
     let protected_routes = Router::new()
         .nest("/api/auth", api::auth::protected_routes())
         .nest("/api/targets", api::targets::routes())
+        .nest("/api/auditd", api::auditd::routes())
         .nest("/api/hardening", api::hardening::routes())
         .nest("/api/monitoring", api::monitoring::routes())
         .nest("/api/compliance", api::compliance::routes())

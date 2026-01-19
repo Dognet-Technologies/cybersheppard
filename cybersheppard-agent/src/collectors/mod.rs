@@ -7,6 +7,7 @@ mod network;
 mod users;
 mod files;
 mod services;
+mod auditd;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ pub use network::NetworkMetrics;
 pub use users::UsersMetrics;
 pub use files::FilesMetrics;
 pub use services::ServicesMetrics;
+pub use auditd::AuditdMetrics;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllMetrics {
@@ -38,6 +40,9 @@ pub struct AllMetrics {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub services: Option<ServicesMetrics>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auditd: Option<AuditdMetrics>,
 }
 
 /// Collect all enabled metrics
@@ -74,6 +79,12 @@ pub async fn collect_all(config: &AgentConfig) -> Result<AllMetrics> {
         None
     };
 
+    let auditd = if config.collectors.auditd {
+        Some(auditd::collect().await?)
+    } else {
+        None
+    };
+
     Ok(AllMetrics {
         collected_at: chrono::Utc::now().timestamp(),
         hostname,
@@ -82,5 +93,6 @@ pub async fn collect_all(config: &AgentConfig) -> Result<AllMetrics> {
         users,
         files,
         services,
+        auditd,
     })
 }

@@ -3,6 +3,7 @@
 // ============================================================================
 
 pub mod agents;
+pub mod auditd;
 pub mod auth;
 pub mod compliance;
 pub mod compliance_frameworks;
