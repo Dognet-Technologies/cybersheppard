@@ -5,7 +5,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use std::process::Command;
-use tracing::{info, warn, error};
+use tracing::info;
 
 use super::{CommandResponse, ControlCheckResult, ControlToCheck, ScanSummary};
 

@@ -3,7 +3,7 @@
 // ============================================================================
 
 use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use std::process::Command;
 use tracing::{info, warn, error};

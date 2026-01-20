@@ -174,6 +174,9 @@ impl AgentConnection {
     }
 
     pub async fn handle_commands(&mut self) -> Result<()> {
+        // Collect messages to process (to avoid borrow checker issues)
+        let mut messages_to_process = Vec::new();
+
         if let Some(ws) = &mut self.ws {
             while let Some(msg) = ws.next().await {
                 match msg {
@@ -181,8 +184,7 @@ impl AgentConnection {
                         match serde_json::from_str::<AgentMessage>(&text) {
                             Ok(cmd) => {
                                 info!("Received command: {:?}", cmd.msg_type);
-                                // Handle commands (update config, restart, etc.)
-                                self.handle_command(cmd).await?;
+                                messages_to_process.push(cmd);
                             }
                             Err(e) => {
                                 error!("Failed to parse command: {}", e);
@@ -201,7 +203,17 @@ impl AgentConnection {
                     }
                     _ => {}
                 }
+
+                // Process one message at a time to avoid blocking
+                if !messages_to_process.is_empty() {
+                    break;
+                }
             }
+        }
+
+        // Process collected messages
+        for cmd in messages_to_process {
+            self.handle_command(cmd).await?;
         }
 
         Ok(())
