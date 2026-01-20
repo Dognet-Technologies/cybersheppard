@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use std::collections::{HashMap, HashSet};
 use tracing::{info, warn};
 
-use crate::models::security_event::BaselineCalculationResult;
+use crate::security_event::BaselineCalculationResult;
 
 /// Baseline Calculator Service - Computes statistical baselines for UEBA
 pub struct BaselineCalculatorService {

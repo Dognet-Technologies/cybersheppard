@@ -11,7 +11,7 @@ use std::net::IpAddr;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::models::security_event::{
+use crate::security_event::{
     AttackStage, CorrelationStatus, CorrelationType, EventCorrelation, SecurityEvent, Severity,
 };
 

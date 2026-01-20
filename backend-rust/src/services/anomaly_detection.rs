@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use tracing::{debug, info};
 
-use crate::models::security_event::{
+use crate::security_event::{
     AnomalyDetectionResult, BaselineCalculationResult, Severity,
 };
 

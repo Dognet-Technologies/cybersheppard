@@ -32,6 +32,11 @@ use crate::middleware::csrf::csrf_middleware;
 use crate::services::agent_registry::AgentRegistry;
 use crate::services::compliance_scanner::ComplianceScanner;
 use crate::services::hardening_executor::HardeningExecutor;
+use crate::services::event_collector::EventCollectorService;
+use crate::services::correlation_engine::CorrelationEngine;
+use crate::services::anomaly_detection::AnomalyDetectionService;
+use crate::services::baseline_calculator::BaselineCalculatorService;
+use crate::websocket::alert_broadcaster::AlertBroadcaster;
 use std::sync::Arc;
 
 /// Application state shared across handlers
@@ -42,6 +47,11 @@ pub struct AppState {
     pub agent_registry: AgentRegistry,
     pub hardening_executor: Arc<HardeningExecutor>,
     pub compliance_scanner: Arc<ComplianceScanner>,
+    pub event_collector: Arc<EventCollectorService>,
+    pub correlation_engine: Arc<CorrelationEngine>,
+    pub anomaly_detection: Arc<AnomalyDetectionService>,
+    pub baseline_calculator: Arc<BaselineCalculatorService>,
+    pub alert_broadcaster: Arc<AlertBroadcaster>,
 }
 
 #[tokio::main]
@@ -78,6 +88,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     tracing::info!("✅ Compliance scanner initialized");
 
+    // Create event correlation services
+    let event_collector = std::sync::Arc::new(services::event_collector::EventCollectorService::new(
+        pg_pool.clone(),
+        "/var/log/audit/audit.log".to_string(), // Default auditd log path
+    ));
+    tracing::info!("✅ Event collector initialized");
+
+    let correlation_engine = std::sync::Arc::new(services::correlation_engine::CorrelationEngine::new(
+        pg_pool.clone(),
+    ));
+    tracing::info!("✅ Correlation engine initialized");
+
+    let anomaly_detection = std::sync::Arc::new(services::anomaly_detection::AnomalyDetectionService::new(
+        pg_pool.clone(),
+    ));
+    tracing::info!("✅ Anomaly detection service initialized");
+
+    let baseline_calculator = std::sync::Arc::new(services::baseline_calculator::BaselineCalculatorService::new(
+        pg_pool.clone(),
+    ));
+    tracing::info!("✅ Baseline calculator initialized");
+
+    let alert_broadcaster = std::sync::Arc::new(websocket::alert_broadcaster::AlertBroadcaster::new());
+    tracing::info!("✅ Alert broadcaster initialized");
+
     // Create application state
     let state = AppState {
         pg_pool: pg_pool.clone(),
@@ -85,6 +120,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         agent_registry: agent_registry.clone(),
         hardening_executor: hardening_executor.clone(),
         compliance_scanner: compliance_scanner.clone(),
+        event_collector: event_collector.clone(),
+        correlation_engine: correlation_engine.clone(),
+        anomaly_detection: anomaly_detection.clone(),
+        baseline_calculator: baseline_calculator.clone(),
+        alert_broadcaster: alert_broadcaster.clone(),
     };
 
     // Start monitoring scheduler in background
@@ -110,6 +150,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scanner_clone.start().await;
     });
     tracing::info!("✅ Compliance scanner background loop started");
+
+    // Start alert monitor service for WebSocket broadcasting
+    let alert_monitor = std::sync::Arc::new(websocket::alert_broadcaster::AlertMonitorService::new(
+        pg_pool.clone(),
+        alert_broadcaster.clone(),
+    ));
+    tokio::spawn(async move {
+        alert_monitor.start_monitoring().await;
+    });
+    tracing::info!("✅ Alert monitor service started (WebSocket broadcasting)");
 
     // Build application router
     let app = build_router(state);
@@ -148,6 +198,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/api/alerts", api::alerts::routes())
         .nest("/api/settings", api::settings::routes())
         .nest("/api/integrations", api::integrations::routes())
+        .nest("/api/events", api::security_events::routes())
         .nest("/ws", api::websocket::routes())
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),

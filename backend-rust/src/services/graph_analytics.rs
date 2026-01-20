@@ -3,12 +3,13 @@
 // ============================================================================
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::collections::{HashMap, HashSet, VecDeque};
 use tracing::{debug, info};
 
 /// Graph node representing a host
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {
     pub host_name: String,
     pub criticality: i32,

@@ -14,7 +14,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::models::security_event::{
+use crate::security_event::{
     EventCategory, SecurityEvent, Severity, SourceType,
 };
 

@@ -6,13 +6,15 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
+    routing::{get, post},
     Json,
+    Router,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
 
-use crate::models::security_event::{EventCorrelation, SecurityEvent};
+use crate::security_event::{EventCorrelation, SecurityEvent};
 use crate::services::{
     anomaly_detection::AnomalyDetectionService,
     baseline_calculator::BaselineCalculatorService,
@@ -74,7 +76,7 @@ pub async fn get_events(
     State(db): State<Arc<PgPool>>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<Vec<SecurityEvent>>>, StatusCode> {
-    let collector = EventCollectorService::new((**db).clone(), String::new());
+    let collector = EventCollectorService::new((*db).clone(), String::new());
 
     match collector.get_recent_events(params.hours, params.limit).await {
         Ok(events) => Ok(Json(ApiResponse::success(events))),
@@ -90,7 +92,7 @@ pub async fn get_event_stats(
     State(db): State<Arc<PgPool>>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let collector = EventCollectorService::new((**db).clone(), String::new());
+    let collector = EventCollectorService::new((*db).clone(), String::new());
 
     match collector.get_severity_stats(params.hours).await {
         Ok(stats) => {
@@ -112,7 +114,7 @@ pub async fn get_correlations(
     State(db): State<Arc<PgPool>>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<Vec<EventCorrelation>>>, StatusCode> {
-    let engine = CorrelationEngine::new((**db).clone());
+    let engine = CorrelationEngine::new((*db).clone());
 
     match engine.get_active_correlations(params.limit).await {
         Ok(correlations) => Ok(Json(ApiResponse::success(correlations))),
@@ -127,7 +129,7 @@ pub async fn get_correlations(
 pub async fn get_correlation_stats(
     State(db): State<Arc<PgPool>>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let engine = CorrelationEngine::new((**db).clone());
+    let engine = CorrelationEngine::new((*db).clone());
 
     match engine.get_correlation_stats().await {
         Ok(stats) => {
@@ -154,7 +156,7 @@ pub async fn analyze_correlations(
     State(db): State<Arc<PgPool>>,
     Json(req): Json<AnalyzeRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let engine = CorrelationEngine::new((**db).clone());
+    let engine = CorrelationEngine::new((*db).clone());
 
     match engine.analyze_correlations(req.hours).await {
         Ok(correlations) => {
@@ -187,7 +189,7 @@ pub async fn calculate_baselines(
     State(db): State<Arc<PgPool>>,
     Json(req): Json<CalculateBaselinesRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let calculator = BaselineCalculatorService::new((**db).clone());
+    let calculator = BaselineCalculatorService::new((*db).clone());
 
     match calculator.calculate_all_baselines(req.days).await {
         Ok(_) => {
@@ -209,7 +211,7 @@ pub async fn detect_anomalies(
     State(db): State<Arc<PgPool>>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let detector = AnomalyDetectionService::new((**db).clone());
+    let detector = AnomalyDetectionService::new((*db).clone());
 
     match detector.analyze_recent_events(params.hours).await {
         Ok(anomalies) => {
@@ -256,7 +258,7 @@ pub async fn get_host_risk(
         "#,
         host_name
     )
-    .fetch_optional(&**db)
+    .fetch_optional(&*db)
     .await;
 
     match row {
@@ -327,7 +329,7 @@ pub async fn get_active_alerts(
         "#,
         params.limit
     )
-    .fetch_all(&**db)
+    .fetch_all(&*db)
     .await;
 
     match rows {
@@ -382,7 +384,7 @@ pub async fn get_dashboard_metrics(
         "#,
         params.hours
     )
-    .fetch_all(&**db)
+    .fetch_all(&*db)
     .await;
 
     // Correlation stats
@@ -394,7 +396,7 @@ pub async fn get_dashboard_metrics(
         GROUP BY correlation_type
         "#
     )
-    .fetch_all(&**db)
+    .fetch_all(&*db)
     .await;
 
     // High-risk hosts
@@ -407,7 +409,7 @@ pub async fn get_dashboard_metrics(
         LIMIT 10
         "#
     )
-    .fetch_all(&**db)
+    .fetch_all(&*db)
     .await;
 
     match (event_stats, correlation_stats, high_risk_hosts) {
@@ -442,4 +444,27 @@ pub async fn get_dashboard_metrics(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+/// Build security events API routes
+pub fn routes() -> Router<crate::AppState> {
+    Router::new()
+        // Event queries
+        .route("/", get(get_events))
+        .route("/stats", get(get_event_stats))
+        
+        // Correlation queries
+        .route("/correlations", get(get_correlations))
+        .route("/correlations/stats", get(get_correlation_stats))
+        .route("/correlations/analyze", post(analyze_correlations))
+        
+        // Baseline and anomaly detection
+        .route("/baselines/calculate", post(calculate_baselines))
+        .route("/anomalies/detect", post(detect_anomalies))
+        
+        // Risk assessment
+        .route("/hosts/:host_name/risk", get(get_host_risk))
+        
+        // Active alerts and dashboard
+        .route("/alerts/active", get(get_active_alerts))
+        .route("/dashboard/metrics", get(get_dashboard_metrics))
 }
