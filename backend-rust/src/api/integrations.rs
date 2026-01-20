@@ -18,10 +18,11 @@ pub fn routes() -> Router<AppState> {
         .route("/status", get(integration_status))
         .route("/sentinel-core/sync", post(sync_sentinel_core))
         .route("/firedog/sync", post(sync_firedog))
-        .route("/correlations", get(get_correlations))
-        .route("/correlations/:id/acknowledge", post(acknowledge_correlation))
-        .route("/correlations/:id/resolve", post(resolve_correlation))
-        .route("/correlations/target/:target_id", get(get_target_correlations))
+        // NOTE: Old correlation routes removed - now handled by /api/events/
+        // .route("/correlations", get(get_correlations))
+        // .route("/correlations/:id/acknowledge", post(acknowledge_correlation))
+        // .route("/correlations/:id/resolve", post(resolve_correlation))
+        // .route("/correlations/target/:target_id", get(get_target_correlations))
 }
 
 #[derive(Serialize)]
@@ -119,11 +120,35 @@ async fn sync_firedog(
     })))
 }
 
+
+// ============================================================================
+// LEGACY CORRELATION API - REMOVED (2026-01-20)
+// ============================================================================
+// These endpoints have been replaced by the new /api/events/ endpoints
+// in security_events.rs which use the advanced correlation engine.
+// 
+// Old endpoints (removed):
+//   GET  /api/integrations/correlations
+//   GET  /api/integrations/correlations/target/:target_id  
+//   POST /api/integrations/correlations/:id/acknowledge
+//   POST /api/integrations/correlations/:id/resolve
+//
+// New replacements:
+//   GET  /api/events/correlations              - List active correlations
+//   GET  /api/events/correlations/stats        - Correlation statistics
+//   POST /api/events/correlations/analyze      - Run correlation analysis
+//   GET  /api/events/alerts/active             - Get active alerts
+//
+// The old CorrelationEngine methods (get_correlations_by_target, 
+// acknowledge_correlation, resolve_correlation) have been deprecated
+// in favor of the new advanced correlation system.
+// ============================================================================
+
+/*
 async fn get_correlations(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     let engine = CorrelationEngine::new(state.pg_pool.clone());
-
     match engine.get_active_correlations().await {
         Ok(correlations) => (StatusCode::OK, Json(correlations)).into_response(),
         Err(e) => (
@@ -140,7 +165,6 @@ async fn get_target_correlations(
     Path(target_id): Path<i32>,
 ) -> impl IntoResponse {
     let engine = CorrelationEngine::new(state.pg_pool.clone());
-
     match engine.get_correlations_by_target(target_id).await {
         Ok(correlations) => (StatusCode::OK, Json(correlations)).into_response(),
         Err(e) => (
@@ -163,7 +187,6 @@ async fn acknowledge_correlation(
     Json(payload): Json<AcknowledgeRequest>,
 ) -> impl IntoResponse {
     let engine = CorrelationEngine::new(state.pg_pool.clone());
-
     match engine.acknowledge_correlation(correlation_id, &payload.acknowledged_by).await {
         Ok(_) => (StatusCode::OK, Json(serde_json::json!({
             "success": true,
@@ -190,7 +213,6 @@ async fn resolve_correlation(
     Json(payload): Json<ResolveRequest>,
 ) -> impl IntoResponse {
     let engine = CorrelationEngine::new(state.pg_pool.clone());
-
     match engine.resolve_correlation(
         correlation_id,
         &payload.resolved_by,
@@ -208,3 +230,4 @@ async fn resolve_correlation(
         ).into_response(),
     }
 }
+*/
