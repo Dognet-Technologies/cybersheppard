@@ -7,8 +7,10 @@ mod db;
 mod integrations;
 mod middleware;
 mod models;
+mod security_event;
 mod services;
 mod utils;
+mod websocket;
 
 use axum::{
     middleware as axum_middleware,
