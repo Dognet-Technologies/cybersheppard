@@ -58,25 +58,49 @@ pub async fn execute_compliance_scan(
 }
 
 async fn check_control(control: &ControlToCheck) -> ControlCheckResult {
-    // This is a simplified implementation. In production, you would:
-    // 1. Parse the check_method from the control
-    // 2. Execute the appropriate system check (file permissions, running processes, etc.)
-    // 3. Collect evidence
-    // 4. Determine compliance status
-
     let requirement_lower = control.requirement.to_lowercase();
 
-    // Example checks based on requirement keywords
-    if requirement_lower.contains("ssh") && requirement_lower.contains("mfa") {
+    // Set control_id for all results
+    let mut result = if requirement_lower.contains("ssh") && requirement_lower.contains("mfa") {
         check_ssh_mfa().await
+    } else if requirement_lower.contains("ssh") && (requirement_lower.contains("root") || requirement_lower.contains("permesso")) {
+        check_ssh_root_login().await
+    } else if requirement_lower.contains("ssh") && requirement_lower.contains("timeout") {
+        check_ssh_timeout().await
     } else if requirement_lower.contains("firewall") {
         check_firewall().await
     } else if requirement_lower.contains("password") && requirement_lower.contains("policy") {
         check_password_policy().await
+    } else if requirement_lower.contains("password") && (requirement_lower.contains("età") || requirement_lower.contains("scadenza")) {
+        check_password_expiry().await
     } else if requirement_lower.contains("audit") || requirement_lower.contains("logging") {
         check_audit_logging().await
-    } else if requirement_lower.contains("encryption") {
+    } else if requirement_lower.contains("encryption") || requirement_lower.contains("cifratura") {
         check_encryption().await
+    } else if requirement_lower.contains("antivirus") || requirement_lower.contains("malware") {
+        check_antivirus().await
+    } else if requirement_lower.contains("backup") {
+        check_backup().await
+    } else if requirement_lower.contains("patch") || requirement_lower.contains("aggiornament") || requirement_lower.contains("update") {
+        check_patch_management().await
+    } else if requirement_lower.contains("sudo") {
+        check_sudo_config().await
+    } else if requirement_lower.contains("selinux") || requirement_lower.contains("apparmor") {
+        check_mandatory_access_control().await
+    } else if requirement_lower.contains("fail2ban") || requirement_lower.contains("brute") {
+        check_fail2ban().await
+    } else if requirement_lower.contains("ntp") || requirement_lower.contains("time sync") {
+        check_time_sync().await
+    } else if requirement_lower.contains("umask") {
+        check_umask().await
+    } else if requirement_lower.contains("core dump") {
+        check_core_dumps().await
+    } else if requirement_lower.contains("sysctl") || requirement_lower.contains("kernel") {
+        check_kernel_hardening().await
+    } else if requirement_lower.contains("servizi inutilizzati") || requirement_lower.contains("unnecessary services") {
+        check_unnecessary_services().await
+    } else if requirement_lower.contains("permessi file") || requirement_lower.contains("file permission") {
+        check_file_permissions().await
     } else {
         // Default: mark as not_applicable for unimplemented checks
         ControlCheckResult {
@@ -86,7 +110,11 @@ async fn check_control(control: &ControlToCheck) -> ControlCheckResult {
             gap_description: None,
             check_timestamp: Utc::now().to_rfc3339(),
         }
-    }
+    };
+
+    // Set the correct control_id
+    result.control_id = control.control_id;
+    result
 }
 
 async fn check_ssh_mfa() -> ControlCheckResult {
@@ -274,6 +302,558 @@ async fn check_encryption() -> ControlCheckResult {
                 gap_description: None,
                 check_timestamp: Utc::now().to_rfc3339(),
             }
+        }
+    }
+}
+
+// ============================================================================
+// Additional Compliance Checks
+// ============================================================================
+
+async fn check_ssh_root_login() -> ControlCheckResult {
+    let check = Command::new("grep")
+        .args(&["^PermitRootLogin", "/etc/ssh/sshd_config"])
+        .output();
+
+    match check {
+        Ok(output) if output.status.success() => {
+            let config = String::from_utf8_lossy(&output.stdout);
+            if config.contains("PermitRootLogin no") {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "compliant".to_string(),
+                    evidence: Some("SSH root login is disabled".to_string()),
+                    gap_description: None,
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            } else {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "non_compliant".to_string(),
+                    evidence: Some(format!("SSH root login configuration: {}", config.trim())),
+                    gap_description: Some("Set 'PermitRootLogin no' in /etc/ssh/sshd_config".to_string()),
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            }
+        }
+        _ => {
+            ControlCheckResult {
+                control_id: 0,
+                status: "non_compliant".to_string(),
+                evidence: Some("PermitRootLogin directive not found".to_string()),
+                gap_description: Some("Add 'PermitRootLogin no' to /etc/ssh/sshd_config".to_string()),
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+    }
+}
+
+async fn check_ssh_timeout() -> ControlCheckResult {
+    let check = Command::new("grep")
+        .args(&["ClientAliveInterval", "/etc/ssh/sshd_config"])
+        .output();
+
+    match check {
+        Ok(output) if output.status.success() => {
+            let config = String::from_utf8_lossy(&output.stdout);
+            ControlCheckResult {
+                control_id: 0,
+                status: "compliant".to_string(),
+                evidence: Some(format!("SSH timeout configured: {}", config.trim())),
+                gap_description: None,
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+        _ => {
+            ControlCheckResult {
+                control_id: 0,
+                status: "non_compliant".to_string(),
+                evidence: Some("SSH idle timeout not configured".to_string()),
+                gap_description: Some("Configure ClientAliveInterval in sshd_config".to_string()),
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+    }
+}
+
+async fn check_password_expiry() -> ControlCheckResult {
+    let check = Command::new("grep")
+        .args(&["^PASS_MAX_DAYS", "/etc/login.defs"])
+        .output();
+
+    match check {
+        Ok(output) if output.status.success() => {
+            let config = String::from_utf8_lossy(&output.stdout);
+            if let Some(days_str) = config.split_whitespace().nth(1) {
+                if let Ok(days) = days_str.parse::<i32>() {
+                    if days <= 90 {
+                        return ControlCheckResult {
+                            control_id: 0,
+                            status: "compliant".to_string(),
+                            evidence: Some(format!("Password expiry set to {} days", days)),
+                            gap_description: None,
+                            check_timestamp: Utc::now().to_rfc3339(),
+                        };
+                    }
+                }
+            }
+            ControlCheckResult {
+                control_id: 0,
+                status: "non_compliant".to_string(),
+                evidence: Some(format!("Password expiry: {}", config.trim())),
+                gap_description: Some("Set PASS_MAX_DAYS to 90 or less in /etc/login.defs".to_string()),
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+        _ => {
+            ControlCheckResult {
+                control_id: 0,
+                status: "non_compliant".to_string(),
+                evidence: Some("Password expiry not configured".to_string()),
+                gap_description: Some("Configure PASS_MAX_DAYS in /etc/login.defs".to_string()),
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+    }
+}
+
+async fn check_antivirus() -> ControlCheckResult {
+    // Check for ClamAV
+    let clamav = Command::new("systemctl")
+        .args(&["is-active", "clamav-daemon"])
+        .output();
+
+    if let Ok(output) = clamav {
+        let status = String::from_utf8_lossy(&output.stdout);
+        if status.trim() == "active" {
+            return ControlCheckResult {
+                control_id: 0,
+                status: "compliant".to_string(),
+                evidence: Some("ClamAV antivirus is active".to_string()),
+                gap_description: None,
+                check_timestamp: Utc::now().to_rfc3339(),
+            };
+        }
+    }
+
+    ControlCheckResult {
+        control_id: 0,
+        status: "non_compliant".to_string(),
+        evidence: Some("No active antivirus detected".to_string()),
+        gap_description: Some("Install and configure antivirus (e.g., ClamAV)".to_string()),
+        check_timestamp: Utc::now().to_rfc3339(),
+    }
+}
+
+async fn check_backup() -> ControlCheckResult {
+    // Check for common backup tools
+    let tools = vec!["bacula-fd", "duplicity", "restic", "borgbackup"];
+
+    for tool in tools {
+        if let Ok(output) = Command::new("which").arg(tool).output() {
+            if output.status.success() {
+                return ControlCheckResult {
+                    control_id: 0,
+                    status: "compliant".to_string(),
+                    evidence: Some(format!("Backup tool detected: {}", tool)),
+                    gap_description: None,
+                    check_timestamp: Utc::now().to_rfc3339(),
+                };
+            }
+        }
+    }
+
+    ControlCheckResult {
+        control_id: 0,
+        status: "non_compliant".to_string(),
+        evidence: Some("No backup solution detected".to_string()),
+        gap_description: Some("Install and configure automated backup solution".to_string()),
+        check_timestamp: Utc::now().to_rfc3339(),
+    }
+}
+
+async fn check_patch_management() -> ControlCheckResult {
+    // Check if unattended-upgrades is configured
+    let check = Command::new("systemctl")
+        .args(&["is-enabled", "unattended-upgrades"])
+        .output();
+
+    if let Ok(output) = check {
+        let status = String::from_utf8_lossy(&output.stdout);
+        if status.trim() == "enabled" {
+            return ControlCheckResult {
+                control_id: 0,
+                status: "compliant".to_string(),
+                evidence: Some("Automatic updates configured (unattended-upgrades)".to_string()),
+                gap_description: None,
+                check_timestamp: Utc::now().to_rfc3339(),
+            };
+        }
+    }
+
+    // Check for pending updates
+    if let Ok(output) = Command::new("apt-get").args(&["-s", "upgrade"]).output() {
+        let upgrades = String::from_utf8_lossy(&output.stdout);
+        if upgrades.contains("0 upgraded") {
+            return ControlCheckResult {
+                control_id: 0,
+                status: "compliant".to_string(),
+                evidence: Some("System is up to date".to_string()),
+                gap_description: None,
+                check_timestamp: Utc::now().to_rfc3339(),
+            };
+        }
+    }
+
+    ControlCheckResult {
+        control_id: 0,
+        status: "non_compliant".to_string(),
+        evidence: Some("Automatic updates not configured or pending updates".to_string()),
+        gap_description: Some("Enable unattended-upgrades and apply pending updates".to_string()),
+        check_timestamp: Utc::now().to_rfc3339(),
+    }
+}
+
+async fn check_sudo_config() -> ControlCheckResult {
+    let check = Command::new("grep")
+        .args(&["-r", "NOPASSWD", "/etc/sudoers.d/"])
+        .output();
+
+    match check {
+        Ok(output) if output.status.success() => {
+            let config = String::from_utf8_lossy(&output.stdout);
+            if !config.is_empty() {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "non_compliant".to_string(),
+                    evidence: Some("NOPASSWD entries found in sudoers".to_string()),
+                    gap_description: Some("Remove NOPASSWD from sudoers configuration".to_string()),
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            } else {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "compliant".to_string(),
+                    evidence: Some("No NOPASSWD entries in sudoers".to_string()),
+                    gap_description: None,
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            }
+        }
+        _ => {
+            ControlCheckResult {
+                control_id: 0,
+                status: "compliant".to_string(),
+                evidence: Some("Sudo configuration appears secure".to_string()),
+                gap_description: None,
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+    }
+}
+
+async fn check_mandatory_access_control() -> ControlCheckResult {
+    // Check SELinux
+    if let Ok(output) = Command::new("getenforce").output() {
+        let status = String::from_utf8_lossy(&output.stdout);
+        if status.trim() == "Enforcing" {
+            return ControlCheckResult {
+                control_id: 0,
+                status: "compliant".to_string(),
+                evidence: Some("SELinux is enforcing".to_string()),
+                gap_description: None,
+                check_timestamp: Utc::now().to_rfc3339(),
+            };
+        }
+    }
+
+    // Check AppArmor
+    if let Ok(output) = Command::new("aa-status").output() {
+        if output.status.success() {
+            let status = String::from_utf8_lossy(&output.stdout);
+            if status.contains("profiles are loaded") && !status.contains("0 profiles are loaded") {
+                return ControlCheckResult {
+                    control_id: 0,
+                    status: "compliant".to_string(),
+                    evidence: Some("AppArmor is active with loaded profiles".to_string()),
+                    gap_description: None,
+                    check_timestamp: Utc::now().to_rfc3339(),
+                };
+            }
+        }
+    }
+
+    ControlCheckResult {
+        control_id: 0,
+        status: "non_compliant".to_string(),
+        evidence: Some("No mandatory access control (SELinux/AppArmor) active".to_string()),
+        gap_description: Some("Enable and configure SELinux or AppArmor".to_string()),
+        check_timestamp: Utc::now().to_rfc3339(),
+    }
+}
+
+async fn check_fail2ban() -> ControlCheckResult {
+    let check = Command::new("systemctl")
+        .args(&["is-active", "fail2ban"])
+        .output();
+
+    match check {
+        Ok(output) if output.status.success() => {
+            let status = String::from_utf8_lossy(&output.stdout);
+            if status.trim() == "active" {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "compliant".to_string(),
+                    evidence: Some("Fail2ban is active".to_string()),
+                    gap_description: None,
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            } else {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "non_compliant".to_string(),
+                    evidence: Some("Fail2ban is installed but not active".to_string()),
+                    gap_description: Some("Start and enable fail2ban service".to_string()),
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            }
+        }
+        _ => {
+            ControlCheckResult {
+                control_id: 0,
+                status: "non_compliant".to_string(),
+                evidence: Some("Fail2ban not installed".to_string()),
+                gap_description: Some("Install and configure fail2ban for brute-force protection".to_string()),
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+    }
+}
+
+async fn check_time_sync() -> ControlCheckResult {
+    let check = Command::new("timedatectl")
+        .args(&["status"])
+        .output();
+
+    match check {
+        Ok(output) if output.status.success() => {
+            let status = String::from_utf8_lossy(&output.stdout);
+            if status.contains("NTP service: active") || status.contains("System clock synchronized: yes") {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "compliant".to_string(),
+                    evidence: Some("NTP time synchronization is active".to_string()),
+                    gap_description: None,
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            } else {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "non_compliant".to_string(),
+                    evidence: Some("Time synchronization not active".to_string()),
+                    gap_description: Some("Enable NTP time synchronization".to_string()),
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            }
+        }
+        _ => {
+            ControlCheckResult {
+                control_id: 0,
+                status: "error".to_string(),
+                evidence: Some("Unable to check time synchronization status".to_string()),
+                gap_description: None,
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+    }
+}
+
+async fn check_umask() -> ControlCheckResult {
+    let check = Command::new("grep")
+        .args(&["^umask", "/etc/login.defs"])
+        .output();
+
+    match check {
+        Ok(output) if output.status.success() => {
+            let config = String::from_utf8_lossy(&output.stdout);
+            if config.contains("umask 077") || config.contains("umask 027") {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "compliant".to_string(),
+                    evidence: Some(format!("Secure umask configured: {}", config.trim())),
+                    gap_description: None,
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            } else {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "non_compliant".to_string(),
+                    evidence: Some(format!("Umask: {}", config.trim())),
+                    gap_description: Some("Set umask to 077 or 027 in /etc/login.defs".to_string()),
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            }
+        }
+        _ => {
+            ControlCheckResult {
+                control_id: 0,
+                status: "non_compliant".to_string(),
+                evidence: Some("Umask not configured".to_string()),
+                gap_description: Some("Configure umask in /etc/login.defs".to_string()),
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+    }
+}
+
+async fn check_core_dumps() -> ControlCheckResult {
+    let check = Command::new("grep")
+        .args(&["hard.*core", "/etc/security/limits.conf"])
+        .output();
+
+    match check {
+        Ok(output) if output.status.success() => {
+            let config = String::from_utf8_lossy(&output.stdout);
+            if config.contains("hard core 0") {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "compliant".to_string(),
+                    evidence: Some("Core dumps are disabled".to_string()),
+                    gap_description: None,
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            } else {
+                ControlCheckResult {
+                    control_id: 0,
+                    status: "non_compliant".to_string(),
+                    evidence: Some("Core dumps may be enabled".to_string()),
+                    gap_description: Some("Disable core dumps in /etc/security/limits.conf".to_string()),
+                    check_timestamp: Utc::now().to_rfc3339(),
+                }
+            }
+        }
+        _ => {
+            ControlCheckResult {
+                control_id: 0,
+                status: "non_compliant".to_string(),
+                evidence: Some("Core dump configuration not found".to_string()),
+                gap_description: Some("Add '* hard core 0' to /etc/security/limits.conf".to_string()),
+                check_timestamp: Utc::now().to_rfc3339(),
+            }
+        }
+    }
+}
+
+async fn check_kernel_hardening() -> ControlCheckResult {
+    let params = vec![
+        ("net.ipv4.conf.all.rp_filter", "1"),
+        ("net.ipv4.conf.default.rp_filter", "1"),
+        ("net.ipv4.icmp_echo_ignore_broadcasts", "1"),
+        ("net.ipv4.conf.all.accept_source_route", "0"),
+    ];
+
+    let mut compliant_params = 0;
+    let mut total_params = params.len();
+
+    for (param, expected) in &params {
+        if let Ok(output) = Command::new("sysctl").arg(param).output() {
+            let value = String::from_utf8_lossy(&output.stdout);
+            if value.contains(&format!(" = {}", expected)) {
+                compliant_params += 1;
+            }
+        }
+    }
+
+    if compliant_params >= total_params * 3 / 4 {
+        ControlCheckResult {
+            control_id: 0,
+            status: "compliant".to_string(),
+            evidence: Some(format!("{}/{} kernel security parameters configured", compliant_params, total_params)),
+            gap_description: None,
+            check_timestamp: Utc::now().to_rfc3339(),
+        }
+    } else {
+        ControlCheckResult {
+            control_id: 0,
+            status: "non_compliant".to_string(),
+            evidence: Some(format!("Only {}/{} kernel parameters hardened", compliant_params, total_params)),
+            gap_description: Some("Configure kernel hardening parameters in /etc/sysctl.conf".to_string()),
+            check_timestamp: Utc::now().to_rfc3339(),
+        }
+    }
+}
+
+async fn check_unnecessary_services() -> ControlCheckResult {
+    let unnecessary = vec!["telnet", "rsh", "rlogin", "vsftpd", "xinetd"];
+    let mut found_services = Vec::new();
+
+    for service in &unnecessary {
+        if let Ok(output) = Command::new("systemctl").args(&["is-active", service]).output() {
+            let status = String::from_utf8_lossy(&output.stdout);
+            if status.trim() == "active" {
+                found_services.push(service.to_string());
+            }
+        }
+    }
+
+    if found_services.is_empty() {
+        ControlCheckResult {
+            control_id: 0,
+            status: "compliant".to_string(),
+            evidence: Some("No unnecessary services detected".to_string()),
+            gap_description: None,
+            check_timestamp: Utc::now().to_rfc3339(),
+        }
+    } else {
+        ControlCheckResult {
+            control_id: 0,
+            status: "non_compliant".to_string(),
+            evidence: Some(format!("Unnecessary services running: {}", found_services.join(", "))),
+            gap_description: Some("Disable unnecessary services".to_string()),
+            check_timestamp: Utc::now().to_rfc3339(),
+        }
+    }
+}
+
+async fn check_file_permissions() -> ControlCheckResult {
+    let critical_files = vec![
+        ("/etc/passwd", "644"),
+        ("/etc/shadow", "000"),
+        ("/etc/group", "644"),
+        ("/etc/gshadow", "000"),
+    ];
+
+    let mut issues = Vec::new();
+
+    for (file, _expected) in &critical_files {
+        if let Ok(output) = Command::new("stat").args(&["-c", "%a", file]).output() {
+            let perms = String::from_utf8_lossy(&output.stdout);
+            let perms = perms.trim();
+
+            // Check if permissions are too permissive
+            if file.contains("shadow") && perms != "000" && perms != "400" {
+                issues.push(format!("{}: {}", file, perms));
+            } else if !file.contains("shadow") && perms.starts_with('7') {
+                issues.push(format!("{}: {}", file, perms));
+            }
+        }
+    }
+
+    if issues.is_empty() {
+        ControlCheckResult {
+            control_id: 0,
+            status: "compliant".to_string(),
+            evidence: Some("Critical file permissions are secure".to_string()),
+            gap_description: None,
+            check_timestamp: Utc::now().to_rfc3339(),
+        }
+    } else {
+        ControlCheckResult {
+            control_id: 0,
+            status: "non_compliant".to_string(),
+            evidence: Some(format!("Insecure permissions: {}", issues.join(", "))),
+            gap_description: Some("Fix file permissions on critical system files".to_string()),
+            check_timestamp: Utc::now().to_rfc3339(),
         }
     }
 }
