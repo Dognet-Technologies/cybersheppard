@@ -21,11 +21,15 @@ export default function SecurityCorrelations() {
   const [, setSelectedCorrelation] = useState<any>(null);
   const queryClient = useQueryClient();
 
-  const { data: correlations, isLoading } = useQuery({
+  // Fetch correlations using new API
+  const { data: response, isLoading } = useQuery({
     queryKey: ['security-correlations'],
-    queryFn: () => api.getSecurityCorrelations(),
+    queryFn: () => api.getSecurityCorrelations({ hours: 24, limit: 100 }),
     refetchInterval: 30000,
   });
+
+  // Extract data from API response
+  const correlations = response?.data || [];
 
   const acknowledgeMutation = useMutation({
     mutationFn: (id: number) => api.acknowledgeCorrelation(id),
@@ -50,18 +54,18 @@ export default function SecurityCorrelations() {
     }
   };
 
-  // Calculate statistics
+  // Calculate statistics (adapted to new EventCorrelation model)
   const stats = {
     total: correlations?.length || 0,
-    critical: correlations?.filter((c: any) => c.risk_level === 'critical').length || 0,
-    high: correlations?.filter((c: any) => c.risk_level === 'high').length || 0,
-    new: correlations?.filter((c: any) => c.status === 'new').length || 0,
+    critical: correlations?.filter((c: any) => c.severity === 'critical').length || 0,
+    high: correlations?.filter((c: any) => c.severity === 'high').length || 0,
+    active: correlations?.filter((c: any) => c.status === 'active').length || 0,
   };
 
   const columns = [
     {
-      key: 'risk_level',
-      label: 'Risk Level',
+      key: 'severity',
+      label: 'Severity',
       sortable: true,
       render: (row: any) => {
         const variants: Record<string, 'danger' | 'warning' | 'info' | 'default'> = {
@@ -71,45 +75,54 @@ export default function SecurityCorrelations() {
           low: 'default',
         };
         return (
-          <Badge variant={variants[row.risk_level] || 'default'}>
-            {row.risk_level?.toUpperCase() || 'UNKNOWN'}
+          <Badge variant={variants[row.severity] || 'default'}>
+            {row.severity?.toUpperCase() || 'UNKNOWN'}
           </Badge>
         );
       },
     },
     {
-      key: 'target',
-      label: 'Target',
+      key: 'pattern',
+      label: 'Attack Pattern',
       sortable: true,
       render: (row: any) => (
         <div>
           <div className="font-medium text-gray-900">
-            {row.target_hostname || `Target #${row.target_id}`}
+            {row.pattern_name || row.correlation_type?.replace('_', ' ').toUpperCase()}
           </div>
-          <div className="text-sm text-gray-500">{row.correlation_type}</div>
-        </div>
-      ),
-    },
-    {
-      key: 'vulnerability',
-      label: 'Vulnerability',
-      render: (row: any) => (
-        <div>
-          <div className="font-medium text-sm text-gray-900">{row.vulnerability_cve || 'N/A'}</div>
-          <div className="text-xs text-gray-500">
-            CVSS: {row.vulnerability_cvss?.toFixed(1) || 'N/A'}
+          <div className="text-sm text-gray-500">
+            {row.attack_stage?.replace('_', ' ') || 'Unknown stage'}
           </div>
         </div>
       ),
     },
     {
-      key: 'threat',
-      label: 'Threat Source',
+      key: 'entities',
+      label: 'Involved Entities',
       render: (row: any) => (
         <div>
-          <div className="font-medium text-sm text-gray-900">{row.threat_source_ip || 'N/A'}</div>
+          <div className="font-medium text-sm text-gray-900">
+            Hosts: {row.involved_hosts?.slice(0, 2).join(', ') || 'N/A'}
+            {row.involved_hosts?.length > 2 && ` +${row.involved_hosts.length - 2} more`}
+          </div>
           <div className="text-xs text-gray-500">
-            Score: {row.threat_score?.toFixed(1) || 'N/A'}
+            Users: {row.involved_users?.slice(0, 2).join(', ') || 'N/A'}
+            {row.involved_users?.length > 2 && ` +${row.involved_users.length - 2} more`}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'risk',
+      label: 'Risk Score',
+      sortable: true,
+      render: (row: any) => (
+        <div>
+          <div className="font-medium text-sm text-gray-900">
+            {row.risk_score?.toFixed(1) || 'N/A'} / 100
+          </div>
+          <div className="text-xs text-gray-500">
+            Events: {row.event_count || 0}
           </div>
         </div>
       ),
@@ -120,7 +133,7 @@ export default function SecurityCorrelations() {
       sortable: true,
       render: (row: any) => (
         <span className="text-sm font-mono text-gray-900">
-          {(row.correlation_confidence * 100).toFixed(0)}%
+          {(row.confidence * 100).toFixed(0)}%
         </span>
       ),
     },
@@ -138,8 +151,8 @@ export default function SecurityCorrelations() {
       sortable: true,
       render: (row: any) => {
         const variants: Record<string, 'warning' | 'info' | 'success'> = {
-          new: 'warning',
-          acknowledged: 'info',
+          active: 'warning',
+          investigating: 'info',
           resolved: 'success',
         };
         return <Badge variant={variants[row.status] || 'default'}>{row.status}</Badge>;
@@ -150,13 +163,14 @@ export default function SecurityCorrelations() {
       label: 'Actions',
       render: (row: any) => (
         <div className="flex items-center gap-2">
-          {row.status === 'new' && (
+          {row.status === 'active' && (
             <>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => acknowledgeMutation.mutate(row.id)}
                 loading={acknowledgeMutation.isPending}
+                title="Acknowledge (legacy action)"
               >
                 Acknowledge
               </Button>
@@ -165,20 +179,11 @@ export default function SecurityCorrelations() {
                 variant="ghost"
                 onClick={() => handleResolve(row)}
                 loading={resolveMutation.isPending}
+                title="Resolve (legacy action)"
               >
                 Resolve
               </Button>
             </>
-          )}
-          {row.status === 'acknowledged' && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => handleResolve(row)}
-              loading={resolveMutation.isPending}
-            >
-              Resolve
-            </Button>
           )}
         </div>
       ),
@@ -188,13 +193,13 @@ export default function SecurityCorrelations() {
   return (
     <div>
       <PageHeader
-        title="Security Correlations"
-        subtitle="Automated correlation between vulnerabilities and active threats"
+        title="Security Event Correlations"
+        subtitle="Advanced AI-powered attack pattern detection and threat correlation"
         icon={<Shield className="w-6 h-6" />}
         actions={
           <div className="flex items-center space-x-2">
             <Activity className="w-4 h-4 text-green-500 animate-pulse" />
-            <Badge variant="success">Auto-refresh</Badge>
+            <Badge variant="success">Live Monitoring</Badge>
           </div>
         }
       />
@@ -208,20 +213,20 @@ export default function SecurityCorrelations() {
           variant="info"
         />
         <StatCard
-          title="Critical Risk"
+          title="Critical"
           value={stats.critical}
           icon={<AlertTriangle className="w-6 h-6" />}
           variant="danger"
         />
         <StatCard
-          title="High Risk"
+          title="High Severity"
           value={stats.high}
           icon={<AlertTriangle className="w-6 h-6" />}
           variant="warning"
         />
         <StatCard
-          title="New"
-          value={stats.new}
+          title="Active"
+          value={stats.active}
           icon={<CheckCircle className="w-6 h-6" />}
           variant="warning"
         />
@@ -232,7 +237,7 @@ export default function SecurityCorrelations() {
         <EmptyState
           icon={<CheckCircle className="w-8 h-8" />}
           title="No Active Correlations"
-          description="The system has not detected any high-risk correlations between vulnerabilities and threats"
+          description="The advanced correlation engine has not detected any suspicious patterns or attack sequences in the last 24 hours"
         />
       ) : (
         <Table
