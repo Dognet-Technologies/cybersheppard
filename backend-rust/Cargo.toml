@@ -27,7 +27,7 @@ sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-rustls",
 influxdb = { version = "0.7", features = ["derive"] }
 
 # Authentication & Security
-jsonwebtoken = "9.2"
+jsonwebtoken = "10.3"
 argon2 = "0.5"
 rand = "0.8"
 sha2 = "0.10"
