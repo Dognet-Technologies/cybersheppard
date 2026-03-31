@@ -1,0 +1,40 @@
+name: cargo-deny
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - '**/deny.toml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - '**/deny.toml'
+  schedule:
+    - cron: '0 6 * * 3'  # Every Wednesday at 6 AM UTC
+
+jobs:
+  deny-backend:
+    name: cargo-deny (backend-rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: backend-rust/Cargo.toml
+          command: check
+          arguments: --all-features
+
+  deny-agent:
+    name: cargo-deny (cybersheppard-agent)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: cybersheppard-agent/Cargo.toml
+          command: check
+          arguments: --all-features
