@@ -57,7 +57,7 @@ dotenv = "0.15"
 config = "0.14"
 
 # Validation
-validator = { version = "0.18", features = ["derive"] }
+validator = { version = "0.20", features = ["derive"] }
 
 # Error handling
 thiserror = "1.0"
