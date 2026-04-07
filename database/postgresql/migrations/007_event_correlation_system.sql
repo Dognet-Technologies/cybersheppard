@@ -7,8 +7,7 @@
 -- Mathematical/Statistical algorithms: Z-Score, Markov Chain, Graph Analytics
 -- ============================================================================
 
--- Enable TimescaleDB extension
-CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+-- TimescaleDB extension skipped (not required for standard PostgreSQL deployment)
 
 -- ============================================================================
 -- Security Events (TimescaleDB Hypertable)
@@ -76,11 +75,7 @@ CREATE TABLE IF NOT EXISTS security_events (
     CONSTRAINT security_events_severity_check CHECK (severity IN ('critical', 'high', 'medium', 'low', 'info'))
 );
 
--- Convert to hypertable (partitioned by timestamp)
-SELECT create_hypertable('security_events', 'timestamp',
-    chunk_time_interval => INTERVAL '1 day',
-    if_not_exists => TRUE
-);
+-- Hypertable conversion skipped (TimescaleDB not available)
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_security_events_source_type ON security_events(source_type, timestamp DESC);
@@ -100,17 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_security_events_user_time ON security_events(user
 CREATE INDEX IF NOT EXISTS idx_security_events_host_time ON security_events(source_host, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_security_events_processed ON security_events(processed, timestamp DESC) WHERE NOT processed;
 
--- Retention policy: Drop chunks older than 90 days
-SELECT add_retention_policy('security_events', INTERVAL '90 days', if_not_exists => TRUE);
-
--- Compression policy: Compress chunks older than 7 days
-ALTER TABLE security_events SET (
-    timescaledb.compress,
-    timescaledb.compress_segmentby = 'source_host, event_type',
-    timescaledb.compress_orderby = 'timestamp DESC'
-);
-
-SELECT add_compression_policy('security_events', INTERVAL '7 days', if_not_exists => TRUE);
+-- Retention and compression policies skipped (TimescaleDB not available)
 
 COMMENT ON TABLE security_events IS 'Time-series security events from multiple sources (auditd, SNMP, IDS/IPS)';
 
@@ -450,10 +435,9 @@ COMMENT ON TABLE host_risk_scores IS 'Real-time risk scores for hosts based on m
 -- Pre-computed hourly statistics for dashboards
 -- ============================================================================
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS security_metrics_hourly
-WITH (timescaledb.continuous) AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS security_metrics_hourly AS
 SELECT
-    time_bucket('1 hour', timestamp) AS hour,
+    date_trunc('hour', timestamp) AS hour,
     source_type,
     event_category,
     severity,
@@ -467,14 +451,6 @@ SELECT
 FROM security_events
 GROUP BY hour, source_type, event_category, severity
 WITH NO DATA;
-
--- Refresh policy
-SELECT add_continuous_aggregate_policy('security_metrics_hourly',
-    start_offset => INTERVAL '3 hours',
-    end_offset => INTERVAL '1 hour',
-    schedule_interval => INTERVAL '1 hour',
-    if_not_exists => TRUE
-);
 
 COMMENT ON MATERIALIZED VIEW security_metrics_hourly IS 'Hourly aggregated security metrics for dashboards';
 
@@ -565,7 +541,7 @@ COMMENT ON VIEW recent_host_anomalies IS 'Hosts with anomalies in last 24 hours'
 -- Insert default risk scores for existing targets
 INSERT INTO host_risk_scores (host_name, asset_criticality)
 SELECT
-    COALESCE(hostname, ip_address::TEXT, name) AS host_name,
+    COALESCE(hostname, ip_address::TEXT) AS host_name,
     5 AS asset_criticality
 FROM targets
 WHERE status = 'active'

@@ -522,14 +522,14 @@ impl GraphAnalyticsService {
                     last_seen
                 )
                 SELECT
-                    $1,
-                    $1,
+                    $1::VARCHAR,
+                    $1::VARCHAR,
                     $2,
                     $3,
                     NOW(),
                     NOW()
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM network_topology WHERE source_host = $1 AND destination_host = $1
+                    SELECT 1 FROM network_topology WHERE source_host = $1::VARCHAR AND destination_host = $1::VARCHAR
                 )
                 "#,
                 host_name,

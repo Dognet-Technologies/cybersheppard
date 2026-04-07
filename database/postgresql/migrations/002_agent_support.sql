@@ -21,12 +21,12 @@ CREATE TABLE IF NOT EXISTS agents_log (
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
     event_type VARCHAR(50) NOT NULL, -- 'connected', 'disconnected', 'metrics_received', 'error'
     details JSONB,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-
-    INDEX idx_agents_log_target_id (target_id),
-    INDEX idx_agents_log_created_at (created_at),
-    INDEX idx_agents_log_event_type (event_type)
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_agents_log_target_id ON agents_log(target_id);
+CREATE INDEX IF NOT EXISTS idx_agents_log_created_at ON agents_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_agents_log_event_type ON agents_log(event_type);
 
 -- Function to generate agent auth token
 CREATE OR REPLACE FUNCTION generate_agent_token()

@@ -152,7 +152,7 @@ RETURNS TABLE (
     db_connections_max INTEGER,
     db_size_mb BIGINT,
     agents_connected INTEGER,
-    timestamp TIMESTAMP
+    logged_at TIMESTAMP
 )
 LANGUAGE SQL
 AS $$
@@ -169,9 +169,9 @@ AS $$
         db_connections_max,
         db_size_mb,
         agents_connected,
-        timestamp
+        "timestamp"
     FROM system_status_log
-    ORDER BY timestamp DESC
+    ORDER BY "timestamp" DESC
     LIMIT 1;
 $$;
 

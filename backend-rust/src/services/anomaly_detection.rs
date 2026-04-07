@@ -32,14 +32,13 @@ impl AnomalyDetectionService {
         // Get baseline
         let baseline = self.get_user_baseline(user_name).await?;
 
-        let z_score = if let Some(stddev) = baseline.stddev {
+        let z_score = {
+            let stddev = baseline.stddev;
             if stddev > 0.0 {
                 (current_logins as f64 - baseline.mean) / stddev
             } else {
                 0.0
             }
-        } else {
-            0.0
         };
 
         let (is_anomaly, severity, description) = self.classify_z_score(
@@ -75,14 +74,13 @@ impl AnomalyDetectionService {
         // Get baseline
         let baseline = self.get_host_baseline(host_name).await?;
 
-        let z_score = if let Some(stddev) = baseline.stddev {
+        let z_score = {
+            let stddev = baseline.stddev;
             if stddev > 0.0 {
                 (current_connections as f64 - baseline.mean) / stddev
             } else {
                 0.0
             }
-        } else {
-            0.0
         };
 
         let (is_anomaly, severity, description) = self.classify_z_score(
@@ -139,14 +137,13 @@ impl AnomalyDetectionService {
         // For typical commands, check execution frequency
         let baseline = self.get_command_baseline(user_name, command).await?;
 
-        let z_score = if let Some(stddev) = baseline.stddev {
+        let z_score = {
+            let stddev = baseline.stddev;
             if stddev > 0.0 {
                 (execution_count as f64 - baseline.mean) / stddev
             } else {
                 0.0
             }
-        } else {
-            0.0
         };
 
         let (is_anomaly, severity, description) = self.classify_z_score(
@@ -233,8 +230,8 @@ impl AnomalyDetectionService {
         let row = sqlx::query!(
             r#"
             SELECT
-                avg_logins_per_day as mean,
-                stddev_logins_per_day as stddev
+                avg_logins_per_day::FLOAT8 as mean,
+                stddev_logins_per_day::FLOAT8 as stddev
             FROM user_behavior_baselines
             WHERE user_name = $1
             "#,
@@ -274,8 +271,8 @@ impl AnomalyDetectionService {
         let row = sqlx::query!(
             r#"
             SELECT
-                avg_connections_per_hour as mean,
-                stddev_connections_per_hour as stddev
+                avg_connections_per_hour::FLOAT8 as mean,
+                stddev_connections_per_hour::FLOAT8 as stddev
             FROM host_behavior_baselines
             WHERE host_name = $1
             "#,
@@ -323,7 +320,7 @@ impl AnomalyDetectionService {
         .await?;
 
         if let Some(row) = row {
-            Ok(row.common_commands.contains(&command.to_string()))
+            Ok(row.common_commands.map(|cmds| cmds.contains(&command.to_string())).unwrap_or(false))
         } else {
             Ok(false)
         }
@@ -339,10 +336,10 @@ impl AnomalyDetectionService {
         let row = sqlx::query!(
             r#"
             SELECT
-                AVG(hourly_count) as mean,
-                STDDEV(hourly_count) as stddev,
-                MIN(hourly_count) as min,
-                MAX(hourly_count) as max,
+                AVG(hourly_count)::FLOAT8 as mean,
+                STDDEV(hourly_count)::FLOAT8 as stddev,
+                MIN(hourly_count)::FLOAT8 as min,
+                MAX(hourly_count)::FLOAT8 as max,
                 COUNT(*) as count
             FROM (
                 SELECT

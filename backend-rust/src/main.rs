@@ -110,7 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     tracing::info!("✅ Baseline calculator initialized");
 
-    let alert_broadcaster = std::sync::Arc::new(websocket::alert_broadcaster::AlertBroadcaster::new());
+    let alert_broadcaster = std::sync::Arc::new(websocket::alert_broadcaster::AlertBroadcaster::new(1024));
     tracing::info!("✅ Alert broadcaster initialized");
 
     // Create application state

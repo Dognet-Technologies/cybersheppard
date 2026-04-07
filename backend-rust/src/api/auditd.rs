@@ -11,11 +11,10 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use std::sync::Arc;
 
 use crate::AppState;
 
-pub fn routes() -> Router<Arc<AppState>> {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/events", get(get_events))
         .route("/events/:id", get(get_event_details))
@@ -81,7 +80,7 @@ pub struct AuditdEvent {
 }
 
 async fn get_events(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Query(query): Query<EventsQuery>,
 ) -> Result<Json<EventsResponse>, Response> {
     // Build dynamic query
@@ -143,7 +142,7 @@ pub struct EventDetailsResponse {
 }
 
 async fn get_event_details(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<EventDetailsResponse>, Response> {
     // Use the database function to get all details
@@ -183,7 +182,7 @@ pub struct UpdateStatusRequest {
 }
 
 async fn update_event_status(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(payload): Json<UpdateStatusRequest>,
 ) -> Result<StatusCode, Response> {
@@ -192,7 +191,7 @@ async fn update_event_status(
         UPDATE auditd_events
         SET status = $1,
             resolution_notes = COALESCE($2, resolution_notes),
-            resolved_at = CASE WHEN $1 = 'resolved' THEN NOW() ELSE resolved_at END
+            resolved_at = CASE WHEN $1::TEXT = 'resolved' THEN NOW() ELSE resolved_at END
         WHERE id = $3
         "#,
         payload.status,
@@ -218,7 +217,7 @@ pub struct StatsResponse {
 }
 
 async fn get_stats(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
 ) -> Result<Json<StatsResponse>, Response> {
     // Total events (last 24h)
     let total_events: i64 = sqlx::query_scalar(
@@ -313,7 +312,7 @@ async fn get_stats(
 }
 
 async fn get_realtime_events(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
 ) -> Result<Json<Vec<AuditdEvent>>, Response> {
     // Get events from last 30 seconds for real-time updates
     let events = sqlx::query_as::<_, AuditdEvent>(

@@ -10,11 +10,11 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use sha2::Digest;
 
 use crate::AppState;
 
-pub fn routes() -> Router<Arc<AppState>> {
+pub fn routes() -> Router<AppState> {
     Router::new()
         // General settings
         .route("/", get(get_all_settings))
@@ -48,7 +48,7 @@ pub fn routes() -> Router<Arc<AppState>> {
 // Types
 // ============================================================================
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Setting {
     pub id: i32,
     pub key: String,
@@ -65,7 +65,7 @@ pub struct UpdateSettingRequest {
     pub updated_by: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UserProfile {
     pub id: i32,
     pub username: String,
@@ -85,7 +85,7 @@ pub struct ChangePasswordRequest {
     pub new_password: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SystemStatus {
     pub cpu_usage_percent: Option<f64>,
     pub memory_usage_percent: Option<f64>,
@@ -111,7 +111,7 @@ pub struct SystemHealth {
     pub version: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct DatabaseStats {
     pub total_size_mb: i64,
     pub auditd_events_count: i64,
@@ -223,7 +223,7 @@ pub struct UpdateIntegrationRequest {
 // Settings Handlers
 // ============================================================================
 
-async fn get_all_settings(State(state): State<Arc<AppState>>) -> Result<Json<Vec<Setting>>, Response> {
+async fn get_all_settings(State(state): State<AppState>) -> Result<Json<Vec<Setting>>, Response> {
     let settings = sqlx::query_as::<_, Setting>(
         "SELECT id, key, value, category, description, updated_at, updated_by
          FROM settings
@@ -239,7 +239,7 @@ async fn get_all_settings(State(state): State<Arc<AppState>>) -> Result<Json<Vec
 }
 
 async fn get_setting(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(key): Path<String>,
 ) -> Result<Json<Setting>, Response> {
     let setting = sqlx::query_as::<_, Setting>(
@@ -258,7 +258,7 @@ async fn get_setting(
 }
 
 async fn update_setting(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(key): Path<String>,
     Json(payload): Json<UpdateSettingRequest>,
 ) -> Result<Json<Setting>, Response> {
@@ -284,7 +284,7 @@ async fn update_setting(
 // User Management Handlers
 // ============================================================================
 
-async fn get_user_profile(State(state): State<Arc<AppState>>) -> Result<Json<UserProfile>, Response> {
+async fn get_user_profile(State(state): State<AppState>) -> Result<Json<UserProfile>, Response> {
     // TODO: Get user from auth context
     let user = sqlx::query_as::<_, UserProfile>(
         "SELECT id, username, email, role, created_at
@@ -301,7 +301,7 @@ async fn get_user_profile(State(state): State<Arc<AppState>>) -> Result<Json<Use
 }
 
 async fn update_user_profile(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(payload): Json<UpdateProfileRequest>,
 ) -> Result<Json<UserProfile>, Response> {
     // TODO: Get user ID from auth context
@@ -322,7 +322,7 @@ async fn update_user_profile(
 }
 
 async fn change_password(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(payload): Json<ChangePasswordRequest>,
 ) -> Result<StatusCode, Response> {
     // TODO: Implement password verification and update
@@ -334,7 +334,7 @@ async fn change_password(
 // System Status Handlers
 // ============================================================================
 
-async fn get_system_status(State(state): State<Arc<AppState>>) -> Result<Json<SystemStatus>, Response> {
+async fn get_system_status(State(state): State<AppState>) -> Result<Json<SystemStatus>, Response> {
     let status = sqlx::query_as::<_, SystemStatus>(
         "SELECT * FROM get_latest_system_status()"
     )
@@ -362,7 +362,7 @@ async fn get_system_status(State(state): State<Arc<AppState>>) -> Result<Json<Sy
 }
 
 async fn log_system_status(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(status): Json<SystemStatus>,
 ) -> Result<StatusCode, Response> {
     sqlx::query(
@@ -394,7 +394,7 @@ async fn log_system_status(
     Ok(StatusCode::CREATED)
 }
 
-async fn get_system_health(State(state): State<Arc<AppState>>) -> Result<Json<SystemHealth>, Response> {
+async fn get_system_health(State(state): State<AppState>) -> Result<Json<SystemHealth>, Response> {
     // Check database connection
     let db_healthy = sqlx::query_scalar::<_, i32>("SELECT 1")
         .fetch_one(&state.pg_pool)
@@ -430,7 +430,7 @@ async fn get_system_health(State(state): State<Arc<AppState>>) -> Result<Json<Sy
 // Database Management Handlers
 // ============================================================================
 
-async fn get_database_stats(State(state): State<Arc<AppState>>) -> Result<Json<DatabaseStats>, Response> {
+async fn get_database_stats(State(state): State<AppState>) -> Result<Json<DatabaseStats>, Response> {
     let stats = sqlx::query_as::<_, DatabaseStats>(
         "SELECT * FROM get_database_stats()"
     )
@@ -444,7 +444,7 @@ async fn get_database_stats(State(state): State<Arc<AppState>>) -> Result<Json<D
 }
 
 async fn trigger_cleanup(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(request): Json<CleanupRequest>,
 ) -> Result<Json<Vec<CleanupResult>>, Response> {
     let mut results = Vec::new();
@@ -513,7 +513,7 @@ async fn trigger_cleanup(
 // API Keys Handlers
 // ============================================================================
 
-async fn list_api_keys(State(state): State<Arc<AppState>>) -> Result<Json<Vec<ApiKey>>, Response> {
+async fn list_api_keys(State(state): State<AppState>) -> Result<Json<Vec<ApiKey>>, Response> {
     let keys = sqlx::query_as::<_, ApiKey>(
         "SELECT id, name, key_prefix, description, scopes, is_active,
                 expires_at, last_used_at, created_at, created_by
@@ -530,7 +530,7 @@ async fn list_api_keys(State(state): State<Arc<AppState>>) -> Result<Json<Vec<Ap
 }
 
 async fn create_api_key(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateApiKeyRequest>,
 ) -> Result<Json<CreateApiKeyResponse>, Response> {
     // Generate random API key
@@ -575,7 +575,7 @@ async fn create_api_key(
 }
 
 async fn get_api_key(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiKey>, Response> {
     let key = sqlx::query_as::<_, ApiKey>(
@@ -595,7 +595,7 @@ async fn get_api_key(
 }
 
 async fn revoke_api_key(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, Response> {
     sqlx::query!(
@@ -618,7 +618,7 @@ async fn revoke_api_key(
 // Integrations Handlers
 // ============================================================================
 
-async fn list_integrations(State(state): State<Arc<AppState>>) -> Result<Json<Vec<Integration>>, Response> {
+async fn list_integrations(State(state): State<AppState>) -> Result<Json<Vec<Integration>>, Response> {
     let integrations = sqlx::query_as::<_, Integration>(
         r#"SELECT id, name, type as integration_type, enabled, hostname, ip_address, port, use_ssl,
                   sync_mode, sync_interval, last_sync_at, last_sync_status, last_sync_error,
@@ -636,7 +636,7 @@ async fn list_integrations(State(state): State<Arc<AppState>>) -> Result<Json<Ve
 }
 
 async fn create_integration(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateIntegrationRequest>,
 ) -> Result<Json<Integration>, Response> {
     // TODO: Encrypt api_key before storing
@@ -671,7 +671,7 @@ async fn create_integration(
 }
 
 async fn get_integration(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<Integration>, Response> {
     let integration = sqlx::query_as::<_, Integration>(
@@ -692,7 +692,7 @@ async fn get_integration(
 }
 
 async fn update_integration(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateIntegrationRequest>,
 ) -> Result<Json<Integration>, Response> {
@@ -752,7 +752,7 @@ async fn update_integration(
 }
 
 async fn delete_integration(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, Response> {
     sqlx::query!("DELETE FROM integrations WHERE id = $1", id)
@@ -766,7 +766,7 @@ async fn delete_integration(
 }
 
 async fn test_integration(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, Response> {
     // TODO: Implement actual integration testing
@@ -778,7 +778,7 @@ async fn test_integration(
 }
 
 async fn trigger_sync(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, Response> {
     // Update last_sync_at and status

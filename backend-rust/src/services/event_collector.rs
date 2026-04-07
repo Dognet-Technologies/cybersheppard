@@ -357,7 +357,7 @@ impl EventCollectorService {
         let assets = sqlx::query!(
             r#"
             SELECT
-                COALESCE(hostname, ip_address::TEXT, name) as hostname,
+                COALESCE(hostname, ip_address::TEXT) as hostname,
                 ip_address,
                 5 as criticality
             FROM targets

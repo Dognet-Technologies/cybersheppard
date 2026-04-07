@@ -308,10 +308,10 @@ impl BaselineCalculatorService {
         let row = sqlx::query!(
             r#"
             SELECT
-                AVG(daily_logins) as mean,
-                STDDEV(daily_logins) as stddev,
-                MIN(daily_logins) as min,
-                MAX(daily_logins) as max,
+                AVG(daily_logins)::FLOAT8 as mean,
+                STDDEV(daily_logins)::FLOAT8 as stddev,
+                MIN(daily_logins)::FLOAT8 as min,
+                MAX(daily_logins)::FLOAT8 as max,
                 COUNT(*) as count
             FROM (
                 SELECT
@@ -411,8 +411,8 @@ impl BaselineCalculatorService {
         let row = sqlx::query!(
             r#"
             SELECT
-                AVG(cmd_count) as mean,
-                STDDEV(cmd_count) as stddev
+                AVG(cmd_count)::FLOAT8 as mean,
+                STDDEV(cmd_count)::FLOAT8 as stddev
             FROM (
                 SELECT COUNT(*) as cmd_count
                 FROM security_events
@@ -511,8 +511,8 @@ impl BaselineCalculatorService {
         let row = sqlx::query!(
             r#"
             SELECT
-                AVG(daily_connections) as mean,
-                STDDEV(daily_connections) as stddev
+                AVG(daily_connections)::FLOAT8 as mean,
+                STDDEV(daily_connections)::FLOAT8 as stddev
             FROM (
                 SELECT
                     date_trunc('day', timestamp) as day,
@@ -577,8 +577,8 @@ impl BaselineCalculatorService {
         let row = sqlx::query!(
             r#"
             SELECT
-                AVG(hourly_connections) as mean,
-                STDDEV(hourly_connections) as stddev
+                AVG(hourly_connections)::FLOAT8 as mean,
+                STDDEV(hourly_connections)::FLOAT8 as stddev
             FROM (
                 SELECT
                     date_trunc('hour', timestamp) as hour,

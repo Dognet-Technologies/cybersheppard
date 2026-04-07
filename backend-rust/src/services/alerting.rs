@@ -122,10 +122,15 @@ impl AlertingService {
         let alerts = sqlx::query!(
             r#"
             SELECT
-                id, severity, title, message, alert_type,
-                status, acknowledged, created_at,
-                rule_name, delivery_attempts, successful_deliveries
-            FROM active_alerts
+                a.id, a.severity, a.title, a.message, a.alert_type,
+                a.status, a.acknowledged, a.created_at,
+                ar.name as rule_name,
+                0::bigint as "delivery_attempts!: i64",
+                0::bigint as "successful_deliveries!: i64"
+            FROM alerts a
+            LEFT JOIN alert_rules ar ON a.rule_id = ar.id
+            WHERE a.status != 'resolved'
+            ORDER BY a.created_at DESC
             LIMIT 100
             "#
         )
