@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            event,\n            target,\n            firedog_threats,\n            sentinel_vulnerabilities,\n            compliance_status,\n            hardening_status\n        FROM get_event_details($1)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "event",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 1,
+        "name": "target",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 2,
+        "name": "firedog_threats",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 3,
+        "name": "sentinel_vulnerabilities",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "compliance_status",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "hardening_status",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "fcdf7d5e2eab34837da5316b04ca5280e7aef7764c4e777e9a46f9df72d58dba"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT DISTINCT user_name\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 day' * $1\n              AND user_name IS NOT NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "127899a980e5858ae153ccb8768d5f6d3c53dab4ab60c71e127c08fed7e46c20"
+}

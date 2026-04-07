@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO host_behavior_baselines (\n                host_name,\n                typical_processes,\n                avg_connections_per_hour, stddev_connections_per_hour,\n                typical_listening_ports,\n                typical_users,\n                connection_count_threshold_high,\n                baseline_start_date, baseline_end_date,\n                events_analyzed, last_updated,\n                asset_criticality\n            ) VALUES (\n                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12\n            )\n            ON CONFLICT (host_name) DO UPDATE SET\n                typical_processes = EXCLUDED.typical_processes,\n                avg_connections_per_hour = EXCLUDED.avg_connections_per_hour,\n                stddev_connections_per_hour = EXCLUDED.stddev_connections_per_hour,\n                typical_listening_ports = EXCLUDED.typical_listening_ports,\n                typical_users = EXCLUDED.typical_users,\n                connection_count_threshold_high = EXCLUDED.connection_count_threshold_high,\n                baseline_start_date = EXCLUDED.baseline_start_date,\n                baseline_end_date = EXCLUDED.baseline_end_date,\n                events_analyzed = EXCLUDED.events_analyzed,\n                last_updated = EXCLUDED.last_updated,\n                asset_criticality = EXCLUDED.asset_criticality\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "TextArray",
+        "Numeric",
+        "Numeric",
+        "Int4Array",
+        "TextArray",
+        "Numeric",
+        "Date",
+        "Date",
+        "Int4",
+        "Timestamptz",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3697aed1eb72e6b4f9d075b418077eb9aba47eb0cab3600354ee458c8d5536d4"
+}

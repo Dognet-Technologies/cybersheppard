@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                user_name,\n                source_host,\n                source_ip,\n                COUNT(*) as failed_count,\n                MIN(timestamp) as first_attempt,\n                MAX(timestamp) as last_attempt,\n                array_agg(DISTINCT event_type) as event_types\n            FROM security_events\n            WHERE event_category = 'authentication'\n              AND severity IN ('high', 'medium')\n              AND timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND (\n                  event_data->>'result' LIKE '%fail%'\n                  OR event_data->>'res' LIKE '%fail%'\n              )\n            GROUP BY user_name, source_host, source_ip\n            HAVING COUNT(*) >= $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "source_ip",
+        "type_info": "Inet"
+      },
+      {
+        "ordinal": 3,
+        "name": "failed_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "first_attempt",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_attempt",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "event_types",
+        "type_info": "VarcharArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "8e24409c8efeeb267930f7fee8a360629a9092d75d8c1c864108609955709baf"
+}
