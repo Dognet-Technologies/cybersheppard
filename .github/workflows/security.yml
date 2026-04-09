@@ -11,9 +11,6 @@ on:
   schedule:
     - cron: '0 6 * * 1'  # Every Monday at 6 AM UTC
 
-permissions:
-  contents: read
-
 jobs:
   rust-audit:
     name: Rust Security Audit
