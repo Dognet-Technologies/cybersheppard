@@ -19,9 +19,6 @@ on:
   schedule:
     - cron: '0 6 * * 3'  # Every Wednesday at 6 AM UTC
 
-permissions:
-  contents: read
-
 jobs:
   deny-backend:
     name: cargo-deny (backend-rust)
