@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                source_host,\n                user_name,\n                COUNT(*) as anomaly_count,\n                AVG(anomaly_score) as avg_anomaly,\n                MAX(anomaly_score) as max_anomaly,\n                MIN(timestamp) as first_anomaly,\n                MAX(timestamp) as last_anomaly,\n                array_agg(DISTINCT event_type) as event_types\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND anomaly_score > 50\n            GROUP BY source_host, user_name\n            HAVING COUNT(*) >= 5 AND AVG(anomaly_score) > 60\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "anomaly_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "avg_anomaly",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "max_anomaly",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "first_anomaly",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_anomaly",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "event_types",
+        "type_info": "VarcharArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "ed0dd8362fdea22952fe683f6b192ec0951acd9ac35ffefe5c3b44e15309b951"
+}

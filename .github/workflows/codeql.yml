@@ -1,0 +1,74 @@
+name: CodeQL Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 7 * * 2'  # Every Tuesday at 7 AM UTC
+
+jobs:
+  analyze-javascript:
+    name: Analyze JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          source-root: frontend-react
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript"
+
+  # Rust static analysis via Clippy (CodeQL does not support Rust natively)
+  clippy-sarif:
+    name: Clippy SARIF (Rust SAST)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      matrix:
+        workspace: [backend-rust, cybersheppard-agent]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ matrix.workspace }}
+
+      - name: Install clippy-sarif and sarif-fmt
+        run: cargo install clippy-sarif sarif-fmt --locked
+
+      - name: Run Clippy and emit SARIF
+        working-directory: ${{ matrix.workspace }}
+        run: |
+          cargo clippy --all-features --message-format=json 2>/dev/null \
+            | clippy-sarif \
+            | tee ../clippy-${{ matrix.workspace }}.sarif \
+            | sarif-fmt
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: clippy-${{ matrix.workspace }}.sarif
+          category: clippy-${{ matrix.workspace }}

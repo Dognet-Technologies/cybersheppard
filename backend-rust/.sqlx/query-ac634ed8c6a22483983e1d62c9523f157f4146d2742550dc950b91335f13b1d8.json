@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                e.event_type,\n                e.event_category,\n                e.severity,\n                e.anomaly_score\n            FROM security_events e\n            INNER JOIN event_correlations c ON e.correlation_id = c.id\n            WHERE c.id = $1\n            ORDER BY e.timestamp\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "event_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "event_category",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "severity",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "anomaly_score",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "ac634ed8c6a22483983e1d62c9523f157f4146d2742550dc950b91335f13b1d8"
+}

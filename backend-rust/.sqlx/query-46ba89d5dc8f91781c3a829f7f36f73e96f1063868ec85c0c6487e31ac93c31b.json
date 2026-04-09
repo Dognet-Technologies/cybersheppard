@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*)::INT as count\n            FROM security_events\n            WHERE source_host = $1\n              AND timestamp > NOW() - INTERVAL '1 day' * $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "46ba89d5dc8f91781c3a829f7f36f73e96f1063868ec85c0c6487e31ac93c31b"
+}

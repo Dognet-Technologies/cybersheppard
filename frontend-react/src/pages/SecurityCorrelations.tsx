@@ -1,17 +1,35 @@
+// ============================================================================
+// Security Correlations Page - Vulnerability and threat correlation
+// ============================================================================
+
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
-import { Shield, AlertTriangle, CheckCircle, XCircle, Activity } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Activity, Shield } from 'lucide-react';
+import { format } from 'date-fns';
+import {
+  PageHeader,
+  Table,
+  Button,
+  Badge,
+  StatsGrid,
+  StatCard,
+  EmptyState,
+} from '../components/ui';
 
 export default function SecurityCorrelations() {
-  const [selectedCorrelation, setSelectedCorrelation] = useState<any>(null);
+  const [, setSelectedCorrelation] = useState<any>(null);
   const queryClient = useQueryClient();
 
-  const { data: correlations, isLoading } = useQuery({
+  // Fetch correlations using new API
+  const { data: response, isLoading } = useQuery({
     queryKey: ['security-correlations'],
-    queryFn: () => api.getSecurityCorrelations(),
+    queryFn: () => api.getSecurityCorrelations({ hours: 24, limit: 100 }),
     refetchInterval: 30000,
   });
+
+  // Extract data from API response
+  const correlations = response?.data || [];
 
   const acknowledgeMutation = useMutation({
     mutationFn: (id: number) => api.acknowledgeCorrelation(id),
@@ -36,158 +54,199 @@ export default function SecurityCorrelations() {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+  // Calculate statistics (adapted to new EventCorrelation model)
+  const stats = {
+    total: correlations?.length || 0,
+    critical: correlations?.filter((c: any) => c.severity === 'critical').length || 0,
+    high: correlations?.filter((c: any) => c.severity === 'high').length || 0,
+    active: correlations?.filter((c: any) => c.status === 'active').length || 0,
+  };
+
+  const columns = [
+    {
+      key: 'severity',
+      label: 'Severity',
+      sortable: true,
+      render: (row: any) => {
+        const variants: Record<string, 'danger' | 'warning' | 'info' | 'default'> = {
+          critical: 'danger',
+          high: 'warning',
+          medium: 'info',
+          low: 'default',
+        };
+        return (
+          <Badge variant={variants[row.severity] || 'default'}>
+            {row.severity?.toUpperCase() || 'UNKNOWN'}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'pattern',
+      label: 'Attack Pattern',
+      sortable: true,
+      render: (row: any) => (
         <div>
-          <h1 className="text-3xl font-bold">Security Correlations</h1>
-          <p className="text-gray-600 mt-1">
-            Automated correlation between vulnerabilities and active threats
-          </p>
+          <div className="font-medium text-gray-900">
+            {row.pattern_name || row.correlation_type?.replace('_', ' ').toUpperCase()}
+          </div>
+          <div className="text-sm text-gray-500">
+            {row.attack_stage?.replace('_', ' ') || 'Unknown stage'}
+          </div>
         </div>
-        <div className="flex items-center space-x-2 px-4 py-2 bg-blue-50 rounded-lg">
-          <Activity className="w-5 h-5 text-blue-600" />
-          <span className="text-sm font-medium text-blue-900">
-            {correlations?.length || 0} Active Correlations
-          </span>
+      ),
+    },
+    {
+      key: 'entities',
+      label: 'Involved Entities',
+      render: (row: any) => (
+        <div>
+          <div className="font-medium text-sm text-gray-900">
+            Hosts: {row.involved_hosts?.slice(0, 2).join(', ') || 'N/A'}
+            {row.involved_hosts?.length > 2 && ` +${row.involved_hosts.length - 2} more`}
+          </div>
+          <div className="text-xs text-gray-500">
+            Users: {row.involved_users?.slice(0, 2).join(', ') || 'N/A'}
+            {row.involved_users?.length > 2 && ` +${row.involved_users.length - 2} more`}
+          </div>
         </div>
-      </div>
-
-      {isLoading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600 mt-2">Loading correlations...</p>
+      ),
+    },
+    {
+      key: 'risk',
+      label: 'Risk Score',
+      sortable: true,
+      render: (row: any) => (
+        <div>
+          <div className="font-medium text-sm text-gray-900">
+            {row.risk_score?.toFixed(1) || 'N/A'} / 100
+          </div>
+          <div className="text-xs text-gray-500">
+            Events: {row.event_count || 0}
+          </div>
         </div>
-      ) : correlations?.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Correlations</h3>
-          <p className="text-gray-600">
-            The system has not detected any high-risk correlations between vulnerabilities and threats.
-          </p>
+      ),
+    },
+    {
+      key: 'confidence',
+      label: 'Confidence',
+      sortable: true,
+      render: (row: any) => (
+        <span className="text-sm font-mono text-gray-900">
+          {(row.confidence * 100).toFixed(0)}%
+        </span>
+      ),
+    },
+    {
+      key: 'created_at',
+      label: 'Detected',
+      sortable: true,
+      render: (row: any) => (
+        <div className="text-sm text-gray-600">{format(new Date(row.created_at), 'PPp')}</div>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: true,
+      render: (row: any) => {
+        const variants: Record<string, 'warning' | 'info' | 'success'> = {
+          active: 'warning',
+          investigating: 'info',
+          resolved: 'success',
+        };
+        return <Badge variant={variants[row.status] || 'default'}>{row.status}</Badge>;
+      },
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row: any) => (
+        <div className="flex items-center gap-2">
+          {row.status === 'active' && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => acknowledgeMutation.mutate(row.id)}
+                loading={acknowledgeMutation.isPending}
+                title="Acknowledge (legacy action)"
+              >
+                Acknowledge
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => handleResolve(row)}
+                loading={resolveMutation.isPending}
+                title="Resolve (legacy action)"
+              >
+                Resolve
+              </Button>
+            </>
+          )}
         </div>
-      ) : (
-        <div className="space-y-4">
-          {correlations?.map((correlation: any) => (
-            <CorrelationCard
-              key={correlation.id}
-              correlation={correlation}
-              onAcknowledge={() => acknowledgeMutation.mutate(correlation.id)}
-              onResolve={() => handleResolve(correlation)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CorrelationCard({ correlation, onAcknowledge, onResolve }: any) {
-  const getRiskColor = (risk: string) => {
-    switch (risk) {
-      case 'critical': return 'bg-red-100 text-red-800 border-red-200';
-      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getRiskIcon = (risk: string) => {
-    switch (risk) {
-      case 'critical':
-      case 'high':
-        return <AlertTriangle className="w-5 h-5" />;
-      default:
-        return <Activity className="w-5 h-5" />;
-    }
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleString();
-  };
+      ),
+    },
+  ];
 
   return (
-    <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-l-4 border-red-500">
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center space-x-3 mb-2">
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${getRiskColor(correlation.risk_level)} border flex items-center space-x-1`}>
-                {getRiskIcon(correlation.risk_level)}
-                <span>{correlation.risk_level} Risk</span>
-              </span>
-              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                {correlation.correlation_type}
-              </span>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              Target: {correlation.target_hostname || `ID ${correlation.target_id}`}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">
-              Confidence: {(correlation.correlation_confidence * 100).toFixed(0)}%
-            </p>
+    <div>
+      <PageHeader
+        title="Security Event Correlations"
+        subtitle="Advanced AI-powered attack pattern detection and threat correlation"
+        icon={<Shield className="w-6 h-6" />}
+        actions={
+          <div className="flex items-center space-x-2">
+            <Activity className="w-4 h-4 text-green-500 animate-pulse" />
+            <Badge variant="success">Live Monitoring</Badge>
           </div>
-        </div>
+        }
+      />
 
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-red-50 rounded p-3">
-            <p className="text-xs text-gray-600 mb-1">Vulnerability</p>
-            <p className="font-semibold text-sm">{correlation.vulnerability_cve || 'N/A'}</p>
-            <p className="text-xs text-gray-600">
-              CVSS: {correlation.vulnerability_cvss?.toFixed(1) || 'N/A'}
-            </p>
-          </div>
+      {/* Stats */}
+      <StatsGrid columns={4} className="mb-6">
+        <StatCard
+          title="Total Correlations"
+          value={stats.total}
+          icon={<Activity className="w-6 h-6" />}
+          variant="info"
+        />
+        <StatCard
+          title="Critical"
+          value={stats.critical}
+          icon={<AlertTriangle className="w-6 h-6" />}
+          variant="danger"
+        />
+        <StatCard
+          title="High Severity"
+          value={stats.high}
+          icon={<AlertTriangle className="w-6 h-6" />}
+          variant="warning"
+        />
+        <StatCard
+          title="Active"
+          value={stats.active}
+          icon={<CheckCircle className="w-6 h-6" />}
+          variant="warning"
+        />
+      </StatsGrid>
 
-          <div className="bg-orange-50 rounded p-3">
-            <p className="text-xs text-gray-600 mb-1">Threat Source</p>
-            <p className="font-semibold text-sm">{correlation.threat_source_ip || 'N/A'}</p>
-            <p className="text-xs text-gray-600">
-              Score: {correlation.threat_score?.toFixed(1) || 'N/A'}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-yellow-50 border border-yellow-200 rounded p-4 mb-4">
-          <p className="text-sm font-medium text-yellow-900 mb-1">Recommended Action:</p>
-          <p className="text-sm text-yellow-800">{correlation.recommended_action}</p>
-        </div>
-
-        <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
-          <span>Detected: {formatDate(correlation.created_at)}</span>
-          <span>Status: {correlation.status}</span>
-        </div>
-
-        {correlation.status === 'new' && (
-          <div className="flex space-x-2 pt-4 border-t">
-            <button
-              onClick={onAcknowledge}
-              className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <CheckCircle className="w-4 h-4" />
-              <span>Acknowledge</span>
-            </button>
-            <button
-              onClick={onResolve}
-              className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              <XCircle className="w-4 h-4" />
-              <span>Resolve</span>
-            </button>
-          </div>
-        )}
-
-        {correlation.status === 'acknowledged' && (
-          <div className="flex space-x-2 pt-4 border-t">
-            <button
-              onClick={onResolve}
-              className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              <CheckCircle className="w-4 h-4" />
-              <span>Mark as Resolved</span>
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Table or Empty State */}
+      {correlations?.length === 0 && !isLoading ? (
+        <EmptyState
+          icon={<CheckCircle className="w-8 h-8" />}
+          title="No Active Correlations"
+          description="The advanced correlation engine has not detected any suspicious patterns or attack sequences in the last 24 hours"
+        />
+      ) : (
+        <Table
+          data={correlations || []}
+          columns={columns}
+          loading={isLoading}
+          emptyMessage="No correlations found"
+        />
+      )}
     </div>
   );
 }

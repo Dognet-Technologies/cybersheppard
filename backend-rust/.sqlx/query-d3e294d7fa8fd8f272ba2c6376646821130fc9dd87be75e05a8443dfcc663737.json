@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH auth_events AS (\n                SELECT\n                    user_name,\n                    source_host,\n                    destination_host,\n                    timestamp,\n                    event_type\n                FROM security_events\n                WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n                  AND event_category IN ('authentication', 'network')\n                  AND user_name IS NOT NULL\n            ),\n            host_sequences AS (\n                SELECT\n                    a1.user_name,\n                    a1.source_host as host1,\n                    a2.source_host as host2,\n                    a1.timestamp as first_time,\n                    a2.timestamp as second_time,\n                    EXTRACT(EPOCH FROM (a2.timestamp - a1.timestamp)) / 60 as time_diff_minutes\n                FROM auth_events a1\n                JOIN auth_events a2 ON a1.user_name = a2.user_name\n                WHERE a1.source_host != a2.source_host\n                  AND a2.timestamp > a1.timestamp\n                  AND a2.timestamp <= a1.timestamp + INTERVAL '1 hour'\n            )\n            SELECT\n                user_name,\n                host1,\n                host2,\n                first_time,\n                second_time,\n                time_diff_minutes,\n                COUNT(*) as sequence_count\n            FROM host_sequences\n            GROUP BY user_name, host1, host2, first_time, second_time, time_diff_minutes\n            HAVING COUNT(*) >= 2\n            ORDER BY sequence_count DESC\n            LIMIT 50\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "host1",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "host2",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "second_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "time_diff_minutes",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 6,
+        "name": "sequence_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "d3e294d7fa8fd8f272ba2c6376646821130fc9dd87be75e05a8443dfcc663737"
+}

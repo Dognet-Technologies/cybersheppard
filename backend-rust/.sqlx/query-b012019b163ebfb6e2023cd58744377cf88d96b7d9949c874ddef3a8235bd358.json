@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE integrations\n         SET last_sync_at = NOW(), last_sync_status = 'in_progress'\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b012019b163ebfb6e2023cd58744377cf88d96b7d9949c874ddef3a8235bd358"
+}

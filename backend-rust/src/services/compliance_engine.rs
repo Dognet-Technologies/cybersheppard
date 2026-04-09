@@ -5,6 +5,7 @@
 use sqlx::PgPool;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use bigdecimal::BigDecimal;
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ComplianceFramework {
@@ -14,31 +15,31 @@ pub struct ComplianceFramework {
     pub description: Option<String>,
     pub version: Option<String>,
     pub category: Option<String>,
-    pub enabled: bool,
+    pub enabled: Option<bool>,  // Changed from bool
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ComplianceAssessment {
-    pub id: i32,
+    pub id: Option<i32>,
     pub target_id: i32,
-    pub framework_id: i32,
-    pub assessment_date: DateTime<Utc>,
-    pub total_controls: i32,
-    pub passed_controls: i32,
-    pub failed_controls: i32,
-    pub not_applicable: i32,
-    pub compliance_score: Option<f32>,
-    pub status: String,
+    pub framework_id: Option<i32>,
+    pub assessment_date: Option<DateTime<Utc>>,
+    pub total_controls: Option<i32>,
+    pub passed_controls: Option<i32>,
+    pub failed_controls: Option<i32>,
+    pub not_applicable: Option<i32>,
+    pub compliance_score: Option<BigDecimal>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ComplianceOverview {
-    pub target_id: i32,
-    pub hostname: String,
-    pub frameworks_assessed: i64,
-    pub avg_compliance_score: Option<f32>,
-    pub critical_violations: i64,
-    pub high_violations: i64,
+    pub target_id: Option<i32>,
+    pub hostname: Option<String>,
+    pub frameworks_assessed: Option<i64>,
+    pub avg_compliance_score: Option<BigDecimal>,
+    pub critical_violations: Option<i64>,
+    pub high_violations: Option<i64>,
     pub last_assessment_date: Option<DateTime<Utc>>,
 }
 

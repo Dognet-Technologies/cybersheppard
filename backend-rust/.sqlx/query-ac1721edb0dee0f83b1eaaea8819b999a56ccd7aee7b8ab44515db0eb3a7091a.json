@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_ip, threat_type, score\n            FROM firedog_threats\n            WHERE target_id = $1 AND score > 70\n            ORDER BY detected_at DESC\n            LIMIT 100\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_ip",
+        "type_info": "Inet"
+      },
+      {
+        "ordinal": 1,
+        "name": "threat_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "score",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ac1721edb0dee0f83b1eaaea8819b999a56ccd7aee7b8ab44515db0eb3a7091a"
+}

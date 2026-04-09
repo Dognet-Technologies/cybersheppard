@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO network_topology (\n                    source_host,\n                    destination_host,\n                    connection_count,\n                    betweenness_centrality,\n                    first_seen,\n                    last_seen\n                )\n                SELECT\n                    $1::VARCHAR,\n                    $1::VARCHAR,\n                    $2,\n                    $3,\n                    NOW(),\n                    NOW()\n                WHERE NOT EXISTS (\n                    SELECT 1 FROM network_topology WHERE source_host = $1::VARCHAR AND destination_host = $1::VARCHAR\n                )\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Int4",
+        "Numeric"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "90863aa47126831499b35d8f38cc6fd1f8ff1eeac835122c131208ab3c7aa292"
+}

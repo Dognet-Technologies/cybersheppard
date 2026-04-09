@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO lateral_movement_predictions (\n                correlation_id,\n                current_compromised_host,\n                current_compromised_user,\n                current_attack_stage,\n                predictions,\n                model_name,\n                model_version,\n                model_confidence,\n                status,\n                expires_at\n            ) VALUES (\n                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10\n            )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Jsonb",
+        "Varchar",
+        "Varchar",
+        "Numeric",
+        "Varchar",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0e8bb86470f6773e65658adcba932d417053db7aef59aae7e0b59f045e67a96e"
+}

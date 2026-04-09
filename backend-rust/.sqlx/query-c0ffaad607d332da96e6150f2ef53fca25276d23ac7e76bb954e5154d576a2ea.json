@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                COALESCE(hostname, ip_address::TEXT) as hostname,\n                ip_address,\n                5 as criticality\n            FROM targets\n            WHERE status = 'active'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hostname",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "ip_address",
+        "type_info": "Inet"
+      },
+      {
+        "ordinal": 2,
+        "name": "criticality",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      false,
+      null
+    ]
+  },
+  "hash": "c0ffaad607d332da96e6150f2ef53fca25276d23ac7e76bb954e5154d576a2ea"
+}

@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO firedog_threats\n                    (target_id, firedog_threat_id, source_ip, threat_type, classification, score, details, detected_at)\n                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n                ON CONFLICT (firedog_threat_id) DO UPDATE\n                SET threat_type = EXCLUDED.threat_type,\n                    classification = EXCLUDED.classification,\n                    score = EXCLUDED.score,\n                    details = EXCLUDED.details\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Inet",
+        "Varchar",
+        "Varchar",
+        "Numeric",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2f370133b34e1383d364ce74438cdf41c48b04530419be46e4af07eb8025c21e"
+}

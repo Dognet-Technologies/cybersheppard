@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT host_name, asset_criticality\n            FROM host_behavior_baselines\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "host_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "asset_criticality",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "cda5aeecea3170594f780baa637f56b678332ffbf3211bfcd40a255f9720f4d2"
+}

@@ -3,8 +3,11 @@
 // ============================================================================
 
 use crate::db::postgresql::PostgresPool;
+use crate::utils::BigDecimalExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use ipnetwork::IpNetwork;
 
 #[derive(Clone)]
 pub struct IntegrationService {
@@ -17,15 +20,15 @@ struct IntegrationConfig {
     service_name: String,
     base_url: String,
     api_key: Option<String>,
-    is_enabled: bool,
+    is_enabled: Option<bool>,  // Changed from bool to Option<bool>
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SentinelVulnerability {
     cve_id: String,
     severity: String,
-    cvss_score: Option<f64>,
-    epss_score: Option<f64>,
+    cvss_score: Option<BigDecimal>,  // Changed from f64
+    epss_score: Option<BigDecimal>,  // Changed from f64
     description: Option<String>,
     published_date: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -33,10 +36,10 @@ struct SentinelVulnerability {
 #[derive(Debug, Serialize, Deserialize)]
 struct FireDogThreat {
     threat_id: i32,
-    source_ip: String,
+    source_ip: IpNetwork,  // Changed from String
     threat_type: String,
     classification: String,
-    score: i32,
+    score: BigDecimal,  // Changed from i32
     details: Option<String>,
     detected_at: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -71,7 +74,7 @@ impl IntegrationService {
     ) -> Result<usize, Box<dyn std::error::Error>> {
         let config = self.load_config("sentinel_core").await?;
 
-        if !config.is_enabled {
+        if !config.is_enabled.unwrap_or(false) {
             return Ok(0);
         }
 
@@ -103,8 +106,8 @@ impl IntegrationService {
                 target_id,
                 vuln.cve_id,
                 vuln.severity,
-                vuln.cvss_score.map(|v| v as f32),
-                vuln.epss_score.map(|v| v as f32),
+                vuln.cvss_score,
+                vuln.epss_score,
                 vuln.description,
                 vuln.published_date
             )
@@ -128,7 +131,7 @@ impl IntegrationService {
     ) -> Result<usize, Box<dyn std::error::Error>> {
         let config = self.load_config("firedog").await?;
 
-        if !config.is_enabled {
+        if !config.is_enabled.unwrap_or(false) {
             return Ok(0);
         }
 
@@ -214,17 +217,17 @@ impl IntegrationService {
         for vuln in &vulnerabilities {
             for threat in &threats {
                 let confidence = calculate_correlation_confidence(
-                    vuln.cvss_score.unwrap_or(0.0) as f64,
-                    threat.score as f64,
+                    vuln.cvss_score.to_f64(),
+                    threat.score.to_f64(),
                 );
 
                 if confidence > 0.5 {
                     let recommended_action = format!(
                         "High-priority: CVE {} (CVSS {:.1}) combined with threat from {} (score {}). Investigate immediately.",
                         vuln.cve_id,
-                        vuln.cvss_score.unwrap_or(0.0),
+                        vuln.cvss_score.to_f64(),
                         threat.source_ip,
-                        threat.score
+                        threat.score.to_f64()
                     );
 
                     sqlx::query!(

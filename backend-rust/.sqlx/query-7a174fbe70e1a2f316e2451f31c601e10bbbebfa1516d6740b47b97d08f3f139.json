@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                a.id, a.severity, a.title, a.message, a.alert_type,\n                a.status, a.acknowledged, a.created_at,\n                ar.name as rule_name,\n                0::bigint as \"delivery_attempts!: i64\",\n                0::bigint as \"successful_deliveries!: i64\"\n            FROM alerts a\n            LEFT JOIN alert_rules ar ON a.rule_id = ar.id\n            WHERE a.status != 'resolved'\n            ORDER BY a.created_at DESC\n            LIMIT 100\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "severity",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "alert_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "acknowledged",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "rule_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "delivery_attempts!: i64",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "successful_deliveries!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "7a174fbe70e1a2f316e2451f31c601e10bbbebfa1516d6740b47b97d08f3f139"
+}

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO compliance_assessments (\n                target_id, framework_id, assessment_date,\n                total_controls, passed_controls, failed_controls,\n                not_applicable, status\n            ) VALUES ($1, $2, NOW(), $3, 0, 0, 0, 'in_progress')\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9a6984af0e0afd2af611203e13f0d76f138b79b0910300db43c0d427ac2eb80f"
+}

@@ -1,0 +1,233 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id, timestamp, source_type as \"source_type: _\", source_host,\n                source_ip as \"source_ip: IpAddr\", source_port,\n                event_type, event_category as \"event_category: _\",\n                event_action, severity as \"severity: _\",\n                user_name, user_id, process_name, process_pid, process_ppid, process_cmdline,\n                file_path, file_operation,\n                destination_ip as \"destination_ip: IpAddr\", destination_port,\n                destination_host, protocol, bytes_sent, bytes_received,\n                event_data, normalized_data,\n                geo_country, geo_city, asset_criticality, threat_score,\n                correlation_id, parent_event_id, sequence_number,\n                ingestion_time, processed, anomaly_score\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n            ORDER BY timestamp DESC\n            LIMIT $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "source_type: _",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "source_ip: IpAddr",
+        "type_info": "Inet"
+      },
+      {
+        "ordinal": 5,
+        "name": "source_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "event_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "event_category: _",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "event_action",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "severity: _",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 11,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "process_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 13,
+        "name": "process_pid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "process_ppid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "process_cmdline",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "file_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "file_operation",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 18,
+        "name": "destination_ip: IpAddr",
+        "type_info": "Inet"
+      },
+      {
+        "ordinal": 19,
+        "name": "destination_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 20,
+        "name": "destination_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 21,
+        "name": "protocol",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 22,
+        "name": "bytes_sent",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 23,
+        "name": "bytes_received",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 24,
+        "name": "event_data",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 25,
+        "name": "normalized_data",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 26,
+        "name": "geo_country",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 27,
+        "name": "geo_city",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 28,
+        "name": "asset_criticality",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 29,
+        "name": "threat_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 30,
+        "name": "correlation_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 31,
+        "name": "parent_event_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 32,
+        "name": "sequence_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 33,
+        "name": "ingestion_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 34,
+        "name": "processed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 35,
+        "name": "anomaly_score",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "7a5a2c0d907d2df9652c8a23db99499247f2451d39816a65bc9dd6192bd460b6"
+}

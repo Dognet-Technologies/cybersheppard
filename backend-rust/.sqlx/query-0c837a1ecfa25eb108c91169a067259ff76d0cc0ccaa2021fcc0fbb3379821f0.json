@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT common_commands\n            FROM user_behavior_baselines\n            WHERE user_name = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "common_commands",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0c837a1ecfa25eb108c91169a067259ff76d0cc0ccaa2021fcc0fbb3379821f0"
+}

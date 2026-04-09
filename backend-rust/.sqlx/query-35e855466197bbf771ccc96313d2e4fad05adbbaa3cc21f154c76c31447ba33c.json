@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id,\n                correlation_type,\n                severity,\n                risk_score,\n                pattern_name,\n                pattern_description,\n                involved_hosts,\n                involved_users,\n                created_at\n            FROM event_correlations\n            WHERE created_at > $1\n              AND status = 'active'\n              AND (severity IN ('critical', 'high') OR risk_score > 60)\n            ORDER BY created_at DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "correlation_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "severity",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "risk_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "pattern_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "pattern_description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "involved_hosts",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 7,
+        "name": "involved_users",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "35e855466197bbf771ccc96313d2e4fad05adbbaa3cc21f154c76c31447ba33c"
+}

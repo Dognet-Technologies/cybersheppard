@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                user_name,\n                source_host,\n                destination_ip,\n                COUNT(*) as transfer_count,\n                SUM(bytes_sent) as total_bytes,\n                MIN(timestamp) as first_transfer,\n                MAX(timestamp) as last_transfer\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND event_category = 'network'\n              AND bytes_sent IS NOT NULL\n              AND bytes_sent > 1000000  -- > 1MB\n              AND destination_ip IS NOT NULL\n            GROUP BY user_name, source_host, destination_ip\n            HAVING SUM(bytes_sent) > 10000000  -- > 10MB total\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "destination_ip",
+        "type_info": "Inet"
+      },
+      {
+        "ordinal": 3,
+        "name": "transfer_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "total_bytes",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "first_transfer",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_transfer",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "6cd7966f70d1b95224156ed334dd1b419e7e5e314dc1d534d00ed675d8df98c1"
+}

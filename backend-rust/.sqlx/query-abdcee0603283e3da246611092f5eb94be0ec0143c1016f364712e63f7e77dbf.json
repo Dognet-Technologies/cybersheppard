@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT user_name\n            FROM security_events\n            WHERE source_host = $1\n              AND user_name IS NOT NULL\n              AND timestamp > NOW() - INTERVAL '1 day' * $2\n            GROUP BY user_name\n            ORDER BY COUNT(*) DESC\n            LIMIT 20\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "abdcee0603283e3da246611092f5eb94be0ec0143c1016f364712e63f7e77dbf"
+}
