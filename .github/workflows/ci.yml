@@ -6,11 +6,6 @@ permissions:
 on:
   push:
     branches: [main, develop]
-permissions:
-  contents: read
-
-permissions:
-  contents: read
 
   pull_request:
     branches: [main, develop]
