@@ -3,80 +3,58 @@
 // ============================================================================
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
-    response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    response::IntoResponse,
+    routing::{delete, get, patch, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
+use serde_json::json;
+
+use crate::middleware::auth::AuthUser;
+use crate::services::settings_manager::SettingsManager;
+use crate::AppState;
 
 use crate::AppState;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        // General settings
-        .route("/", get(get_all_settings))
-        .route("/:key", get(get_setting).put(update_setting))
-        // User management
-        .route("/user/profile", get(get_user_profile).put(update_user_profile))
-        .route("/user/password", post(change_password))
-        // System status
-        .route("/system/status", get(get_system_status))
-        .route("/system/status/log", post(log_system_status))
-        .route("/system/health", get(get_system_health))
-        // Database management
-        .route("/database/stats", get(get_database_stats))
-        .route("/database/cleanup", post(trigger_cleanup))
-        // API Keys
-        .route("/api-keys", get(list_api_keys).post(create_api_key))
-        .route("/api-keys/:id", get(get_api_key).delete(revoke_api_key))
-        // Integrations
-        .route("/integrations", get(list_integrations).post(create_integration))
-        .route(
-            "/integrations/:id",
-            get(get_integration)
-                .put(update_integration)
-                .delete(delete_integration),
-        )
-        .route("/integrations/:id/test", post(test_integration))
-        .route("/integrations/:id/sync", post(trigger_sync))
+        // System settings
+        .route("/system", get(get_system_settings))
+        .route("/system/:key", put(update_system_setting))
+        // User settings
+        .route("/user", get(get_user_settings))
+        .route("/user/:key", put(set_user_setting))
+        // API keys
+        .route("/api-keys", get(list_api_keys).post(generate_api_key))
+        .route("/api-keys/:id", delete(revoke_api_key))
+        // Health checks
+        .route("/health", get(health_check))
+        .route("/test-connection", post(test_connection))
+        // Password change
+        .route("/change-password", post(change_password))
+        // Database operations
+        .route("/cleanup", post(cleanup_old_data))
+        .route("/reset", post(reset_database))
 }
 
 // ============================================================================
-// Types
+// DTOs
 // ============================================================================
-
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Setting {
-    pub id: i32,
-    pub key: String,
-    pub value: String,
-    pub category: String,
-    pub description: Option<String>,
-    pub updated_at: chrono::NaiveDateTime,
-    pub updated_by: Option<String>,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateSettingRequest {
     pub value: String,
-    pub updated_by: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct UserProfile {
-    pub id: i32,
-    pub username: String,
-    pub email: Option<String>,
-    pub role: String,
-    pub created_at: chrono::NaiveDateTime,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateProfileRequest {
-    pub email: Option<String>,
+pub struct GenerateApiKeyRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub service: Option<String>,
+    pub permissions: Option<serde_json::Value>,
+    pub expires_days: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,716 +63,417 @@ pub struct ChangePasswordRequest {
     pub new_password: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct SystemStatus {
-    pub cpu_usage_percent: Option<f64>,
-    pub memory_usage_percent: Option<f64>,
-    pub memory_total_mb: Option<i64>,
-    pub memory_used_mb: Option<i64>,
-    pub disk_usage_percent: Option<f64>,
-    pub disk_total_gb: Option<i64>,
-    pub disk_used_gb: Option<i64>,
-    pub db_connections_active: Option<i32>,
-    pub db_connections_idle: Option<i32>,
-    pub db_connections_max: Option<i32>,
-    pub db_size_mb: Option<i64>,
-    pub agents_connected: Option<i32>,
-    pub timestamp: Option<chrono::NaiveDateTime>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct SystemHealth {
-    pub status: String, // 'healthy', 'degraded', 'unhealthy'
-    pub backend_healthy: bool,
-    pub database_healthy: bool,
-    pub uptime_seconds: i64,
-    pub version: String,
-}
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct DatabaseStats {
-    pub total_size_mb: i64,
-    pub auditd_events_count: i64,
-    pub auditd_events_size_mb: i64,
-    pub alerts_count: i64,
-    pub alerts_size_mb: i64,
-    pub targets_count: i64,
-    pub oldest_auditd_event: Option<chrono::NaiveDateTime>,
-    pub oldest_alert: Option<chrono::NaiveDateTime>,
+#[derive(Debug, Deserialize)]
+pub struct ResetDatabaseRequest {
+    pub confirmation: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CleanupRequest {
-    pub target: String, // 'auditd_events', 'alerts', 'system_logs', 'all'
-    pub retention_days: i32,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CleanupResult {
-    pub target: String,
-    pub deleted_count: i64,
-    pub cleanup_timestamp: chrono::NaiveDateTime,
-}
-
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct ApiKey {
-    pub id: i32,
-    pub name: String,
-    pub key_prefix: String,
-    pub description: Option<String>,
-    pub scopes: Vec<String>,
-    pub is_active: bool,
-    pub expires_at: Option<chrono::NaiveDateTime>,
-    pub last_used_at: Option<chrono::NaiveDateTime>,
-    pub created_at: chrono::NaiveDateTime,
-    pub created_by: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateApiKeyRequest {
-    pub name: String,
-    pub description: Option<String>,
-    pub scopes: Vec<String>,
-    pub expires_in_days: Option<i32>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CreateApiKeyResponse {
-    pub id: i32,
-    pub name: String,
-    pub key: String, // Full key, only returned once
-    pub key_prefix: String,
-    pub scopes: Vec<String>,
-    pub expires_at: Option<chrono::NaiveDateTime>,
-    pub created_at: chrono::NaiveDateTime,
-}
-
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Integration {
-    pub id: i32,
-    pub name: String,
-    #[sqlx(rename = "type")]
-    pub integration_type: String,
-    pub enabled: bool,
-    pub hostname: Option<String>,
-    pub ip_address: Option<String>,
-    pub port: Option<i32>,
-    pub use_ssl: bool,
-    pub sync_mode: Option<String>,
-    pub sync_interval: Option<i32>,
-    pub last_sync_at: Option<chrono::NaiveDateTime>,
-    pub last_sync_status: Option<String>,
-    pub last_sync_error: Option<String>,
-    pub config: Option<serde_json::Value>,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: chrono::NaiveDateTime,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateIntegrationRequest {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub integration_type: String,
+pub struct TestConnectionRequest {
+    pub service: String, // sentinel_core, firedog
+    pub url: String,
     pub api_key: Option<String>,
-    pub hostname: Option<String>,
-    pub ip_address: Option<String>,
-    pub port: Option<i32>,
-    pub use_ssl: Option<bool>,
-    pub sync_mode: Option<String>,
-    pub sync_interval: Option<i32>,
-    pub config: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateIntegrationRequest {
-    pub name: Option<String>,
-    pub enabled: Option<bool>,
-    pub api_key: Option<String>,
-    pub hostname: Option<String>,
-    pub ip_address: Option<String>,
-    pub port: Option<i32>,
-    pub use_ssl: Option<bool>,
-    pub sync_mode: Option<String>,
-    pub sync_interval: Option<i32>,
-    pub config: Option<serde_json::Value>,
+pub struct ListApiKeysQuery {
+    pub service: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetSystemSettingsQuery {
+    pub category: Option<String>,
 }
 
 // ============================================================================
-// Settings Handlers
+// HANDLERS - System Settings
 // ============================================================================
 
-async fn get_all_settings(State(state): State<AppState>) -> Result<Json<Vec<Setting>>, Response> {
-    let settings = sqlx::query_as::<_, Setting>(
-        "SELECT id, key, value, category, description, updated_at, updated_by
-         FROM settings
-         ORDER BY category, key"
-    )
-    .fetch_all(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)).into_response()
-    })?;
+async fn get_system_settings(
+    State(state): State<AppState>,
+    Query(params): Query<GetSystemSettingsQuery>,
+    _auth_user: AuthUser,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
 
-    Ok(Json(settings))
+    let settings = manager
+        .get_system_settings(params.category.as_deref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
+        })?;
+
+    Ok(Json(json!({ "settings": settings })))
 }
 
-async fn get_setting(
+async fn update_system_setting(
     State(state): State<AppState>,
     Path(key): Path<String>,
-) -> Result<Json<Setting>, Response> {
-    let setting = sqlx::query_as::<_, Setting>(
-        "SELECT id, key, value, category, description, updated_at, updated_by
-         FROM settings
-         WHERE key = $1"
-    )
-    .bind(&key)
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::NOT_FOUND, format!("Setting not found: {}", e)).into_response()
-    })?;
-
-    Ok(Json(setting))
-}
-
-async fn update_setting(
-    State(state): State<AppState>,
-    Path(key): Path<String>,
+    auth_user: AuthUser,
     Json(payload): Json<UpdateSettingRequest>,
-) -> Result<Json<Setting>, Response> {
-    let setting = sqlx::query_as::<_, Setting>(
-        "UPDATE settings
-         SET value = $1, updated_by = $2, updated_at = NOW()
-         WHERE key = $3
-         RETURNING id, key, value, category, description, updated_at, updated_by"
-    )
-    .bind(&payload.value)
-    .bind(&payload.updated_by)
-    .bind(&key)
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Update failed: {}", e)).into_response()
-    })?;
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
 
-    Ok(Json(setting))
-}
+    manager
+        .update_system_setting(&key, &payload.value, auth_user.user_id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": e.to_string()})),
+            )
+        })?;
 
-// ============================================================================
-// User Management Handlers
-// ============================================================================
-
-async fn get_user_profile(State(state): State<AppState>) -> Result<Json<UserProfile>, Response> {
-    // TODO: Get user from auth context
-    let user = sqlx::query_as::<_, UserProfile>(
-        "SELECT id, username, email, role, created_at
-         FROM users
-         LIMIT 1"
-    )
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)).into_response()
-    })?;
-
-    Ok(Json(user))
-}
-
-async fn update_user_profile(
-    State(state): State<AppState>,
-    Json(payload): Json<UpdateProfileRequest>,
-) -> Result<Json<UserProfile>, Response> {
-    // TODO: Get user ID from auth context
-    let user = sqlx::query_as::<_, UserProfile>(
-        "UPDATE users
-         SET email = $1
-         WHERE id = 1
-         RETURNING id, username, email, role, created_at"
-    )
-    .bind(&payload.email)
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Update failed: {}", e)).into_response()
-    })?;
-
-    Ok(Json(user))
-}
-
-async fn change_password(
-    State(state): State<AppState>,
-    Json(payload): Json<ChangePasswordRequest>,
-) -> Result<StatusCode, Response> {
-    // TODO: Implement password verification and update
-    // For now, just return OK
-    Ok(StatusCode::OK)
-}
-
-// ============================================================================
-// System Status Handlers
-// ============================================================================
-
-async fn get_system_status(State(state): State<AppState>) -> Result<Json<SystemStatus>, Response> {
-    let status = sqlx::query_as::<_, SystemStatus>(
-        "SELECT * FROM get_latest_system_status()"
-    )
-    .fetch_optional(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)).into_response()
-    })?;
-
-    Ok(Json(status.unwrap_or(SystemStatus {
-        cpu_usage_percent: None,
-        memory_usage_percent: None,
-        memory_total_mb: None,
-        memory_used_mb: None,
-        disk_usage_percent: None,
-        disk_total_gb: None,
-        disk_used_gb: None,
-        db_connections_active: None,
-        db_connections_idle: None,
-        db_connections_max: None,
-        db_size_mb: None,
-        agents_connected: None,
-        timestamp: None,
+    Ok(Json(json!({
+        "status": "success",
+        "message": "Setting updated successfully"
     })))
 }
 
-async fn log_system_status(
+// ============================================================================
+// HANDLERS - User Settings
+// ============================================================================
+
+async fn get_user_settings(
     State(state): State<AppState>,
-    Json(status): Json<SystemStatus>,
-) -> Result<StatusCode, Response> {
-    sqlx::query(
-        "INSERT INTO system_status_log (
-            cpu_usage_percent, memory_usage_percent, memory_total_mb, memory_used_mb,
-            disk_usage_percent, disk_total_gb, disk_used_gb,
-            db_connections_active, db_connections_idle, db_connections_max,
-            db_size_mb, agents_connected
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"
-    )
-    .bind(status.cpu_usage_percent)
-    .bind(status.memory_usage_percent)
-    .bind(status.memory_total_mb)
-    .bind(status.memory_used_mb)
-    .bind(status.disk_usage_percent)
-    .bind(status.disk_total_gb)
-    .bind(status.disk_used_gb)
-    .bind(status.db_connections_active)
-    .bind(status.db_connections_idle)
-    .bind(status.db_connections_max)
-    .bind(status.db_size_mb)
-    .bind(status.agents_connected)
-    .execute(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to log status: {}", e)).into_response()
-    })?;
+    auth_user: AuthUser,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
 
-    Ok(StatusCode::CREATED)
-}
-
-async fn get_system_health(State(state): State<AppState>) -> Result<Json<SystemHealth>, Response> {
-    // Check database connection
-    let db_healthy = sqlx::query_scalar::<_, i32>("SELECT 1")
-        .fetch_one(&state.pg_pool)
+    let settings = manager
+        .get_user_settings(auth_user.user_id)
         .await
-        .is_ok();
-
-    // Get agents count
-    let agents_connected = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM agents WHERE status = 'connected'"
-    )
-    .fetch_one(&state.pg_pool)
-    .await
-    .unwrap_or(0);
-
-    let status = if db_healthy && agents_connected > 0 {
-        "healthy"
-    } else if db_healthy {
-        "degraded"
-    } else {
-        "unhealthy"
-    };
-
-    Ok(Json(SystemHealth {
-        status: status.to_string(),
-        backend_healthy: true,
-        database_healthy: db_healthy,
-        uptime_seconds: 0, // TODO: Track actual uptime
-        version: env!("CARGO_PKG_VERSION").to_string(),
-    }))
-}
-
-// ============================================================================
-// Database Management Handlers
-// ============================================================================
-
-async fn get_database_stats(State(state): State<AppState>) -> Result<Json<DatabaseStats>, Response> {
-    let stats = sqlx::query_as::<_, DatabaseStats>(
-        "SELECT * FROM get_database_stats()"
-    )
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)).into_response()
-    })?;
-
-    Ok(Json(stats))
-}
-
-async fn trigger_cleanup(
-    State(state): State<AppState>,
-    Json(request): Json<CleanupRequest>,
-) -> Result<Json<Vec<CleanupResult>>, Response> {
-    let mut results = Vec::new();
-
-    match request.target.as_str() {
-        "auditd_events" | "all" => {
-            let result = sqlx::query!(
-                "SELECT * FROM cleanup_old_auditd_events($1)",
-                request.retention_days
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
             )
-            .fetch_one(&state.pg_pool)
-            .await
-            .map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Cleanup failed: {}", e)).into_response()
-            })?;
-
-            results.push(CleanupResult {
-                target: "auditd_events".to_string(),
-                deleted_count: result.deleted_count.unwrap_or(0),
-                cleanup_timestamp: result.cleanup_timestamp.unwrap(),
-            });
-        }
-        _ => {}
-    }
-
-    if request.target == "alerts" || request.target == "all" {
-        let result = sqlx::query!(
-            "SELECT * FROM cleanup_old_alerts($1)",
-            request.retention_days
-        )
-        .fetch_one(&state.pg_pool)
-        .await
-        .map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Cleanup failed: {}", e)).into_response()
         })?;
 
-        results.push(CleanupResult {
-            target: "alerts".to_string(),
-            deleted_count: result.deleted_count.unwrap_or(0),
-            cleanup_timestamp: result.cleanup_timestamp.unwrap(),
-        });
-    }
+    Ok(Json(json!({ "settings": settings })))
+}
 
-    if request.target == "system_logs" || request.target == "all" {
-        let result = sqlx::query!(
-            "SELECT * FROM cleanup_old_system_logs($1)",
-            request.retention_days
-        )
-        .fetch_one(&state.pg_pool)
+async fn set_user_setting(
+    State(state): State<AppState>,
+    Path(key): Path<String>,
+    auth_user: AuthUser,
+    Json(payload): Json<UpdateSettingRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
+
+    manager
+        .set_user_setting(auth_user.user_id, &key, &payload.value)
         .await
         .map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Cleanup failed: {}", e)).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
         })?;
 
-        results.push(CleanupResult {
-            target: "system_logs".to_string(),
-            deleted_count: result.deleted_count.unwrap_or(0),
-            cleanup_timestamp: result.cleanup_timestamp.unwrap(),
-        });
-    }
-
-    Ok(Json(results))
+    Ok(Json(json!({
+        "status": "success",
+        "message": "User setting updated"
+    })))
 }
 
 // ============================================================================
-// API Keys Handlers
+// HANDLERS - API Keys
 // ============================================================================
 
-async fn list_api_keys(State(state): State<AppState>) -> Result<Json<Vec<ApiKey>>, Response> {
-    let keys = sqlx::query_as::<_, ApiKey>(
-        "SELECT id, name, key_prefix, description, scopes, is_active,
-                expires_at, last_used_at, created_at, created_by
-         FROM api_keys
-         ORDER BY created_at DESC"
-    )
-    .fetch_all(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)).into_response()
-    })?;
+async fn list_api_keys(
+    State(state): State<AppState>,
+    Query(params): Query<ListApiKeysQuery>,
+    _auth_user: AuthUser,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
 
-    Ok(Json(keys))
+    let keys = manager
+        .get_api_keys(params.service.as_deref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
+        })?;
+
+    Ok(Json(json!({ "api_keys": keys })))
 }
 
-async fn create_api_key(
+async fn generate_api_key(
     State(state): State<AppState>,
-    Json(payload): Json<CreateApiKeyRequest>,
-) -> Result<Json<CreateApiKeyResponse>, Response> {
-    // Generate random API key
-    let key = format!("cs_{}", uuid::Uuid::new_v4().simple());
-    let key_prefix = key.chars().take(12).collect::<String>();
+    auth_user: AuthUser,
+    Json(payload): Json<GenerateApiKeyRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
 
-    // Hash the key
-    let key_hash = format!("{:x}", sha2::Sha256::digest(key.as_bytes()));
+    let permissions = payload.permissions.unwrap_or(json!([]));
 
-    // Calculate expiration
-    let expires_at = payload.expires_in_days.map(|days| {
-        chrono::Utc::now().naive_utc() + chrono::Duration::days(days as i64)
-    });
+    let result = manager
+        .generate_api_key(
+            &payload.name,
+            payload.description.as_deref(),
+            payload.service.as_deref(),
+            permissions,
+            auth_user.user_id,
+            payload.expires_days,
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
+        })?;
 
-    let result = sqlx::query!(
-        "INSERT INTO api_keys (name, key_hash, key_prefix, description, scopes, expires_at, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, created_at",
-        payload.name,
-        key_hash,
-        key_prefix,
-        payload.description,
-        &payload.scopes,
-        expires_at,
-        "admin" // TODO: Get from auth context
-    )
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create API key: {}", e)).into_response()
-    })?;
-
-    Ok(Json(CreateApiKeyResponse {
-        id: result.id,
-        name: payload.name,
-        key, // Full key, only shown once
-        key_prefix,
-        scopes: payload.scopes,
-        expires_at,
-        created_at: result.created_at,
-    }))
-}
-
-async fn get_api_key(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiKey>, Response> {
-    let key = sqlx::query_as::<_, ApiKey>(
-        "SELECT id, name, key_prefix, description, scopes, is_active,
-                expires_at, last_used_at, created_at, created_by
-         FROM api_keys
-         WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::NOT_FOUND, format!("API key not found: {}", e)).into_response()
-    })?;
-
-    Ok(Json(key))
+    Ok(Json(json!({
+        "status": "success",
+        "message": "API key generated successfully",
+        "api_key": result.api_key,
+        "token": result.token,
+        "warning": "Store this token securely. It will not be shown again."
+    })))
 }
 
 async fn revoke_api_key(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> Result<StatusCode, Response> {
-    sqlx::query!(
-        "UPDATE api_keys
-         SET is_active = false, revoked_at = NOW(), revoked_by = $1
-         WHERE id = $2",
-        "admin", // TODO: Get from auth context
-        id
-    )
-    .execute(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to revoke API key: {}", e)).into_response()
-    })?;
+    auth_user: AuthUser,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
 
-    Ok(StatusCode::OK)
-}
-
-// ============================================================================
-// Integrations Handlers
-// ============================================================================
-
-async fn list_integrations(State(state): State<AppState>) -> Result<Json<Vec<Integration>>, Response> {
-    let integrations = sqlx::query_as::<_, Integration>(
-        r#"SELECT id, name, type as integration_type, enabled, hostname, ip_address, port, use_ssl,
-                  sync_mode, sync_interval, last_sync_at, last_sync_status, last_sync_error,
-                  config, created_at, updated_at
-           FROM integrations
-           ORDER BY created_at DESC"#
-    )
-    .fetch_all(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)).into_response()
-    })?;
-
-    Ok(Json(integrations))
-}
-
-async fn create_integration(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateIntegrationRequest>,
-) -> Result<Json<Integration>, Response> {
-    // TODO: Encrypt api_key before storing
-    let integration = sqlx::query_as::<_, Integration>(
-        r#"INSERT INTO integrations (
-            name, type, api_key, hostname, ip_address, port, use_ssl,
-            sync_mode, sync_interval, config, created_by
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        RETURNING id, name, type as integration_type, enabled, hostname, ip_address, port, use_ssl,
-                  sync_mode, sync_interval, last_sync_at, last_sync_status, last_sync_error,
-                  config, created_at, updated_at"#
-    )
-    .bind(&payload.name)
-    .bind(&payload.integration_type)
-    .bind(&payload.api_key)
-    .bind(&payload.hostname)
-    .bind(&payload.ip_address)
-    .bind(&payload.port)
-    .bind(payload.use_ssl.unwrap_or(true))
-    .bind(&payload.sync_mode)
-    .bind(&payload.sync_interval)
-    .bind(&payload.config)
-    .bind("admin") // TODO: Get from auth context
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create integration: {}", e)).into_response()
-    })?;
-
-    Ok(Json(integration))
-}
-
-async fn get_integration(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<Integration>, Response> {
-    let integration = sqlx::query_as::<_, Integration>(
-        r#"SELECT id, name, type as integration_type, enabled, hostname, ip_address, port, use_ssl,
-                  sync_mode, sync_interval, last_sync_at, last_sync_status, last_sync_error,
-                  config, created_at, updated_at
-           FROM integrations
-           WHERE id = $1"#
-    )
-    .bind(id)
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::NOT_FOUND, format!("Integration not found: {}", e)).into_response()
-    })?;
-
-    Ok(Json(integration))
-}
-
-async fn update_integration(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-    Json(payload): Json<UpdateIntegrationRequest>,
-) -> Result<Json<Integration>, Response> {
-    // Build dynamic update query
-    let mut query = "UPDATE integrations SET ".to_string();
-    let mut updates = Vec::new();
-    let mut param_count = 1;
-
-    if payload.name.is_some() {
-        updates.push(format!("name = ${}", param_count));
-        param_count += 1;
-    }
-    if payload.enabled.is_some() {
-        updates.push(format!("enabled = ${}", param_count));
-        param_count += 1;
-    }
-    // Add more fields as needed...
-
-    query.push_str(&updates.join(", "));
-    query.push_str(&format!(" WHERE id = ${}", param_count));
-    query.push_str(" RETURNING id, name, type as integration_type, enabled, hostname, ip_address, port, use_ssl, sync_mode, sync_interval, last_sync_at, last_sync_status, last_sync_error, config, created_at, updated_at");
-
-    // For now, simple update
-    let integration = sqlx::query_as::<_, Integration>(
-        r#"UPDATE integrations
-           SET name = COALESCE($1, name),
-               enabled = COALESCE($2, enabled),
-               hostname = COALESCE($3, hostname),
-               ip_address = COALESCE($4, ip_address),
-               port = COALESCE($5, port),
-               use_ssl = COALESCE($6, use_ssl),
-               sync_mode = COALESCE($7, sync_mode),
-               sync_interval = COALESCE($8, sync_interval),
-               config = COALESCE($9, config)
-           WHERE id = $10
-           RETURNING id, name, type as integration_type, enabled, hostname, ip_address, port, use_ssl,
-                     sync_mode, sync_interval, last_sync_at, last_sync_status, last_sync_error,
-                     config, created_at, updated_at"#
-    )
-    .bind(&payload.name)
-    .bind(&payload.enabled)
-    .bind(&payload.hostname)
-    .bind(&payload.ip_address)
-    .bind(&payload.port)
-    .bind(&payload.use_ssl)
-    .bind(&payload.sync_mode)
-    .bind(&payload.sync_interval)
-    .bind(&payload.config)
-    .bind(id)
-    .fetch_one(&state.pg_pool)
-    .await
-    .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update integration: {}", e)).into_response()
-    })?;
-
-    Ok(Json(integration))
-}
-
-async fn delete_integration(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<StatusCode, Response> {
-    sqlx::query!("DELETE FROM integrations WHERE id = $1", id)
-        .execute(&state.pg_pool)
+    manager
+        .revoke_api_key(id, auth_user.user_id)
         .await
         .map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete integration: {}", e)).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
         })?;
 
-    Ok(StatusCode::OK)
-}
-
-async fn test_integration(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<serde_json::Value>, Response> {
-    // TODO: Implement actual integration testing
-    Ok(Json(serde_json::json!({
+    Ok(Json(json!({
         "status": "success",
-        "message": "Integration test successful",
-        "response_time_ms": 125
+        "message": "API key revoked successfully"
     })))
 }
 
-async fn trigger_sync(
+// ============================================================================
+// HANDLERS - Health & Testing
+// ============================================================================
+
+async fn health_check(
     State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<StatusCode, Response> {
-    // Update last_sync_at and status
+    _auth_user: AuthUser,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
+
+    let health = manager.check_health().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        )
+    })?;
+
+    Ok(Json(json!({ "health": health })))
+}
+
+async fn test_connection(
+    State(_state): State<AppState>,
+    _auth_user: AuthUser,
+    Json(payload): Json<TestConnectionRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Test connection to external service
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
+        })?;
+
+    let mut request = client.get(&payload.url);
+
+    if let Some(api_key) = payload.api_key {
+        request = request.header("Authorization", format!("Bearer {}", api_key));
+    }
+
+    let start = std::time::Instant::now();
+    let response = request.send().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({
+                "status": "error",
+                "message": format!("Connection failed: {}", e)
+            })),
+        )
+    })?;
+
+    let elapsed = start.elapsed().as_millis();
+    let status_code = response.status().as_u16();
+
+    Ok(Json(json!({
+        "status": if response.status().is_success() { "success" } else { "error" },
+        "service": payload.service,
+        "http_status": status_code,
+        "response_time_ms": elapsed,
+        "reachable": true
+    })))
+}
+
+// ============================================================================
+// HANDLERS - Password & Database
+// ============================================================================
+
+async fn change_password(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(payload): Json<ChangePasswordRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+    use argon2::password_hash::SaltString;
+    use rand::rngs::OsRng;
+
+    // Get current user
+    let user = sqlx::query!(
+        "SELECT password_hash FROM users WHERE id = $1",
+        auth_user.user_id
+    )
+    .fetch_one(&state.pg_pool)
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        )
+    })?;
+
+    // Verify current password
+    let parsed_hash = PasswordHash::new(&user.password_hash).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        )
+    })?;
+
+    Argon2::default()
+        .verify_password(payload.current_password.as_bytes(), &parsed_hash)
+        .map_err(|_| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": "Current password is incorrect"})),
+            )
+        })?;
+
+    // Hash new password
+    let salt = SaltString::generate(&mut OsRng);
+    let new_hash = Argon2::default()
+        .hash_password(payload.new_password.as_bytes(), &salt)
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
+        })?
+        .to_string();
+
+    // Update password
     sqlx::query!(
-        "UPDATE integrations
-         SET last_sync_at = NOW(), last_sync_status = 'in_progress'
-         WHERE id = $1",
-        id
+        "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+        new_hash,
+        auth_user.user_id
     )
     .execute(&state.pg_pool)
     .await
     .map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to trigger sync: {}", e)).into_response()
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        )
     })?;
 
-    // TODO: Implement actual sync logic in background task
+    // Audit log
+    let manager = SettingsManager::new(state.pg_pool.clone());
+    let _ = manager.log_audit(auth_user.user_id, "change_password", "user", auth_user.user_id, None, None).await;
 
-    Ok(StatusCode::ACCEPTED)
+    Ok(Json(json!({
+        "status": "success",
+        "message": "Password changed successfully"
+    })))
+}
+
+async fn cleanup_old_data(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
+
+    // Get retention setting
+    let retention_setting = manager
+        .get_system_setting("db_retention_days")
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Retention setting not found"})),
+            )
+        })?;
+
+    let retention_days: i32 = retention_setting
+        .setting_value
+        .unwrap_or_else(|| "90".to_string())
+        .parse()
+        .unwrap_or(90);
+
+    let deleted_count = manager
+        .cleanup_old_data(retention_days)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
+        })?;
+
+    Ok(Json(json!({
+        "status": "success",
+        "message": format!("Cleaned up {} old records", deleted_count),
+        "retention_days": retention_days,
+        "deleted_count": deleted_count
+    })))
+}
+
+async fn reset_database(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(payload): Json<ResetDatabaseRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let manager = SettingsManager::new(state.pg_pool.clone());
+
+    manager
+        .reset_database(auth_user.user_id, &payload.confirmation)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": e.to_string()})),
+            )
+        })?;
+
+    Ok(Json(json!({
+        "status": "success",
+        "message": "Database reset successfully. All monitoring data has been cleared."
+    })))
 }

@@ -198,7 +198,11 @@ fn build_router(state: AppState) -> Router {
         .nest("/api/alerts", api::alerts::routes())
         .nest("/api/settings", api::settings::routes())
         .nest("/api/integrations", api::integrations::routes())
+<<<<<<< claude/cleanup-directory-structure-m6YmH
         .nest("/api/events", api::security_events::routes())
+=======
+        .nest("/api/plugins", api::plugins::routes())
+>>>>>>> stabile
         .nest("/ws", api::websocket::routes())
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),

@@ -15,3 +15,4 @@ pub mod security_events;
 pub mod settings;
 pub mod targets;
 pub mod websocket;
+pub mod plugins;
