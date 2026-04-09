@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+permissions:
+  contents: read
+
   pull_request:
     branches: [main, develop]
 
