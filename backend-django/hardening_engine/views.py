@@ -111,10 +111,10 @@ def apply_hardening(request):
         }, status=400)
 
     except Exception as e:
-        logger.exception(f"Apply hardening failed: {e}")
+        logger.exception("Apply hardening failed")
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'Internal server error'
         }, status=500)
 
 
@@ -159,9 +159,9 @@ def list_models(request):
         })
 
     except Exception as e:
-        logger.exception(f"List models failed: {e}")
+        logger.exception("List models failed")
         return JsonResponse({
-            'error': str(e)
+            'error': 'Internal server error'
         }, status=500)
 
 
@@ -197,9 +197,9 @@ def get_model(request, model_path):
         }, status=404)
 
     except Exception as e:
-        logger.exception(f"Get model failed: {e}")
+        logger.exception("Get model failed")
         return JsonResponse({
-            'error': str(e)
+            'error': 'Internal server error'
         }, status=500)
 
 
@@ -257,9 +257,9 @@ def validate_model(request):
         }, status=404)
 
     except Exception as e:
-        logger.exception(f"Validate model failed: {e}")
+        logger.exception("Validate model failed")
         return JsonResponse({
-            'error': str(e)
+            'error': 'Internal server error'
         }, status=500)
 
 
@@ -331,10 +331,10 @@ def rollback_hardening(request):
         return JsonResponse(result, status=status_code)
 
     except Exception as e:
-        logger.exception(f"Rollback failed: {e}")
+        logger.exception("Rollback failed")
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'Internal server error'
         }, status=500)
 
 
@@ -376,9 +376,9 @@ def list_backups(request):
         })
 
     except Exception as e:
-        logger.exception(f"List backups failed: {e}")
+        logger.exception("List backups failed")
         return JsonResponse({
-            'error': str(e)
+            'error': 'Internal server error'
         }, status=500)
 
 
@@ -411,9 +411,9 @@ def get_backup_info(request, backup_id):
         }, status=404)
 
     except Exception as e:
-        logger.exception(f"Get backup info failed: {e}")
+        logger.exception("Get backup info failed")
         return JsonResponse({
-            'error': str(e)
+            'error': 'Internal server error'
         }, status=500)
 
 
@@ -480,10 +480,10 @@ def test_connection(request):
         })
 
     except Exception as e:
-        logger.exception(f"Test connection failed: {e}")
+        logger.exception("Test connection failed")
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'Internal server error'
         }, status=500)
 
 
@@ -517,7 +517,8 @@ def health_check(request):
         })
 
     except Exception as e:
+        logger.exception("Health check failed")
         return JsonResponse({
             'status': 'error',
-            'error': str(e)
+            'error': 'Internal server error'
         }, status=500)
