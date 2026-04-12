@@ -123,6 +123,34 @@ fn get_django_url() -> String {
         .unwrap_or_else(|_| "http://localhost:8001".to_string())
 }
 
+/// Validate that a model path contains only safe characters and no traversal sequences.
+/// Allowed: alphanumeric, `/`, `-`, `_`, `.` — no `..`, null bytes, or leading `/`.
+/// Returns Err with a 400 response if the path is invalid (CWE-22, CWE-918).
+fn validate_model_path(path: &str) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
+    if path.is_empty() || path.len() > 256 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid model path"})),
+        ));
+    }
+    if path.contains("..") || path.starts_with('/') {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid model path"})),
+        ));
+    }
+    let valid = path
+        .chars()
+        .all(|c| c.is_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'));
+    if !valid {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid model path"})),
+        ));
+    }
+    Ok(())
+}
+
 /// Get target SSH info from database
 async fn get_target_ssh_info(
     pool: &sqlx::PgPool,
@@ -234,6 +262,11 @@ async fn get_model(
     State(state): State<AppState>,
     Path(model_path): Path<String>,
 ) -> impl IntoResponse {
+    // Validate model_path before embedding it in the Django URL (CWE-918, CWE-22)
+    if let Err(err) = validate_model_path(&model_path) {
+        return err.into_response();
+    }
+
     let client = Client::new();
     let django_url = get_django_url();
 

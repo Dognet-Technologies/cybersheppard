@@ -282,23 +282,53 @@ async fn health_check(
     Ok(Json(json!({ "health": health })))
 }
 
+/// Validate that a URL is safe for outbound requests.
+/// Only `http` and `https` schemes are allowed; metadata service addresses
+/// and other reserved addresses that enable SSRF are rejected (CWE-918).
+fn validate_integration_url(url: &str) -> Result<reqwest::Url, String> {
+    let parsed = reqwest::Url::parse(url)
+        .map_err(|_| "Invalid URL format".to_string())?;
+
+    match parsed.scheme() {
+        "http" | "https" => {}
+        scheme => return Err(format!("Scheme '{}' is not allowed; use http or https", scheme)),
+    }
+
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "URL must include a host".to_string())?
+        .to_lowercase();
+
+    // Block cloud metadata services (SSRF via IMDS)
+    let blocked_hosts = ["169.254.169.254", "metadata.google.internal", "metadata.internal"];
+    if blocked_hosts.contains(&host.as_str()) {
+        return Err("Requests to metadata services are not permitted".to_string());
+    }
+
+    Ok(parsed)
+}
+
 async fn test_connection(
     State(_state): State<AppState>,
     _auth_user: AuthUser,
     Json(payload): Json<TestConnectionRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    // Test connection to external service
+    // Validate the URL before making any request (CWE-918 SSRF prevention)
+    let validated_url = validate_integration_url(&payload.url).map_err(|e| {
+        (StatusCode::BAD_REQUEST, Json(json!({"error": e})))
+    })?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
-        .map_err(|e| {
+        .map_err(|_| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": e.to_string()})),
+                Json(json!({"error": "Failed to build HTTP client"})),
             )
         })?;
 
-    let mut request = client.get(&payload.url);
+    let mut request = client.get(validated_url);
 
     if let Some(api_key) = payload.api_key {
         request = request.header("Authorization", format!("Bearer {}", api_key));
