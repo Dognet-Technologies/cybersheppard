@@ -5,12 +5,21 @@ import Violations from './pages/Violations';
 import Targets from './pages/Targets';
 import Monitoring from './pages/Monitoring';
 import Hardening from './pages/Hardening';
+import HardeningTemplates from './pages/HardeningTemplates';
 import Integrations from './pages/Integrations';
 import SecurityCorrelations from './pages/SecurityCorrelations';
 import ComplianceFrameworks from './pages/ComplianceFrameworks';
+import ComplianceControls from './pages/ComplianceControls';
+import ComplianceDashboard from './pages/ComplianceDashboard';
 import Alerts from './pages/Alerts';
+<<<<<<< claude/cleanup-directory-structure-m6YmH
+import AuditEvents from './pages/AuditEvents';
+import EventDetails from './pages/EventDetails';
+import Settings from './pages/Settings';
+=======
 import Settings from './pages/Settings';
 import Plugins from './pages/Plugins';
+>>>>>>> stabile
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import { useAuthStore } from './stores/authStore';
@@ -48,11 +57,19 @@ function App() {
             <Route path="violations" element={<Violations />} />
             <Route path="monitoring" element={<Monitoring />} />
             <Route path="hardening" element={<Hardening />} />
+            <Route path="hardening-templates" element={<HardeningTemplates />} />
             <Route path="integrations" element={<Integrations />} />
             <Route path="correlations" element={<SecurityCorrelations />} />
             <Route path="compliance" element={<ComplianceFrameworks />} />
+            <Route path="compliance-dashboard" element={<ComplianceDashboard />} />
+            <Route path="compliance-controls" element={<ComplianceControls />} />
             <Route path="alerts" element={<Alerts />} />
+<<<<<<< claude/cleanup-directory-structure-m6YmH
+            <Route path="audit-events" element={<AuditEvents />} />
+            <Route path="audit-events/:id" element={<EventDetails />} />
+=======
             <Route path="plugins" element={<Plugins />} />
+>>>>>>> stabile
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE event_correlations\n            SET\n                bayesian_attack_stages = $2,\n                bayesian_next_stages = $3,\n                bayesian_confidence = $4,\n                bayesian_explanation = $5\n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb",
+        "Jsonb",
+        "Numeric",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "740da710f9902d78bd7cc14b03ce2d6858a7b5aa4e5ab75fdaecf906ea3629e6"
+}

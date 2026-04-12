@@ -1,0 +1,703 @@
+metadata:
+  name: "system-hardening-essential"
+  version: "1.0.0"
+  description: "Essential system hardening for Linux hosts - kernel parameters, services, filesystem, and mandatory access controls"
+  framework: ["nis2", "nist", "iso27001", "mitre"]
+  compliance_level: "Essential"
+  target_os: ["debian", "ubuntu", "rhel", "centos", "rocky", "alma", "sles"]
+  target_role: "generic"
+  priority: "critical"
+  estimated_minutes: 30
+  requires_reboot: true
+  reboot_reason: "Kernel parameter changes and service disabling require system restart"
+  author: "CyberSheppard Team"
+  created_at: "2026-01-19"
+  tags: ["kernel", "sysctl", "filesystem", "selinux", "apparmor", "services"]
+
+risk_assessment:
+  level: "high"
+  description: "Modifies kernel parameters, disables services, changes filesystem mount options. May impact system functionality. Mandatory testing in non-production environment required."
+  rollback_supported: true
+  dry_run_recommended: true
+  potential_impact:
+    - "Service availability may be affected if applications depend on disabled services"
+    - "Network connectivity may change due to kernel network stack hardening"
+    - "Some applications may fail if they require SUID binaries or executable /tmp"
+    - "SELinux/AppArmor enforcement may block legitimate application behavior"
+  mitigation:
+    - "Test in staging environment first"
+    - "Review service dependencies before disabling"
+    - "Keep console/serial access available during deployment"
+    - "Have rollback plan ready"
+
+preflight_checks:
+  - name: "Verify root access"
+    command: "id -u"
+    expected_output: "0"
+    failure_action: "abort"
+    error_message: "Root privileges required for system hardening"
+
+  - name: "Check sysctl availability"
+    command: "which sysctl"
+    expected_exit_code: 0
+    failure_action: "abort"
+    error_message: "sysctl command not found"
+
+  - name: "Verify systemctl available"
+    command: "which systemctl"
+    expected_exit_code: 0
+    failure_action: "abort"
+    error_message: "systemd not available - this template requires systemd"
+
+  - name: "Check if AppArmor or SELinux available"
+    command: "aa-status 2>/dev/null || getenforce 2>/dev/null"
+    expected_exit_code: 0
+    failure_action: "warn"
+    error_message: "Neither AppArmor nor SELinux detected - mandatory access control will not be configured"
+
+  - name: "Verify /etc/fstab exists and is writable"
+    command: "test -w /etc/fstab"
+    expected_exit_code: 0
+    failure_action: "abort"
+    error_message: "/etc/fstab not writable"
+
+  - name: "Check for critical services running"
+    command: "systemctl is-active sshd || systemctl is-active ssh"
+    expected_output: "active"
+    failure_action: "warn"
+    error_message: "SSH not running - ensure console access is available"
+
+backup_files:
+  - "/etc/sysctl.conf"
+  - "/etc/sysctl.d/99-cybersheppard-hardening.conf"
+  - "/etc/fstab"
+  - "/etc/security/limits.conf"
+  - "/etc/default/grub"
+  - "/etc/modprobe.d/cybersheppard-blacklist.conf"
+  - "/etc/apparmor.d/"  # Directory backup
+  - "/etc/selinux/config"
+
+hardening_steps:
+  # STEP 1: Kernel Parameter Hardening
+  - name: "Configure kernel security parameters"
+    control_id: "system_kernel_hardening"
+    priority: "critical"
+    description: "Harden kernel parameters via sysctl for network stack, memory protection, and process isolation"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(a)", "Art.21(2)(c)"]
+      nist: ["SC-7", "SC-7(5)", "SI-16", "CM-7"]
+      iso: ["A.8.9", "A.8.21", "A.8.22"]
+      mitre: ["D3-ANCI", "D3-NTF", "D3-PH"]
+
+    tasks:
+      - name: "Create sysctl hardening configuration"
+        action: "file_content"
+        file: "/etc/sysctl.d/99-cybersheppard-hardening.conf"
+        mode: "0644"
+        owner: "root:root"
+        content: |
+          # CyberSheppard System Hardening Configuration
+          # Kernel Parameter Hardening for Enhanced Security
+
+          # Network Security - IPv4
+          # Prevent IP spoofing and source routing attacks
+          net.ipv4.conf.all.rp_filter = 1
+          net.ipv4.conf.default.rp_filter = 1
+          net.ipv4.conf.all.accept_source_route = 0
+          net.ipv4.conf.default.accept_source_route = 0
+
+          # ICMP protections - prevent ICMP redirect attacks
+          net.ipv4.conf.all.accept_redirects = 0
+          net.ipv4.conf.default.accept_redirects = 0
+          net.ipv4.conf.all.secure_redirects = 0
+          net.ipv4.conf.default.secure_redirects = 0
+          net.ipv4.conf.all.send_redirects = 0
+          net.ipv4.conf.default.send_redirects = 0
+
+          # Ignore ICMP echo requests (ping) - debatable, may break monitoring
+          # net.ipv4.icmp_echo_ignore_all = 1
+
+          # Ignore bogus ICMP error responses
+          net.ipv4.icmp_ignore_bogus_error_responses = 1
+
+          # Enable TCP SYN cookies - prevent SYN flood attacks
+          net.ipv4.tcp_syncookies = 1
+
+          # Log martian packets (impossible addresses)
+          net.ipv4.conf.all.log_martians = 1
+          net.ipv4.conf.default.log_martians = 1
+
+          # Disable IP forwarding (unless this is a router)
+          net.ipv4.ip_forward = 0
+
+          # Network Security - IPv6
+          net.ipv6.conf.all.accept_source_route = 0
+          net.ipv6.conf.default.accept_source_route = 0
+          net.ipv6.conf.all.accept_redirects = 0
+          net.ipv6.conf.default.accept_redirects = 0
+          net.ipv6.conf.all.accept_ra = 0
+          net.ipv6.conf.default.accept_ra = 0
+          net.ipv6.conf.all.forwarding = 0
+
+          # Kernel Security
+          # Enable ASLR (Address Space Layout Randomization)
+          kernel.randomize_va_space = 2
+
+          # Restrict kernel pointer exposure via /proc
+          kernel.kptr_restrict = 2
+
+          # Restrict access to kernel logs (dmesg)
+          kernel.dmesg_restrict = 1
+
+          # Restrict ptrace to prevent process inspection
+          kernel.yama.ptrace_scope = 1
+
+          # Enable ExecShield (if available)
+          kernel.exec-shield = 1
+
+          # Disable kexec (prevents loading unsigned kernel)
+          kernel.kexec_load_disabled = 1
+
+          # Disable user namespaces (can be attack vector)
+          # Note: May break containers - disable only if containers not used
+          # kernel.unprivileged_userns_clone = 0
+
+          # Restrict BPF to privileged users only
+          kernel.unprivileged_bpf_disabled = 1
+
+          # Restrict performance events
+          kernel.perf_event_paranoid = 3
+
+          # Core dump restrictions
+          kernel.core_uses_pid = 1
+          fs.suid_dumpable = 0
+
+          # File System Security
+          # Restrict symlink/hardlink following
+          fs.protected_symlinks = 1
+          fs.protected_hardlinks = 1
+          fs.protected_fifos = 2
+          fs.protected_regular = 2
+
+        verification:
+          command: "grep -q 'net.ipv4.conf.all.rp_filter = 1' /etc/sysctl.d/99-cybersheppard-hardening.conf"
+          expected_exit_code: 0
+
+      - name: "Apply sysctl settings"
+        action: "command"
+        command: "sysctl -p /etc/sysctl.d/99-cybersheppard-hardening.conf"
+        expected_exit_code: 0
+        verification:
+          command: "sysctl net.ipv4.conf.all.rp_filter"
+          expected_output: "net.ipv4.conf.all.rp_filter = 1"
+
+  # STEP 2: Disable Unnecessary Kernel Modules
+  - name: "Blacklist unused and vulnerable kernel modules"
+    control_id: "system_module_blacklist"
+    priority: "high"
+    description: "Disable unused filesystems, protocols, and hardware drivers to reduce attack surface"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(a)"]
+      nist: ["CM-7", "CM-7(1)"]
+      iso: ["A.8.9"]
+      mitre: ["D3-ANCI"]
+
+    tasks:
+      - name: "Create kernel module blacklist"
+        action: "file_content"
+        file: "/etc/modprobe.d/cybersheppard-blacklist.conf"
+        mode: "0644"
+        owner: "root:root"
+        content: |
+          # Blacklist unused filesystems
+          install cramfs /bin/true
+          install freevxfs /bin/true
+          install jffs2 /bin/true
+          install hfs /bin/true
+          install hfsplus /bin/true
+          install squashfs /bin/true
+          install udf /bin/true
+          install vfat /bin/true
+
+          # Blacklist uncommon network protocols
+          install dccp /bin/true
+          install sctp /bin/true
+          install rds /bin/true
+          install tipc /bin/true
+
+          # Blacklist USB storage (if not needed)
+          # Uncomment to disable USB storage devices
+          # install usb-storage /bin/true
+
+          # Blacklist Bluetooth (if not needed)
+          install bluetooth /bin/true
+          install btusb /bin/true
+
+          # Blacklist Firewire (DMA attack vector)
+          install firewire-core /bin/true
+          install firewire-ohci /bin/true
+          install firewire-sbp2 /bin/true
+
+          # Blacklist Thunderbolt (DMA attack vector)
+          install thunderbolt /bin/true
+
+        verification:
+          command: "grep -q 'install cramfs /bin/true' /etc/modprobe.d/cybersheppard-blacklist.conf"
+          expected_exit_code: 0
+
+  # STEP 3: Filesystem Hardening
+  - name: "Harden filesystem mount options"
+    control_id: "system_filesystem_hardening"
+    priority: "high"
+    description: "Configure secure mount options for /tmp, /var/tmp, /dev/shm to prevent privilege escalation"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(c)"]
+      nist: ["CM-7", "AC-6"]
+      iso: ["A.8.9", "A.8.21"]
+      mitre: ["D3-PH"]
+
+    tasks:
+      - name: "Configure /tmp with noexec, nosuid, nodev"
+        action: "fstab_entry"
+        mount_point: "/tmp"
+        options: "defaults,noexec,nosuid,nodev"
+        description: "Prevent execution of binaries and SUID exploitation from /tmp"
+        condition: "mount_exists('/tmp')"
+
+      - name: "Configure /var/tmp with noexec, nosuid, nodev"
+        action: "fstab_entry"
+        mount_point: "/var/tmp"
+        options: "defaults,noexec,nosuid,nodev"
+        description: "Prevent execution of binaries from /var/tmp"
+        condition: "mount_exists('/var/tmp')"
+
+      - name: "Configure /dev/shm with noexec, nosuid, nodev"
+        action: "fstab_entry"
+        mount_point: "/dev/shm"
+        filesystem: "tmpfs"
+        options: "defaults,noexec,nosuid,nodev"
+        description: "Harden shared memory to prevent exploitation"
+
+      - name: "Create systemd mount unit for /tmp if not in fstab"
+        action: "file_content"
+        file: "/etc/systemd/system/tmp.mount"
+        mode: "0644"
+        owner: "root:root"
+        condition: "not mount_in_fstab('/tmp')"
+        content: |
+          [Unit]
+          Description=Temporary Directory (/tmp)
+          ConditionPathIsSymbolicLink=!/tmp
+          DefaultDependencies=no
+          Conflicts=umount.target
+          Before=local-fs.target umount.target
+
+          [Mount]
+          What=tmpfs
+          Where=/tmp
+          Type=tmpfs
+          Options=mode=1777,strictatime,noexec,nodev,nosuid,size=2G
+
+          [Install]
+          WantedBy=local-fs.target
+        post_action:
+          command: "systemctl daemon-reload && systemctl enable tmp.mount"
+
+  # STEP 4: Disable Unnecessary Services
+  - name: "Disable unnecessary system services"
+    control_id: "system_service_minimization"
+    priority: "high"
+    description: "Disable unused services to reduce attack surface (principle of least functionality)"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(a)"]
+      nist: ["CM-7", "CM-7(1)", "CM-7(2)"]
+      iso: ["A.8.9"]
+      mitre: ["D3-ANCI"]
+
+    tasks:
+      - name: "Disable avahi-daemon (mDNS/Zeroconf)"
+        action: "systemd_service"
+        service: "avahi-daemon"
+        state: "disabled"
+        condition: "service_exists('avahi-daemon')"
+
+      - name: "Disable cups (printing service)"
+        action: "systemd_service"
+        service: "cups"
+        state: "disabled"
+        condition: "service_exists('cups') and not role_requires('print_server')"
+
+      - name: "Disable rpcbind (NFS/RPC)"
+        action: "systemd_service"
+        service: "rpcbind"
+        state: "disabled"
+        condition: "service_exists('rpcbind') and not role_requires('nfs_server')"
+
+      - name: "Disable rsync daemon"
+        action: "systemd_service"
+        service: "rsync"
+        state: "disabled"
+        condition: "service_exists('rsync')"
+
+      - name: "Disable telnet (insecure)"
+        action: "systemd_service"
+        service: "telnet"
+        state: "disabled"
+        condition: "service_exists('telnet')"
+
+      - name: "Disable FTP (insecure)"
+        action: "systemd_service"
+        service: "vsftpd"
+        state: "disabled"
+        condition: "service_exists('vsftpd')"
+
+      - name: "Disable SNMP (unless monitoring required)"
+        action: "systemd_service"
+        service: "snmpd"
+        state: "disabled"
+        condition: "service_exists('snmpd') and not role_requires('snmp_monitoring')"
+
+      - name: "Mask autofs (automounting)"
+        action: "systemd_service"
+        service: "autofs"
+        state: "masked"
+        condition: "service_exists('autofs')"
+
+  # STEP 5: Core Dump Restrictions
+  - name: "Restrict core dump generation"
+    control_id: "system_coredump_restrictions"
+    priority: "medium"
+    description: "Prevent core dumps which may contain sensitive data (passwords, encryption keys)"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(i)"]
+      nist: ["SI-11"]
+      iso: ["A.8.12"]
+      mitre: ["D3-PH"]
+
+    tasks:
+      - name: "Disable core dumps via limits.conf"
+        action: "file_line_present"
+        file: "/etc/security/limits.conf"
+        lines:
+          - "* hard core 0"
+          - "* soft core 0"
+        verification:
+          command: "grep -q '* hard core 0' /etc/security/limits.conf"
+          expected_exit_code: 0
+
+      - name: "Disable core dumps for SUID programs"
+        action: "sysctl_value"
+        parameter: "fs.suid_dumpable"
+        value: "0"
+        already_set_in: "99-cybersheppard-hardening.conf"
+
+      - name: "Disable systemd-coredump service"
+        action: "systemd_service"
+        service: "systemd-coredump"
+        state: "masked"
+        condition: "service_exists('systemd-coredump')"
+
+  # STEP 6: AppArmor Configuration (Debian/Ubuntu)
+  - name: "Enable and enforce AppArmor profiles"
+    control_id: "system_mac_apparmor"
+    priority: "high"
+    description: "Enable mandatory access control via AppArmor to confine applications"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(a)", "Art.21(2)(c)"]
+      nist: ["AC-6(9)", "CM-7(2)", "SC-3"]
+      iso: ["A.8.9"]
+      mitre: ["D3-MAC"]
+    os_family: ["debian", "ubuntu"]
+
+    tasks:
+      - name: "Install AppArmor if not present"
+        action: "package_install"
+        packages:
+          - "apparmor"
+          - "apparmor-utils"
+          - "apparmor-profiles"
+          - "apparmor-profiles-extra"
+        condition: "os_family == 'debian'"
+
+      - name: "Enable AppArmor service"
+        action: "systemd_service"
+        service: "apparmor"
+        state: "enabled"
+
+      - name: "Set AppArmor profiles to enforce mode"
+        action: "command"
+        command: "aa-enforce /etc/apparmor.d/*"
+        expected_exit_code: 0
+        verification:
+          command: "aa-status | grep -q 'profiles are in enforce mode'"
+          expected_exit_code: 0
+
+      - name: "Enable AppArmor in GRUB"
+        action: "file_line_present"
+        file: "/etc/default/grub"
+        line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX apparmor=1 security=apparmor"'
+        post_action:
+          command: "update-grub"
+
+  # STEP 7: SELinux Configuration (RHEL/CentOS)
+  - name: "Enable and enforce SELinux"
+    control_id: "system_mac_selinux"
+    priority: "high"
+    description: "Enable mandatory access control via SELinux to confine applications"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(a)", "Art.21(2)(c)"]
+      nist: ["AC-6(9)", "CM-7(2)", "SC-3"]
+      iso: ["A.8.9"]
+      mitre: ["D3-MAC"]
+    os_family: ["rhel", "centos", "rocky", "alma"]
+
+    tasks:
+      - name: "Install SELinux tools if not present"
+        action: "package_install"
+        packages:
+          - "policycoreutils"
+          - "policycoreutils-python-utils"
+          - "selinux-policy"
+          - "selinux-policy-targeted"
+        condition: "os_family == 'rhel'"
+
+      - name: "Set SELinux to enforcing mode"
+        action: "file_line_replace"
+        file: "/etc/selinux/config"
+        search: "^SELINUX=.*"
+        replace: "SELINUX=enforcing"
+        verification:
+          command: "grep -q '^SELINUX=enforcing' /etc/selinux/config"
+          expected_exit_code: 0
+
+      - name: "Set SELinux policy to targeted"
+        action: "file_line_replace"
+        file: "/etc/selinux/config"
+        search: "^SELINUXTYPE=.*"
+        replace: "SELINUXTYPE=targeted"
+
+      - name: "Verify SELinux status"
+        action: "command"
+        command: "getenforce"
+        expected_output: "Enforcing"
+        note: "If currently Permissive, will become Enforcing after reboot"
+
+  # STEP 8: Bootloader Security
+  - name: "Secure GRUB bootloader"
+    control_id: "system_bootloader_security"
+    priority: "high"
+    description: "Password-protect GRUB to prevent unauthorized kernel parameter modification"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(c)"]
+      nist: ["AC-3", "CM-5"]
+      iso: ["A.8.9"]
+      mitre: ["D3-PH"]
+
+    tasks:
+      - name: "Generate GRUB password hash"
+        action: "command"
+        command: "echo -e 'cybersheppard\ncybersheppard' | grub-mkpasswd-pbkdf2 | grep -oP '(?<=is ).*'"
+        save_output: "grub_password_hash"
+        note: "Default password 'cybersheppard' - CHANGE THIS IN PRODUCTION"
+
+      - name: "Configure GRUB authentication"
+        action: "file_content"
+        file: "/etc/grub.d/40_custom"
+        mode: "0755"
+        owner: "root:root"
+        append: true
+        content: |
+          # GRUB Authentication - CyberSheppard Hardening
+          set superusers="root"
+          password_pbkdf2 root ${grub_password_hash}
+
+        post_action:
+          command: "update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg"
+
+verification_steps:
+  - name: "Verify sysctl parameters applied"
+    command: "sysctl net.ipv4.conf.all.rp_filter net.ipv4.tcp_syncookies kernel.randomize_va_space"
+    expected_output_contains:
+      - "net.ipv4.conf.all.rp_filter = 1"
+      - "net.ipv4.tcp_syncookies = 1"
+      - "kernel.randomize_va_space = 2"
+
+  - name: "Verify kernel modules blacklisted"
+    command: "lsmod | grep -E '(dccp|sctp|cramfs|freevxfs|jffs2)'"
+    expected_exit_code: 1
+    note: "Exit code 1 means no blacklisted modules are loaded (success)"
+
+  - name: "Verify /tmp mount options"
+    command: "mount | grep ' /tmp '"
+    expected_output_contains:
+      - "noexec"
+      - "nosuid"
+      - "nodev"
+
+  - name: "Verify AppArmor or SELinux active"
+    command: "aa-status 2>/dev/null | grep -q 'apparmor module is loaded' || getenforce 2>/dev/null"
+    expected_exit_code: 0
+
+  - name: "Verify core dumps disabled"
+    command: "ulimit -Hc"
+    expected_output: "0"
+
+health_checks:
+  - name: "SSH service still active"
+    command: "systemctl is-active sshd || systemctl is-active ssh"
+    expected_output: "active"
+    critical: true
+    error_message: "SSH service is not active - system may be inaccessible"
+
+  - name: "Network connectivity test"
+    command: "ping -c 1 8.8.8.8 || ping -c 1 1.1.1.1"
+    expected_exit_code: 0
+    critical: true
+    error_message: "Network connectivity lost - kernel network parameters may have broken networking"
+
+  - name: "Systemd functioning"
+    command: "systemctl status"
+    expected_exit_code: 0
+    critical: true
+
+  - name: "Root filesystem read-write"
+    command: "touch /root/.cybersheppard_health_check && rm /root/.cybersheppard_health_check"
+    expected_exit_code: 0
+    critical: true
+
+  - name: "DNS resolution working"
+    command: "nslookup google.com || host google.com"
+    expected_exit_code: 0
+    critical: false
+    error_message: "DNS resolution failed - check /etc/resolv.conf"
+
+rollback:
+  enabled: true
+  automatic_trigger:
+    - "health_check_failed"
+    - "verification_failed"
+    - "connectivity_lost"
+  steps:
+    - name: "Restore backed up configuration files"
+      action: "restore_backups"
+      files:
+        - "/etc/sysctl.conf"
+        - "/etc/sysctl.d/99-cybersheppard-hardening.conf"
+        - "/etc/fstab"
+        - "/etc/security/limits.conf"
+        - "/etc/default/grub"
+        - "/etc/modprobe.d/cybersheppard-blacklist.conf"
+
+    - name: "Reapply original sysctl settings"
+      action: "command"
+      command: "sysctl -p /etc/sysctl.conf"
+
+    - name: "Reload systemd configuration"
+      action: "command"
+      command: "systemctl daemon-reload"
+
+    - name: "Re-enable disabled services if needed"
+      action: "command"
+      command: "systemctl unmask autofs systemd-coredump"
+      note: "Only unmask, don't enable - let user decide"
+
+    - name: "Remount filesystems with original options"
+      action: "command"
+      command: "mount -o remount /tmp && mount -o remount /var/tmp && mount -o remount /dev/shm"
+
+post_execution_notes: |
+  IMPORTANT POST-DEPLOYMENT ACTIONS:
+
+  1. REBOOT REQUIRED:
+     - Kernel parameter changes are active but full effect requires reboot
+     - SELinux/AppArmor changes require reboot
+     - GRUB configuration changes require reboot
+     - Filesystem mount option changes require reboot or remount
+
+     Execute: shutdown -r +5 "System hardening applied - rebooting in 5 minutes"
+
+  2. VERIFY AFTER REBOOT:
+     - SSH access still works
+     - All critical services are running
+     - Network connectivity is intact
+     - SELinux/AppArmor is in enforcing mode
+     - Filesystem mount options are correct
+
+  3. GRUB PASSWORD:
+     - Default GRUB password is 'cybersheppard'
+     - CHANGE THIS IMMEDIATELY in production
+     - To change: grub-mkpasswd-pbkdf2, then update /etc/grub.d/40_custom
+
+  4. SERVICE IMPACT:
+     - Several services were disabled (avahi, cups, rpcbind, etc.)
+     - If you need any of these services, re-enable manually
+     - Check application logs for SELinux/AppArmor denials
+
+  5. MONITORING:
+     - Check kernel logs: journalctl -k
+     - Check SELinux denials: ausearch -m avc -ts recent
+     - Check AppArmor denials: grep apparmor /var/log/syslog
+
+  6. TROUBLESHOOTING:
+     - If network breaks: check sysctl net.ipv4/net.ipv6 settings
+     - If applications break: check SELinux/AppArmor logs
+     - If filesystem issues: check /etc/fstab and mount options
+     - Boot into single-user mode if system becomes inaccessible
+
+compliance_evidence:
+  - file: "/etc/sysctl.d/99-cybersheppard-hardening.conf"
+    description: "Kernel security parameter configuration"
+    controls: ["system_kernel_hardening"]
+
+  - file: "/etc/modprobe.d/cybersheppard-blacklist.conf"
+    description: "Blacklisted kernel modules"
+    controls: ["system_module_blacklist"]
+
+  - command: "mount | grep -E '(tmp|shm)'"
+    description: "Filesystem mount options"
+    controls: ["system_filesystem_hardening"]
+
+  - command: "systemctl list-unit-files --state=disabled,masked"
+    description: "Disabled system services"
+    controls: ["system_service_minimization"]
+
+  - command: "aa-status || getenforce"
+    description: "Mandatory access control status"
+    controls: ["system_mac_apparmor", "system_mac_selinux"]
+
+  - file: "/etc/security/limits.conf"
+    description: "Core dump restrictions"
+    controls: ["system_coredump_restrictions"]
+
+expected_results:
+  controls_implemented: 8
+  compliance_improvement:
+    nis2: "+12%"
+    nist: "+15%"
+    iso27001: "+11%"
+    mitre: "+9%"
+
+  security_improvements:
+    - "Network stack hardened against spoofing, routing attacks, and SYN floods"
+    - "ASLR, kernel pointer protection, and memory protections enabled"
+    - "Attack surface reduced by disabling unused protocols and services"
+    - "Filesystem execution restrictions prevent /tmp exploit escalation"
+    - "Mandatory access control (SELinux/AppArmor) confines applications"
+    - "Core dumps disabled to prevent information leakage"
+    - "Bootloader password prevents unauthorized kernel modification"
+    - "Kernel modules blacklisted to prevent loading of vulnerable drivers"
+
+dependencies:
+  templates: []
+  external_tools: ["sysctl", "systemctl", "grub-mkpasswd-pbkdf2"]
+  os_packages:
+    debian: ["apparmor", "apparmor-utils", "apparmor-profiles"]
+    rhel: ["policycoreutils", "policycoreutils-python-utils", "selinux-policy-targeted"]

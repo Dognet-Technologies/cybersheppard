@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT process_name\n            FROM security_events\n            WHERE source_host = $1\n              AND process_name IS NOT NULL\n              AND timestamp > NOW() - INTERVAL '1 day' * $2\n            GROUP BY process_name\n            ORDER BY COUNT(*) DESC\n            LIMIT $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "process_name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "689e8d3d4584ab20a872d677a11996bf9b0647797ebfce5d118990ec83bc4f11"
+}

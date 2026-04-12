@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM cleanup_old_auditd_events($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "deleted_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "cleanup_timestamp",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "1779b2ba03e69bcda32d21ad9f3b9611769997c5e5ce33f614c5458f08cf7d50"
+}

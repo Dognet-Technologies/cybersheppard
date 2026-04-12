@@ -25,6 +25,7 @@ pub fn routes() -> Router<crate::AppState> {
 }
 
 /// Receive monitoring data from target collectors
+#[axum::debug_handler]
 async fn receive_monitoring_data(
     State(state): State<AppState>,
     Json(payload): Json<MonitoringDataPayload>,
@@ -109,7 +110,7 @@ async fn receive_monitoring_data(
 async fn store_metrics_in_influx(
     _state: &AppState,
     _payload: &MonitoringDataPayload,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     // TODO: Implement actual InfluxDB write operations
     // For now, this is a stub to allow the system to function
     // Real implementation requires proper InfluxDB 2.x client setup

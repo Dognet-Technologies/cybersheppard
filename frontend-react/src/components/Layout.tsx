@@ -37,8 +37,9 @@ export default function Layout() {
           <NavLink to="/correlations" icon={<Zap />} label="Correlations" currentPath={location.pathname} />
           <NavLink to="/compliance" icon={<FileCheck />} label="Compliance" currentPath={location.pathname} />
           <NavLink to="/alerts" icon={<Bell />} label="Alerts" currentPath={location.pathname} />
+          <NavLink to="/audit-events" icon={<FileText />} label="Audit Events" currentPath={location.pathname} />
+          <NavLink to="/settings" icon={<Settings />} label="Settings" currentPath={location.pathname} />
           <NavLink to="/plugins" icon={<Package />} label="Plugins" currentPath={location.pathname} />
-          <NavLink to="/settings" icon={<SettingsIcon />} label="Settings" currentPath={location.pathname} />
         </nav>
 
         <div className="absolute bottom-0 w-full p-4 border-t border-gray-800">

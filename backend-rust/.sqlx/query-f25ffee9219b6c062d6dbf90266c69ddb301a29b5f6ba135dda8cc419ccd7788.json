@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                correlation_id,\n                current_compromised_host,\n                predictions,\n                model_confidence,\n                created_at\n            FROM lateral_movement_predictions\n            WHERE created_at > $1\n              AND status = 'active'\n            ORDER BY model_confidence DESC\n            LIMIT 20\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "correlation_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "current_compromised_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "predictions",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 3,
+        "name": "model_confidence",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "f25ffee9219b6c062d6dbf90266c69ddb301a29b5f6ba135dda8cc419ccd7788"
+}

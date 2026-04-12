@@ -1,0 +1,184 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id, created_at, updated_at,\n                correlation_type, pattern_name, pattern_description,\n                confidence, severity, risk_score,\n                first_event_time, last_event_time, time_window_seconds, event_count,\n                involved_users, involved_hosts, involved_ips, involved_processes,\n                statistical_significance, anomaly_score, z_score, baseline_deviation_percent,\n                correlation_data, attack_stage, status,\n                resolved_at, resolution_notes, assigned_to, assigned_at\n            FROM event_correlations\n            WHERE status = 'active'\n            ORDER BY risk_score DESC NULLS LAST, created_at DESC\n            LIMIT $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "correlation_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "pattern_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "pattern_description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "confidence",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 7,
+        "name": "severity",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "risk_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "first_event_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "last_event_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "time_window_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "event_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "involved_users",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 14,
+        "name": "involved_hosts",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 15,
+        "name": "involved_ips",
+        "type_info": "InetArray"
+      },
+      {
+        "ordinal": 16,
+        "name": "involved_processes",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 17,
+        "name": "statistical_significance",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 18,
+        "name": "anomaly_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 19,
+        "name": "z_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 20,
+        "name": "baseline_deviation_percent",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 21,
+        "name": "correlation_data",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 22,
+        "name": "attack_stage",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 23,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 24,
+        "name": "resolved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 25,
+        "name": "resolution_notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 26,
+        "name": "assigned_to",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 27,
+        "name": "assigned_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "2becee2435a8d0c2e2999a4396e55abcd77d5e67f4b45ae9e832e39392875698"
+}

@@ -320,10 +320,10 @@ async fn handle_system_stream(socket: WebSocket, state: AppState) {
 async fn fetch_recent_logs(state: &AppState) -> Result<Vec<serde_json::Value>, sqlx::Error> {
     let logs = sqlx::query!(
         r#"
-        SELECT id, user_id, action, resource, ip_address, created_at
+        SELECT id, user_id, action, resource_type as resource, ip_address, timestamp as created_at
         FROM audit_logs
-        WHERE created_at > NOW() - INTERVAL '5 seconds'
-        ORDER BY created_at DESC
+        WHERE timestamp > NOW() - INTERVAL '5 seconds'
+        ORDER BY timestamp DESC
         LIMIT 10
         "#
     )
@@ -338,12 +338,12 @@ async fn fetch_recent_logs(state: &AppState) -> Result<Vec<serde_json::Value>, s
             "resource": log.resource,
             "user_id": log.user_id,
             "ip": log.ip_address,
-            "timestamp": log.created_at.to_rfc3339()
+            "timestamp": log.created_at.map(|dt| dt.and_utc().to_rfc3339()).unwrap_or_default()
         })
     }).collect())
 }
 
-async fn fetch_target_metrics(state: &AppState, _target_id: i32) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+async fn fetch_target_metrics(_state: &AppState, _target_id: i32) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
     // TODO: Query InfluxDB for latest metrics
     Ok(json!({
         "cpu_usage": 45.5,
@@ -376,7 +376,7 @@ async fn fetch_new_violations(state: &AppState) -> Result<Vec<serde_json::Value>
             "metric_name": v.metric_name,
             "severity": v.severity,
             "detected_value": v.detected_value,
-            "timestamp": v.first_detected_at.to_rfc3339()
+            "timestamp": v.first_detected_at.map(|dt| dt.and_utc().to_rfc3339()).unwrap_or_default()
         })
     }).collect())
 }

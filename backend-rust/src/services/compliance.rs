@@ -7,6 +7,7 @@ use crate::models::{CompliancePolicy, ComplianceViolation, MonitoringDataPayload
 use chrono::Utc;
 use serde_json::json;
 use std::collections::HashMap;
+use anyhow::Result;
 
 #[derive(Clone)]
 pub struct ComplianceEngine {
@@ -56,7 +57,7 @@ impl ComplianceEngine {
         &self,
         target_id: i32,
         payload: &MonitoringDataPayload,
-    ) -> Result<Vec<DetectedViolation>, Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<Vec<DetectedViolation>> {
         let policies = self.load_policies(target_id).await?;
         let mut violations = Vec::new();
 

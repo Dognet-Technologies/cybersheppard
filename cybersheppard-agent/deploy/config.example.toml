@@ -1,0 +1,44 @@
+# ============================================================================
+# CyberSheppard Agent Configuration
+# ============================================================================
+
+# Backend server URL (WebSocket endpoint)
+backend_url = "https://cybersheppard.example.com"
+
+# Authentication token (obtain from backend dashboard)
+auth_token = "YOUR_AUTH_TOKEN_HERE"
+
+# Target ID (assigned by backend)
+target_id = 1
+
+# Collection interval in seconds (how often to collect metrics)
+collection_interval = 30
+
+# Send interval in seconds (how often to send buffered data)
+send_interval = 10
+
+# Compression level (1-22, higher = better compression but slower)
+compression_level = 3
+
+# Max buffer size before forced flush
+max_buffer_size = 10
+
+[reconnect]
+# Initial backoff in seconds
+initial_backoff = 1
+
+# Max backoff in seconds
+max_backoff = 300
+
+# Backoff multiplier
+backoff_multiplier = 2.0
+
+[collectors]
+# Enable/disable specific collectors
+system = true
+network = true
+users = true
+files = true
+services = true
+auditd = true
+docker = true

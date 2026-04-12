@@ -5,6 +5,7 @@
 use sqlx::PgPool;
 use tokio::time::{interval, Duration};
 use crate::integrations::{SentinelCoreClient, FireDogClient};
+use crate::utils::{BigDecimalExt, ToBigDecimal, ToIpNetwork};
 use chrono::Utc;
 
 pub struct IntegrationSyncService {
@@ -107,9 +108,9 @@ impl IntegrationSyncService {
                                 vuln.title,
                                 vuln.description,
                                 vuln.severity,
-                                vuln.cvss_score,
+                                vuln.cvss_score.to_bigdecimal(),
                                 vuln.cvss_vector,
-                                vuln.epss_score,
+                                vuln.epss_score.map(|s| s.to_bigdecimal()),
                                 &vuln.affected_packages,
                                 vuln.published_date,
                                 vuln.last_modified_date
@@ -150,7 +151,7 @@ impl IntegrationSyncService {
             records_failed,
             started_at,
             completed_at,
-            duration
+            duration.to_bigdecimal()
         )
         .execute(&self.pg_pool)
         .await?;
@@ -177,7 +178,7 @@ impl IntegrationSyncService {
             Ok(threats) => {
                 for threat in threats {
                     let target = sqlx::query!(
-                        "SELECT id FROM targets WHERE ip_address = $1::text",
+                        "SELECT id FROM targets WHERE ip_address::text = $1",
                         threat.destination_ip
                     )
                     .fetch_optional(&self.pg_pool)
@@ -196,12 +197,12 @@ impl IntegrationSyncService {
                             "#,
                             target.id,
                             threat.id,
-                            threat.source_ip,
-                            threat.destination_ip,
+                            threat.source_ip.to_ipnetwork(),
+                            threat.destination_ip.to_ipnetwork(),
                             threat.destination_port,
                             threat.threat_type,
                             threat.classification,
-                            threat.score,
+                            threat.score.to_bigdecimal(),
                             threat.details,
                             threat.detected_at,
                             threat.acknowledged,
@@ -243,7 +244,7 @@ impl IntegrationSyncService {
             records_failed,
             started_at,
             completed_at,
-            duration
+            duration.to_bigdecimal()
         )
         .execute(&self.pg_pool)
         .await?;
@@ -288,10 +289,13 @@ impl IntegrationSyncService {
         .fetch_all(&self.pg_pool)
         .await?;
 
-        for correlation in correlations {
-            let risk_level = if correlation.cvss_score.unwrap_or(0.0) >= 9.0 && correlation.threat_score >= 8.0 {
+        for correlation in &correlations {
+            let cvss = correlation.cvss_score.to_f64();
+            let threat_score = correlation.threat_score.to_f64();
+
+            let risk_level = if cvss >= 9.0 && threat_score >= 8.0 {
                 "critical"
-            } else if correlation.cvss_score.unwrap_or(0.0) >= 7.0 && correlation.threat_score >= 7.0 {
+            } else if cvss >= 7.0 && threat_score >= 7.0 {
                 "high"
             } else {
                 "medium"
@@ -301,9 +305,9 @@ impl IntegrationSyncService {
                 "HIGH-RISK CORRELATION: Target {} has vulnerability {} (CVSS {}) and active threat from {} (score {})",
                 correlation.hostname,
                 correlation.cve_id,
-                correlation.cvss_score.unwrap_or(0.0),
+                cvss,
                 correlation.source_ip,
-                correlation.threat_score
+                threat_score
             );
 
             sqlx::query!(
@@ -324,7 +328,7 @@ impl IntegrationSyncService {
                 correlation.source_ip,
                 correlation.threat_type,
                 correlation.threat_score,
-                0.90,
+                0.90_f64.to_bigdecimal(),
                 "Vulnerability + Active Threat",
                 "Consider applying security patches immediately and blocking attacker IP in firewall"
             )

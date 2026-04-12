@@ -1,8 +1,13 @@
+// ============================================================================
+// Targets Page - Manage monitored systems
+// ============================================================================
+
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
-import { Server, CheckCircle, XCircle, Trash2, Edit, Activity } from 'lucide-react';
+import { Server, CheckCircle, XCircle, Trash2, Edit, Activity, Plus } from 'lucide-react';
 import AddTargetModal from '../components/AddTargetModal';
+import { PageHeader, Button, Card, EmptyState, StatusBadge, Badge } from '../components/ui';
 
 export default function Targets() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -26,41 +31,46 @@ export default function Targets() {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Targets</h1>
-          <p className="text-gray-600 mt-1">
-            {targets?.length || 0} target{(targets?.length || 0) !== 1 ? 's' : ''} monitored
-          </p>
-        </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-        >
-          <Server className="w-4 h-4" />
-          <span>Add Target</span>
-        </button>
-      </div>
-
-      {isLoading ? (
+  if (isLoading) {
+    return (
+      <div>
+        <PageHeader
+          title="Targets"
+          subtitle="Manage monitored systems"
+          icon={<Server className="w-6 h-6" />}
+        />
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600 mt-2">Loading targets...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-blue-600"></div>
+          <p className="text-gray-600 mt-4">Loading targets...</p>
         </div>
-      ) : targets?.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <Server className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No targets yet</h3>
-          <p className="text-gray-600 mb-4">Get started by adding your first target system</p>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
-          >
-            Add Your First Target
-          </button>
-        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title="Targets"
+        subtitle={`${targets?.length || 0} target${(targets?.length || 0) !== 1 ? 's' : ''} monitored`}
+        icon={<Server className="w-6 h-6" />}
+        actions={
+          <Button onClick={() => setIsAddModalOpen(true)} icon={<Plus className="w-4 h-4" />}>
+            Add Target
+          </Button>
+        }
+      />
+
+      {targets?.length === 0 ? (
+        <EmptyState
+          icon={<Server className="w-8 h-8" />}
+          title="No targets yet"
+          description="Get started by adding your first target system to monitor"
+          action={{
+            label: 'Add Your First Target',
+            onClick: () => setIsAddModalOpen(true),
+            icon: <Plus className="w-4 h-4" />,
+          }}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {targets?.map((target: any) => (
@@ -75,95 +85,103 @@ export default function Targets() {
 }
 
 function TargetCard({ target, onDelete }: any) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'text-green-500';
-      case 'offline': return 'text-red-500';
-      case 'error': return 'text-orange-500';
-      default: return 'text-gray-500';
-    }
-  };
-
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'online': return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'offline': return <XCircle className="w-5 h-5 text-red-500" />;
-      case 'error': return <Activity className="w-5 h-5 text-orange-500" />;
-      default: return <XCircle className="w-5 h-5 text-gray-500" />;
+      case 'online':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'offline':
+        return <XCircle className="w-5 h-5 text-red-500" />;
+      case 'error':
+        return <Activity className="w-5 h-5 text-orange-500" />;
+      default:
+        return <XCircle className="w-5 h-5 text-gray-500" />;
     }
   };
 
-  const getEnvironmentColor = (env: string) => {
-    switch (env) {
-      case 'production': return 'bg-red-100 text-red-800';
-      case 'staging': return 'bg-yellow-100 text-yellow-800';
-      case 'development': return 'bg-blue-100 text-blue-800';
-      case 'testing': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  const getEnvironmentBadge = (env: string) => {
+    const variants: Record<string, 'danger' | 'warning' | 'info' | 'success' | 'default'> = {
+      production: 'danger',
+      staging: 'warning',
+      development: 'info',
+      testing: 'success',
+    };
+    return variants[env] || 'default';
   };
 
   return (
-    <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6">
+    <Card hover className="h-full">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
-          <Server className="w-8 h-8 text-gray-600" />
+          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+            <Server className="w-6 h-6 text-blue-600" />
+          </div>
           <div>
-            <h3 className="font-semibold">{target.hostname}</h3>
+            <h3 className="font-semibold text-gray-900">{target.hostname}</h3>
             <p className="text-sm text-gray-500">{target.ip_address}</p>
           </div>
         </div>
         {getStatusIcon(target.status)}
       </div>
 
-      <div className="space-y-2 mb-4">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">Status:</span>
-          <span className={`font-medium ${getStatusColor(target.status)}`}>
-            {target.status || 'unknown'}
-          </span>
+      <div className="space-y-3 mb-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Status</span>
+          <StatusBadge status={target.status} />
         </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">Environment:</span>
-          <span className={`px-2 py-1 rounded text-xs font-medium ${getEnvironmentColor(target.environment)}`}>
-            {target.environment}
-          </span>
-        </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">Monitoring:</span>
-          <span className={target.monitoring_enabled ? 'text-green-600 font-medium' : 'text-gray-400'}>
+
+        {target.environment && (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Environment</span>
+            <Badge variant={getEnvironmentBadge(target.environment)}>
+              {target.environment}
+            </Badge>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Monitoring</span>
+          <span
+            className={`text-sm font-medium ${
+              target.monitoring_enabled ? 'text-green-600' : 'text-gray-400'
+            }`}
+          >
             {target.monitoring_enabled ? 'Enabled' : 'Disabled'}
           </span>
         </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">Hardening:</span>
-          <span className={target.hardening_applied ? 'text-green-600 font-medium' : 'text-gray-400'}>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Hardening</span>
+          <span
+            className={`text-sm font-medium ${
+              target.hardening_applied ? 'text-green-600' : 'text-gray-400'
+            }`}
+          >
             {target.hardening_applied ? 'Applied' : 'Not Applied'}
           </span>
         </div>
+
         {target.gruppo && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Group:</span>
-            <span className="text-gray-900 font-medium">{target.gruppo}</span>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Group</span>
+            <span className="text-sm font-medium text-gray-900">{target.gruppo}</span>
           </div>
         )}
       </div>
 
-      <div className="flex items-center space-x-2 pt-4 border-t">
-        <button
-          className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 text-sm text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
-        >
-          <Edit className="w-4 h-4" />
-          <span>Edit</span>
-        </button>
-        <button
+      <div className="flex items-center gap-2 pt-4 border-t border-gray-200">
+        <Button variant="ghost" size="sm" className="flex-1" icon={<Edit className="w-4 h-4" />}>
+          Edit
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+          icon={<Trash2 className="w-4 h-4" />}
           onClick={() => onDelete(target.id, target.hostname)}
-          className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 text-sm text-red-600 border border-red-600 rounded hover:bg-red-50"
         >
-          <Trash2 className="w-4 h-4" />
-          <span>Delete</span>
-        </button>
+          Delete
+        </Button>
       </div>
-    </div>
+    </Card>
   );
 }

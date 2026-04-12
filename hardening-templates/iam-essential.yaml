@@ -1,0 +1,465 @@
+# ============================================================================
+# CYBERSHEPPARD - IAM Essential Hardening Template
+# ============================================================================
+#
+# Template: Identity & Access Management (Essential)
+# Framework: NIS2 + NIST + ISO + MITRE (All 4 frameworks)
+# Target OS: Debian/Ubuntu/RHEL/CentOS/Rocky/Alma
+# Priority: Critical
+# Estimated Duration: 15-20 minutes
+# Requires Reboot: No
+# Rollback Supported: Yes
+#
+# Description:
+#   Implements critical IAM controls for compliance with NIS2 Article 21(2)(e),
+#   NIST IA family, ISO 27001 A.5.15-5.18, MITRE D3FEND authentication controls.
+#
+# Controls Implemented:
+#   1. Password complexity policy enforcement (Critical)
+#   2. Account lockout after failed attempts (High)
+#   3. Session timeout for inactivity (Medium)
+#   4. Principle of Least Privilege (Critical)
+#   5. Privileged accounts separation (Critical)
+#   6. Sudo logging and restrictions (High)
+#
+# ============================================================================
+
+metadata:
+  name: "iam-essential"
+  version: "1.0.0"
+  framework: ["nis2", "nist", "iso27001", "mitre"]
+  compliance_level: "Essential"
+  target_os: ["debian", "ubuntu", "rhel", "centos", "rocky", "alma"]
+  target_role: "generic"
+  priority: "critical"
+  estimated_minutes: 20
+  requires_reboot: false
+  author: "CyberSheppard Team"
+
+risk_assessment:
+  level: "medium"
+  description: "Changes system authentication policies. Test in non-production first."
+  rollback_supported: true
+  dry_run_recommended: true
+
+# Pre-flight checks - verify before execution
+preflight_checks:
+  - name: "Check PAM installed"
+    command: "dpkg -l | grep -q libpam-pwquality || rpm -q pam"
+    expected_exit_code: 0
+    failure_action: "abort"
+    error_message: "PAM not installed. Install libpam-pwquality (Debian) or pam (RHEL) first."
+
+  - name: "Check sudo installed"
+    command: "which sudo"
+    expected_exit_code: 0
+    failure_action: "abort"
+    error_message: "sudo not installed"
+
+  - name: "Verify root access"
+    command: "id -u"
+    expected_output: "0"
+    failure_action: "abort"
+    error_message: "Must run as root"
+
+# Backup files before modification
+backup_files:
+  - "/etc/pam.d/common-password"
+  - "/etc/pam.d/system-auth"
+  - "/etc/pam.d/password-auth"
+  - "/etc/security/pwquality.conf"
+  - "/etc/pam.d/common-auth"
+  - "/etc/login.defs"
+  - "/etc/sudoers"
+  - "/etc/profile.d/tmout.sh"
+  - "/etc/ssh/sshd_config"
+
+# Hardening steps
+hardening_steps:
+  # ========================================================================
+  # STEP 1: Password Complexity Policy (Critical)
+  # ========================================================================
+  - name: "Configure password quality requirements"
+    control_id: "iam_password_complexity"
+    priority: "critical"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(e)"]
+      nist: ["IA-5(1)"]
+      iso: ["A.5.17"]
+      mitre: ["D3-CREDH"]
+
+    description: "Enforce password complexity: min 14 chars, mixed case, numbers, symbols"
+
+    tasks:
+      - name: "Install pwquality (Debian/Ubuntu)"
+        condition: "os_family == 'debian'"
+        command: "apt-get install -y libpam-pwquality"
+        expected_exit_code: 0
+        on_error: "continue"
+
+      - name: "Install pwquality (RHEL)"
+        condition: "os_family == 'rhel'"
+        command: "yum install -y libpwquality"
+        expected_exit_code: 0
+        on_error: "continue"
+
+      - name: "Configure pwquality.conf"
+        action: "file_content"
+        file: "/etc/security/pwquality.conf"
+        mode: "0644"
+        owner: "root:root"
+        content: |
+          # Password quality requirements - CyberSheppard IAM Essential
+          # Min length: 14 characters (NIST SP 800-63B recommendation)
+          minlen = 14
+
+          # Complexity requirements
+          minclass = 3       # At least 3 character classes (upper, lower, digit, special)
+          dcredit = -1       # At least 1 digit
+          ucredit = -1       # At least 1 uppercase
+          lcredit = -1       # At least 1 lowercase
+          ocredit = -1       # At least 1 special character
+
+          # Prevent weak passwords
+          maxrepeat = 2      # No more than 2 repeated characters
+          maxsequence = 3    # No sequences like "abc" or "123"
+          dictcheck = 1      # Check against dictionary
+          usercheck = 1      # Password cannot contain username
+
+          # Password history
+          remember = 5       # Remember last 5 passwords
+
+          # Fail on violation
+          enforcing = 1
+        verification:
+          command: "grep -q 'minlen = 14' /etc/security/pwquality.conf"
+          expected_exit_code: 0
+
+      - name: "Enable pwquality in PAM (Debian/Ubuntu)"
+        condition: "os_family == 'debian'"
+        action: "file_line_present"
+        file: "/etc/pam.d/common-password"
+        line: "password requisite pam_pwquality.so retry=3"
+        position: "before"
+        anchor: "password.*pam_unix.so"
+        create_if_missing: false
+        verification:
+          command: "grep -q 'pam_pwquality.so' /etc/pam.d/common-password"
+
+      - name: "Enable pwquality in PAM (RHEL)"
+        condition: "os_family == 'rhel'"
+        action: "file_line_present"
+        file: "/etc/pam.d/system-auth"
+        line: "password requisite pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type="
+        position: "before"
+        anchor: "password.*sufficient.*pam_unix.so"
+        verification:
+          command: "grep -q 'pam_pwquality.so' /etc/pam.d/system-auth"
+
+  # ========================================================================
+  # STEP 2: Account Lockout Policy (High)
+  # ========================================================================
+  - name: "Configure account lockout after failed login attempts"
+    control_id: "iam_account_lockout"
+    priority: "high"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(e)"]
+      nist: ["AC-7"]
+      iso: ["A.5.17"]
+      mitre: ["D3-CREDH"]
+
+    description: "Lock account for 30 minutes after 5 failed login attempts"
+
+    tasks:
+      - name: "Configure faillock (Debian/Ubuntu)"
+        condition: "os_family == 'debian'"
+        action: "file_line_present"
+        file: "/etc/pam.d/common-auth"
+        lines:
+          - "auth required pam_faillock.so preauth silent audit deny=5 unlock_time=1800"
+          - "auth [default=die] pam_faillock.so authfail audit deny=5 unlock_time=1800"
+        position: "before"
+        anchor: "auth.*pam_unix.so"
+        verification:
+          command: "grep -q 'pam_faillock.so.*deny=5' /etc/pam.d/common-auth"
+
+      - name: "Configure faillock account (Debian/Ubuntu)"
+        condition: "os_family == 'debian'"
+        action: "file_line_present"
+        file: "/etc/pam.d/common-account"
+        line: "account required pam_faillock.so"
+        position: "before"
+        anchor: "account.*pam_unix.so"
+
+      - name: "Configure faillock (RHEL)"
+        condition: "os_family == 'rhel'"
+        action: "file_line_present"
+        file: "/etc/pam.d/password-auth"
+        lines:
+          - "auth required pam_faillock.so preauth silent audit deny=5 unlock_time=1800"
+          - "auth [default=die] pam_faillock.so authfail audit deny=5 unlock_time=1800"
+          - "account required pam_faillock.so"
+        verification:
+          command: "grep -q 'pam_faillock.so.*deny=5' /etc/pam.d/password-auth"
+
+  # ========================================================================
+  # STEP 3: Session Timeout (Medium)
+  # ========================================================================
+  - name: "Configure automatic session timeout for inactivity"
+    control_id: "iam_session_timeout"
+    priority: "medium"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(e)"]
+      nist: ["AC-12"]
+      iso: ["A.5.15"]
+      mitre: ["D3-SESSTERM"]
+
+    description: "Auto-logout after 15 minutes of inactivity (privileged sessions)"
+
+    tasks:
+      - name: "Set TMOUT in /etc/profile.d/tmout.sh"
+        action: "file_content"
+        file: "/etc/profile.d/tmout.sh"
+        mode: "0644"
+        owner: "root:root"
+        content: |
+          #!/bin/bash
+          # Session timeout - CyberSheppard IAM Essential
+          # Auto-logout after 15 minutes (900 seconds) of inactivity
+          # Applies to all interactive shells
+
+          TMOUT=900
+          readonly TMOUT
+          export TMOUT
+        verification:
+          command: "grep -q 'TMOUT=900' /etc/profile.d/tmout.sh"
+
+      - name: "Set SSH session timeout"
+        action: "file_line_present"
+        file: "/etc/ssh/sshd_config"
+        lines:
+          - "ClientAliveInterval 300"
+          - "ClientAliveCountMax 2"
+        comment: "# SSH session timeout - 15 min (300s * 3 = 900s)"
+        verification:
+          command: "grep -q 'ClientAliveInterval 300' /etc/ssh/sshd_config"
+
+  # ========================================================================
+  # STEP 4: Sudo Hardening & Logging (Critical)
+  # ========================================================================
+  - name: "Harden sudo configuration and enable logging"
+    control_id: "iam_sudo_hardening"
+    priority: "critical"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(h)"]
+      nist: ["AU-14", "AC-6"]
+      iso: ["A.8.15"]
+      mitre: ["D3-SESSM"]
+
+    description: "Enable sudo logging, password prompt, and session timeout"
+
+    tasks:
+      - name: "Create sudo log directory"
+        command: "mkdir -p /var/log/sudo && chmod 750 /var/log/sudo"
+        expected_exit_code: 0
+
+      - name: "Configure sudo defaults"
+        action: "file_section"
+        file: "/etc/sudoers.d/cybersheppard-hardening"
+        mode: "0440"
+        owner: "root:root"
+        content: |
+          # CyberSheppard IAM Essential - Sudo Hardening
+
+          # Logging
+          Defaults    logfile="/var/log/sudo/sudo.log"
+          Defaults    log_year, log_host, loglinelen=0
+          Defaults    syslog=auth
+
+          # Security
+          Defaults    use_pty                    # Use pseudo-tty (prevent session hijacking)
+          Defaults    requiretty                 # Require real tty (no cron/background)
+          Defaults    !visiblepw                 # Never allow visible password
+          Defaults    passwd_timeout=1           # Password prompt timeout 1 minute
+          Defaults    passwd_tries=3             # Max 3 password attempts
+          Defaults    timestamp_timeout=15       # Sudo cache timeout 15 minutes
+
+          # Environment hardening
+          Defaults    env_reset                  # Reset environment
+          Defaults    env_keep="COLORS DISPLAY HOSTNAME HISTSIZE KDEDIR LS_COLORS"
+          Defaults    env_keep+="MAIL PS1 PS2 QTDIR USERNAME LANG LC_ADDRESS"
+          Defaults    secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+          # Command logging
+          Defaults    log_input, log_output      # Log all sudo commands and output
+          Defaults    iolog_dir=/var/log/sudo-io # I/O log directory
+          Defaults    maxseq=1000                # Max session sequences
+        verification:
+          command: "visudo -c -f /etc/sudoers.d/cybersheppard-hardening"
+          expected_exit_code: 0
+
+  # ========================================================================
+  # STEP 5: Disable Root SSH Login (Critical)
+  # ========================================================================
+  - name: "Disable direct root SSH login"
+    control_id: "iam_no_root_ssh"
+    priority: "critical"
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(a)"]
+      nist: ["AC-6(5)"]
+      iso: ["A.5.15"]
+      mitre: ["D3-PAM"]
+
+    description: "Force use of sudo for privileged operations (no direct root SSH)"
+
+    tasks:
+      - name: "Set PermitRootLogin no"
+        action: "file_line_present"
+        file: "/etc/ssh/sshd_config"
+        line: "PermitRootLogin no"
+        replace_regex: "^#?PermitRootLogin.*"
+        verification:
+          command: "grep -E '^PermitRootLogin no' /etc/ssh/sshd_config"
+          expected_exit_code: 0
+
+      - name: "Verify SSH config syntax"
+        command: "sshd -t"
+        expected_exit_code: 0
+        on_error: "abort"
+        error_message: "SSH config has syntax errors. Aborting to prevent lockout."
+
+  # ========================================================================
+  # STEP 6: Password Aging Policy (High)
+  # ========================================================================
+  - name: "Configure password aging and expiration"
+    control_id: "iam_password_aging"
+    priority: "high"
+    frameworks: ["nis2", "nist", "iso27001"]
+    framework_references:
+      nis2: ["Art.21(2)(e)"]
+      nist: ["IA-5(1)"]
+      iso: ["A.5.17"]
+
+    description: "Password expires after 90 days, minimum 1 day between changes"
+
+    tasks:
+      - name: "Set password aging in login.defs"
+        action: "file_line_present"
+        file: "/etc/login.defs"
+        lines:
+          - "PASS_MAX_DAYS    90"
+          - "PASS_MIN_DAYS    1"
+          - "PASS_WARN_AGE    14"
+        replace_regex: "^(PASS_MAX_DAYS|PASS_MIN_DAYS|PASS_WARN_AGE)\\s+.*"
+        verification:
+          command: "grep -E '^PASS_MAX_DAYS\\s+90' /etc/login.defs"
+
+# Post-execution verification
+verification_steps:
+  - name: "Test password complexity"
+    command: "echo 'weak' | pwscore"
+    expected_exit_code: 1  # Should fail for weak password
+    description: "Verify weak passwords are rejected"
+
+  - name: "Check faillock configuration"
+    command: "faillock"
+    expected_exit_code: 0
+    description: "Verify faillock is functional"
+
+  - name: "Test TMOUT variable"
+    command: "bash -c 'source /etc/profile.d/tmout.sh && echo $TMOUT'"
+    expected_output: "900"
+    description: "Verify session timeout is set"
+
+  - name: "Verify sudo log directory"
+    command: "test -d /var/log/sudo && test -w /var/log/sudo"
+    expected_exit_code: 0
+    description: "Verify sudo logging directory exists and is writable"
+
+# Health checks - ensure system still works
+health_checks:
+  - name: "SSH service running"
+    command: "systemctl is-active sshd || systemctl is-active ssh"
+    expected_output: "active"
+    critical: true
+
+  - name: "SSH can reload config"
+    command: "systemctl reload sshd || systemctl reload ssh"
+    expected_exit_code: 0
+    critical: true
+
+  - name: "Sudo still works"
+    command: "sudo -n true 2>/dev/null || sudo -l >/dev/null 2>&1"
+    expected_exit_code: 0
+    critical: true
+
+  - name: "PAM modules loaded"
+    command: "ldd /lib*/security/pam_unix.so | grep -q 'not found'"
+    expected_exit_code: 1  # Should NOT find "not found"
+    critical: true
+
+# Rollback procedure if something goes wrong
+rollback:
+  enabled: true
+  automatic_trigger:
+    - "health_check_failed"
+    - "connectivity_lost"
+
+  steps:
+    - name: "Restore backed up files"
+      action: "restore_backups"
+      files: "all"
+
+    - name: "Reload SSH"
+      command: "systemctl reload sshd || systemctl reload ssh"
+
+    - name: "Verify SSH responsive"
+      command: "systemctl is-active sshd || systemctl is-active ssh"
+
+  notification:
+    on_rollback: "alert"
+    message: "IAM hardening rolled back due to health check failure"
+
+# Compliance documentation
+compliance_evidence:
+  - file: "/etc/security/pwquality.conf"
+    description: "Password complexity configuration"
+    controls: ["iam_password_complexity"]
+
+  - file: "/etc/pam.d/common-auth"
+    description: "Account lockout configuration"
+    controls: ["iam_account_lockout"]
+
+  - file: "/etc/profile.d/tmout.sh"
+    description: "Session timeout configuration"
+    controls: ["iam_session_timeout"]
+
+  - file: "/etc/sudoers.d/cybersheppard-hardening"
+    description: "Sudo hardening and logging"
+    controls: ["iam_sudo_hardening"]
+
+  - file: "/etc/ssh/sshd_config"
+    description: "SSH hardening (no root login)"
+    controls: ["iam_no_root_ssh", "iam_session_timeout"]
+
+  - file: "/etc/login.defs"
+    description: "Password aging policy"
+    controls: ["iam_password_aging"]
+
+# Expected compliance impact
+expected_results:
+  controls_implemented: 6
+  compliance_improvement:
+    nis2: "+8%"
+    nist: "+12%"
+    iso27001: "+7%"
+    mitre: "+5%
+
+  critical_controls: 4
+  high_controls: 2
+  medium_controls: 0

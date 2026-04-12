@@ -35,7 +35,7 @@ pub struct AlertRule {
     pub id: i32,
     pub name: String,
     pub description: Option<String>,
-    pub enabled: bool,
+    pub enabled: Option<bool>,  // Changed from bool
     pub severity: String,
     pub trigger_type: String,
 }
@@ -122,10 +122,15 @@ impl AlertingService {
         let alerts = sqlx::query!(
             r#"
             SELECT
-                id, severity, title, message, alert_type,
-                status, acknowledged, created_at,
-                rule_name, delivery_attempts, successful_deliveries
-            FROM active_alerts
+                a.id, a.severity, a.title, a.message, a.alert_type,
+                a.status, a.acknowledged, a.created_at,
+                ar.name as rule_name,
+                0::bigint as "delivery_attempts!: i64",
+                0::bigint as "successful_deliveries!: i64"
+            FROM alerts a
+            LEFT JOIN alert_rules ar ON a.rule_id = ar.id
+            WHERE a.status != 'resolved'
+            ORDER BY a.created_at DESC
             LIMIT 100
             "#
         )
@@ -255,7 +260,7 @@ impl AlertingService {
             WHERE id = $2
             "#,
             alert_id,
-            violation_id
+            violation_id as i64
         )
         .execute(&self.pg_pool)
         .await?;

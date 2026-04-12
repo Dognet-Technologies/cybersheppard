@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            c.id,\n            c.correlation_type,\n            c.pattern_name,\n            c.pattern_description,\n            c.severity,\n            c.confidence,\n            c.risk_score,\n            c.event_count,\n            c.involved_users,\n            c.involved_hosts,\n            c.attack_stage,\n            c.created_at,\n            p.predictions\n        FROM event_correlations c\n        LEFT JOIN lateral_movement_predictions p ON c.id = p.correlation_id AND p.status = 'active'\n        WHERE c.status = 'active'\n          AND (c.severity IN ('critical', 'high') OR c.risk_score > 60)\n        ORDER BY c.risk_score DESC NULLS LAST, c.created_at DESC\n        LIMIT $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "correlation_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "pattern_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "pattern_description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "severity",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "confidence",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 6,
+        "name": "risk_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 7,
+        "name": "event_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "involved_users",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 9,
+        "name": "involved_hosts",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 10,
+        "name": "attack_stage",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "predictions",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "705270f871d58270c83e79bc7a9e8d3d37924c65e6ab0e8fefd03b28ee32cb1b"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT 5 as criticality\n            FROM targets\n            WHERE hostname = $1 OR ip_address::TEXT = $1\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "criticality",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7a19c1db36775704b1059fd56b44b09c7e56d6c096a21fec707a0b3de673e152"
+}

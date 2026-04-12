@@ -3,6 +3,7 @@
 // ============================================================================
 
 use influxdb::{Client, InfluxDbWriteable};
+use anyhow::Result;
 
 #[derive(Clone)]
 pub struct InfluxDbClient {
@@ -14,7 +15,7 @@ pub struct InfluxDbClient {
 
 impl InfluxDbClient {
     /// Initialize InfluxDB client
-    pub async fn init() -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn init() -> Result<Self> {
         let url = std::env::var("INFLUXDB_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
         let token = std::env::var("INFLUXDB_TOKEN").expect("INFLUXDB_TOKEN must be set");
         let org = std::env::var("INFLUXDB_ORG").unwrap_or_else(|_| "cybersheppard".to_string());
@@ -45,7 +46,7 @@ impl InfluxDbClient {
     pub async fn write_metrics<T: InfluxDbWriteable>(
         &self,
         data: T,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         self.client
             .query(&data.into_query(&self.bucket_metrics))
             .await?;
@@ -56,7 +57,7 @@ impl InfluxDbClient {
     pub async fn write_logs<T: InfluxDbWriteable>(
         &self,
         data: T,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         self.client
             .query(&data.into_query(&self.bucket_logs))
             .await?;
@@ -67,7 +68,7 @@ impl InfluxDbClient {
     pub async fn write_correlations<T: InfluxDbWriteable>(
         &self,
         data: T,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         self.client
             .query(&data.into_query(&self.bucket_correlations))
             .await?;
@@ -76,6 +77,6 @@ impl InfluxDbClient {
 }
 
 /// Convenience function to initialize client
-pub async fn init_client() -> Result<InfluxDbClient, Box<dyn std::error::Error>> {
+pub async fn init_client() -> Result<InfluxDbClient> {
     InfluxDbClient::init().await
 }

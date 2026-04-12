@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE compliance_violations\n            SET alert_generated = true, alert_id = $1\n            WHERE id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "51ee147772af71a20cebf3fd117e1e0c4f6158c011d8b02c53a894465f1c89f1"
+}

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                                INSERT INTO sentinel_vulnerabilities (\n                                    target_id, cve_id, title, description, severity,\n                                    cvss_score, cvss_vector, epss_score,\n                                    affected_packages, published_date, last_modified_date\n                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)\n                                ON CONFLICT (target_id, cve_id) DO UPDATE SET\n                                    title = EXCLUDED.title,\n                                    description = EXCLUDED.description,\n                                    severity = EXCLUDED.severity,\n                                    cvss_score = EXCLUDED.cvss_score,\n                                    cvss_vector = EXCLUDED.cvss_vector,\n                                    epss_score = EXCLUDED.epss_score,\n                                    affected_packages = EXCLUDED.affected_packages,\n                                    last_modified_date = EXCLUDED.last_modified_date,\n                                    updated_at = NOW()\n                                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Numeric",
+        "Varchar",
+        "Numeric",
+        "TextArray",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ac9d7df0561b290425a496ddb4bdc308bd32e65284f717d59dc9587f5ed25625"
+}

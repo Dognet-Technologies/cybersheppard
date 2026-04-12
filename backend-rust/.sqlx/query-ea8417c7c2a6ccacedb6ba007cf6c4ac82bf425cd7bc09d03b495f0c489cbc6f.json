@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO user_behavior_baselines (\n                user_name,\n                avg_logins_per_day, stddev_logins_per_day,\n                typical_login_hours, typical_login_hosts,\n                avg_session_duration_minutes, stddev_session_duration_minutes,\n                avg_commands_per_session, common_commands,\n                typical_file_paths, typical_processes,\n                avg_network_connections_per_day,\n                login_count_threshold_high,\n                session_duration_threshold_high,\n                command_count_threshold_high,\n                baseline_start_date, baseline_end_date,\n                events_analyzed, last_updated\n            ) VALUES (\n                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19\n            )\n            ON CONFLICT (user_name) DO UPDATE SET\n                avg_logins_per_day = EXCLUDED.avg_logins_per_day,\n                stddev_logins_per_day = EXCLUDED.stddev_logins_per_day,\n                typical_login_hours = EXCLUDED.typical_login_hours,\n                typical_login_hosts = EXCLUDED.typical_login_hosts,\n                avg_session_duration_minutes = EXCLUDED.avg_session_duration_minutes,\n                stddev_session_duration_minutes = EXCLUDED.stddev_session_duration_minutes,\n                avg_commands_per_session = EXCLUDED.avg_commands_per_session,\n                common_commands = EXCLUDED.common_commands,\n                typical_file_paths = EXCLUDED.typical_file_paths,\n                typical_processes = EXCLUDED.typical_processes,\n                avg_network_connections_per_day = EXCLUDED.avg_network_connections_per_day,\n                login_count_threshold_high = EXCLUDED.login_count_threshold_high,\n                session_duration_threshold_high = EXCLUDED.session_duration_threshold_high,\n                command_count_threshold_high = EXCLUDED.command_count_threshold_high,\n                baseline_start_date = EXCLUDED.baseline_start_date,\n                baseline_end_date = EXCLUDED.baseline_end_date,\n                events_analyzed = EXCLUDED.events_analyzed,\n                last_updated = EXCLUDED.last_updated\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Numeric",
+        "Numeric",
+        "Int4Array",
+        "TextArray",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Date",
+        "Date",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ea8417c7c2a6ccacedb6ba007cf6c4ac82bf425cd7bc09d03b495f0c489cbc6f"
+}

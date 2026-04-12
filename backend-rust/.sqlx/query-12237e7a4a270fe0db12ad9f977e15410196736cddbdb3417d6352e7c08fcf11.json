@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT user_name, COUNT(*) as login_count\n            FROM security_events\n            WHERE event_category = 'authentication'\n              AND timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND user_name IS NOT NULL\n            GROUP BY user_name\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "login_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      true,
+      null
+    ]
+  },
+  "hash": "12237e7a4a270fe0db12ad9f977e15410196736cddbdb3417d6352e7c08fcf11"
+}

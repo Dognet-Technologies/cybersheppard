@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT host_name, total_risk_score, risk_level\n        FROM host_risk_scores\n        WHERE total_risk_score > 60\n        ORDER BY total_risk_score DESC\n        LIMIT 10\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "host_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "total_risk_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 2,
+        "name": "risk_level",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "1c4584292978e94140d44eb3c81778cd240228dcfaa3b7e23806b8aeed9d5e67"
+}
