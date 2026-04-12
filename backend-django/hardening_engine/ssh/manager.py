@@ -34,7 +34,8 @@ class SSHManager:
                  target_ip: str,
                  ssh_port: int = 22,
                  username: str = "microcyber",
-                 timeout: int = 30):
+                 timeout: int = 30,
+                 known_hosts_path: Optional[str] = None):
         """
         Initialize SSH manager
 
@@ -43,11 +44,15 @@ class SSHManager:
             ssh_port: SSH port (default 22)
             username: Username for SSH connection (default microcyber)
             timeout: Connection timeout in seconds (default 30)
+            known_hosts_path: Path to known_hosts file for host key verification.
+                              If None, only the system known_hosts is used.
+                              Connections to unknown hosts are rejected (CWE-297).
         """
         self.target_ip = target_ip
         self.ssh_port = ssh_port
         self.username = username
         self.timeout = timeout
+        self.known_hosts_path = known_hosts_path
         self.client = None
         self.scp_client = None
         self._connected = False
@@ -64,7 +69,13 @@ class SSHManager:
         """
         try:
             self.client = paramiko.SSHClient()
-            self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # Load system-wide known_hosts first, then any custom file.
+            # RejectPolicy ensures connections to unknown hosts are refused,
+            # preventing MITM attacks (CWE-297).
+            self.client.load_system_host_keys()
+            if self.known_hosts_path and os.path.isfile(self.known_hosts_path):
+                self.client.load_host_keys(self.known_hosts_path)
+            self.client.set_missing_host_key_policy(paramiko.RejectPolicy())
 
             # Load Ed25519 private key
             if not os.path.exists(private_key_path):
