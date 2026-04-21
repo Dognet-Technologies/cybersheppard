@@ -19,6 +19,9 @@ export default function Login() {
       const data = await api.login(username, password);
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('refresh_token', data.refresh_token);
+      if (data.csrf_token) {
+        localStorage.setItem('csrf_token', data.csrf_token);
+      }
       setAuth(data.user);
       navigate('/');
     } catch (err: any) {

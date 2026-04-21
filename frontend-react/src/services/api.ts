@@ -4,7 +4,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 class ApiService {
   private client: AxiosInstance;
@@ -17,12 +17,19 @@ class ApiService {
       },
     });
 
-    // Request interceptor - add auth token
+    // Request interceptor - add auth token and CSRF token for state-changing methods
     this.client.interceptors.request.use(
       (config) => {
         const token = localStorage.getItem('access_token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
+        }
+        const method = (config.method || 'get').toLowerCase();
+        if (['post', 'put', 'patch', 'delete'].includes(method)) {
+          const csrfToken = localStorage.getItem('csrf_token');
+          if (csrfToken) {
+            config.headers['X-CSRF-Token'] = csrfToken;
+          }
         }
         return config;
       },
@@ -49,6 +56,7 @@ class ApiService {
           } catch (refreshError) {
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
+            localStorage.removeItem('csrf_token');
             window.location.href = '/login';
             return Promise.reject(refreshError);
           }
@@ -88,7 +96,8 @@ class ApiService {
 
   async getTargets(params?: Record<string, any>) {
     const response = await this.client.get('/api/targets', { params });
-    return response.data;
+    // Backend wraps the list as { targets, total, limit, offset }; components expect an array.
+    return Array.isArray(response.data) ? response.data : response.data?.targets ?? [];
   }
 
   async getTarget(id: number) {
@@ -254,7 +263,7 @@ class ApiService {
     return response.data;
   }
 
-  async triggerSync(integrationName: string) {
+  async triggerIntegrationSync(integrationName: string) {
     const response = await this.client.post(`/api/integrations/${integrationName}/sync`);
     return response.data;
   }
@@ -321,7 +330,7 @@ class ApiService {
 
   // Legacy correlation methods - kept for backward compatibility
   // These now map to the new event correlation system
-  async getTargetCorrelations(targetId: number) {
+  async getTargetCorrelations(_targetId: number) {
     // Target-specific correlations can be filtered from general correlations
     const response = await this.client.get('/api/events/correlations', {
       params: { hours: 24, limit: 100 }
@@ -330,14 +339,14 @@ class ApiService {
     return response.data;
   }
 
-  async acknowledgeCorrelation(correlationId: number) {
+  async acknowledgeCorrelation(_correlationId: number) {
     // Note: The new event correlation system doesn't have acknowledge/resolve
     // This is a no-op for backward compatibility
     console.warn('acknowledgeCorrelation is deprecated - new system uses status updates');
     return { success: true, message: 'Correlation acknowledged (legacy API)' };
   }
 
-  async resolveCorrelation(correlationId: number, resolutionNotes: string) {
+  async resolveCorrelation(_correlationId: number, _resolutionNotes: string) {
     // Note: The new event correlation system doesn't have acknowledge/resolve
     // This is a no-op for backward compatibility
     console.warn('resolveCorrelation is deprecated - new system uses status updates');
@@ -450,11 +459,6 @@ class ApiService {
       }
     }
     const response = await this.client.get('/api/alerts', { params });
-    return response.data;
-  }
-
-  async getActiveAlerts() {
-    const response = await this.client.get('/api/alerts/active');
     return response.data;
   }
 
