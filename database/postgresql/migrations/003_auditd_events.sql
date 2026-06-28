@@ -144,12 +144,12 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create triggers for automatic correlation
-CREATE TRIGGER trigger_correlate_firedog
+CREATE OR REPLACE TRIGGER trigger_correlate_firedog
     BEFORE INSERT ON auditd_events
     FOR EACH ROW
     EXECUTE FUNCTION correlate_auditd_with_firedog();
 
-CREATE TRIGGER trigger_correlate_sentinel
+CREATE OR REPLACE TRIGGER trigger_correlate_sentinel
     BEFORE INSERT ON auditd_events
     FOR EACH ROW
     EXECUTE FUNCTION correlate_auditd_with_sentinel();

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE auditd_events\n        SET status = $1::TEXT,\n            resolution_notes = COALESCE($2, resolution_notes),\n            resolved_at = CASE WHEN $1::TEXT = 'resolved' THEN NOW() ELSE resolved_at END\n        WHERE id = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "33efacb16295b7c2b22c2720fbe2ff1dd07c5bff89c718ce19efba4998196bc4"
+}

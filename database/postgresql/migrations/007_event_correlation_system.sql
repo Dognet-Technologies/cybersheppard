@@ -467,7 +467,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_correlations_updated
+CREATE OR REPLACE TRIGGER trigger_correlations_updated
     BEFORE UPDATE ON event_correlations
     FOR EACH ROW
     EXECUTE FUNCTION update_correlation_timestamp();
@@ -495,7 +495,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_host_risk_level
+CREATE OR REPLACE TRIGGER trigger_host_risk_level
     BEFORE INSERT OR UPDATE OF total_risk_score ON host_risk_scores
     FOR EACH ROW
     EXECUTE FUNCTION update_host_risk_level();
@@ -505,7 +505,11 @@ CREATE TRIGGER trigger_host_risk_level
 -- ============================================================================
 
 -- Active high-risk correlations
-CREATE OR REPLACE VIEW active_high_risk_correlations AS
+-- DROP+CREATE (non REPLACE): la vista usa c.* su event_correlations, che 008
+-- estende con colonne bayesian_*; il REPLACE fallirebbe alla riapplicazione
+-- perché cambierebbe ordine/nome delle colonne della vista.
+DROP VIEW IF EXISTS active_high_risk_correlations CASCADE;
+CREATE VIEW active_high_risk_correlations AS
 SELECT
     c.*,
     p.predictions AS lateral_movement_predictions
