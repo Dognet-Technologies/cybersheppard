@@ -401,7 +401,7 @@ impl SettingsManager {
         format!("{:x}", hasher.finalize())
     }
 
-    async fn log_audit(
+    pub async fn log_audit(
         &self,
         user_id: i32,
         action: &str,

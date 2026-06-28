@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use tracing::{info, warn};
 
 use crate::security_event::BaselineCalculationResult;
+use crate::utils::ToBigDecimal;
 
 /// Baseline Calculator Service - Computes statistical baselines for UEBA
 pub struct BaselineCalculatorService {
@@ -141,20 +142,20 @@ impl BaselineCalculatorService {
                 last_updated = EXCLUDED.last_updated
             "#,
             user_name,
-            login_stats.mean,
-            login_stats.stddev,
+            login_stats.mean.to_bigdecimal(),
+            login_stats.stddev.to_bigdecimal(),
             &typical_hours,
             &typical_hosts,
-            session_stats.mean,
-            session_stats.stddev,
-            command_stats.mean,
+            session_stats.mean.to_bigdecimal(),
+            session_stats.stddev.to_bigdecimal(),
+            command_stats.mean.to_bigdecimal(),
             &common_commands,
             &typical_paths,
             &typical_processes,
-            network_stats.mean,
-            login_threshold,
-            session_threshold,
-            command_threshold,
+            network_stats.mean.to_bigdecimal(),
+            login_threshold.to_bigdecimal(),
+            session_threshold.to_bigdecimal(),
+            command_threshold.to_bigdecimal(),
             baseline_start.date_naive(),
             baseline_end.date_naive(),
             events_analyzed,
@@ -248,11 +249,11 @@ impl BaselineCalculatorService {
             "#,
             host_name,
             &typical_processes,
-            connection_stats.mean,
-            connection_stats.stddev,
+            connection_stats.mean.to_bigdecimal(),
+            connection_stats.stddev.to_bigdecimal(),
             &typical_ports,
             &typical_users,
-            connection_threshold,
+            connection_threshold.to_bigdecimal(),
             baseline_start.date_naive(),
             baseline_end.date_naive(),
             events_analyzed,
@@ -277,7 +278,7 @@ impl BaselineCalculatorService {
             WHERE timestamp > NOW() - INTERVAL '1 day' * $1
               AND user_name IS NOT NULL
             "#,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -292,7 +293,7 @@ impl BaselineCalculatorService {
             FROM security_events
             WHERE timestamp > NOW() - INTERVAL '1 day' * $1
             "#,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -325,7 +326,7 @@ impl BaselineCalculatorService {
             ) daily_stats
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -355,7 +356,7 @@ impl BaselineCalculatorService {
             ORDER BY hour
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -377,7 +378,7 @@ impl BaselineCalculatorService {
             LIMIT 20
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -423,7 +424,7 @@ impl BaselineCalculatorService {
             ) hourly_stats
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -458,7 +459,7 @@ impl BaselineCalculatorService {
             LIMIT $3
             "#,
             user_name,
-            days,
+            days as f64,
             limit
         )
         .fetch_all(&self.db)
@@ -485,7 +486,7 @@ impl BaselineCalculatorService {
             LIMIT $3
             "#,
             user_name,
-            days,
+            days as f64,
             limit
         )
         .fetch_all(&self.db)
@@ -525,7 +526,7 @@ impl BaselineCalculatorService {
             ) daily_stats
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -560,7 +561,7 @@ impl BaselineCalculatorService {
             LIMIT $3
             "#,
             host_name,
-            days,
+            days as f64,
             limit
         )
         .fetch_all(&self.db)
@@ -591,7 +592,7 @@ impl BaselineCalculatorService {
             ) hourly_stats
             "#,
             host_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -620,7 +621,7 @@ impl BaselineCalculatorService {
             LIMIT 50
             "#,
             host_name,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -641,7 +642,7 @@ impl BaselineCalculatorService {
             LIMIT 20
             "#,
             host_name,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -658,7 +659,7 @@ impl BaselineCalculatorService {
               AND timestamp > NOW() - INTERVAL '1 day' * $2
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -675,7 +676,7 @@ impl BaselineCalculatorService {
               AND timestamp > NOW() - INTERVAL '1 day' * $2
             "#,
             host_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;

@@ -10,6 +10,8 @@ use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info, warn};
 
+use crate::utils::ToBigDecimal;
+
 /// Hardening command sent to agents
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HardeningCommand {
@@ -277,8 +279,8 @@ impl HardeningExecutor {
             progress.total_controls,
             progress.successful_controls,
             progress.failed_controls,
-            progress.compliance_score_before,
-            progress.compliance_score_after,
+            progress.compliance_score_before.map(|v| v.to_bigdecimal()),
+            progress.compliance_score_after.map(|v| v.to_bigdecimal()),
             progress.execution_log.as_ref(),
             progress.rollback_data.as_ref(),
             execution_id

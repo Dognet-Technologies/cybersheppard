@@ -816,11 +816,12 @@ async fn execute_template(
         }
     }
 
+    let execution_count = execution_ids.len();
     (StatusCode::OK, Json(ExecutionResponse {
         execution_ids,
         message: format!(
             "Created {} execution(s) in {} mode. Executions will begin shortly.",
-            execution_ids.len(),
+            execution_count,
             payload.execution_mode
         ),
     })).into_response()

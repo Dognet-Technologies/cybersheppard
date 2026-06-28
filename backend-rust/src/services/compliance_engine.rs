@@ -112,7 +112,7 @@ impl ComplianceEngine {
                 target_id,
                 hostname,
                 frameworks_assessed,
-                avg_compliance_score,
+                avg_compliance_score::numeric as "avg_compliance_score",
                 critical_violations,
                 high_violations,
                 last_assessment_date

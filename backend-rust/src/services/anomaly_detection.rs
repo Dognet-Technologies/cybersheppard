@@ -8,6 +8,7 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use tracing::{debug, info};
 
+use crate::utils::ToBigDecimal;
 use crate::security_event::{
     AnomalyDetectionResult, BaselineCalculationResult, Severity,
 };
@@ -416,7 +417,7 @@ impl AnomalyDetectionService {
               AND user_name IS NOT NULL
             GROUP BY user_name
             "#,
-            hours
+            hours as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -441,7 +442,7 @@ impl AnomalyDetectionService {
               AND timestamp > NOW() - INTERVAL '1 hour' * $1
             GROUP BY source_host
             "#,
-            hours
+            hours as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -467,7 +468,7 @@ impl AnomalyDetectionService {
             WHERE id = $1
             "#,
             event_id,
-            anomaly_score
+            anomaly_score.to_bigdecimal()
         )
         .execute(&self.db)
         .await?;

@@ -9,6 +9,8 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::path::Path;
+
+use crate::utils::ToBigDecimal;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::{debug, error, info, warn};
@@ -371,7 +373,7 @@ impl EventCollectorService {
 
         for asset in assets {
             let hostname = asset.hostname.unwrap_or_else(|| "unknown".to_string());
-            let ip = asset.ip_address.and_then(|ip_str| ip_str.parse::<IpAddr>().ok());
+            let ip = Some(asset.ip_address.ip());
 
             self.enrichment_cache.insert(
                 hostname.clone(),
@@ -444,13 +446,13 @@ impl EventCollectorService {
             event.geo_country,
             event.geo_city,
             event.asset_criticality,
-            event.threat_score,
+            event.threat_score.map(|v| v.to_bigdecimal()),
             event.correlation_id,
             event.parent_event_id,
             event.sequence_number,
             event.ingestion_time,
             event.processed,
-            event.anomaly_score
+            event.anomaly_score.map(|v| v.to_bigdecimal())
         )
         .fetch_one(&self.db)
         .await?;
@@ -489,15 +491,18 @@ impl EventCollectorService {
                 destination_ip as "destination_ip: IpAddr", destination_port,
                 destination_host, protocol, bytes_sent, bytes_received,
                 event_data, normalized_data,
-                geo_country, geo_city, asset_criticality, threat_score,
+                geo_country, geo_city, asset_criticality,
+                threat_score::float8 as "threat_score?",
                 correlation_id, parent_event_id, sequence_number,
-                ingestion_time, processed, anomaly_score
+                COALESCE(ingestion_time, NOW()) as "ingestion_time!",
+                COALESCE(processed, false) as "processed!",
+                anomaly_score::float8 as "anomaly_score?"
             FROM security_events
             WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
             ORDER BY timestamp DESC
             LIMIT $2
             "#,
-            hours,
+            hours as f64,
             limit
         )
         .fetch_all(&self.db)
@@ -515,7 +520,7 @@ impl EventCollectorService {
             WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
             GROUP BY severity
             "#,
-            hours
+            hours as f64
         )
         .fetch_all(&self.db)
         .await?;
