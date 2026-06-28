@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::middleware::auth::AuthUser;
+use crate::middleware::permissions::{AdminUser, ManagerUser};
 use crate::services::plugin_manager::PluginManager;
 use crate::AppState;
 
@@ -71,7 +72,7 @@ async fn list_repositories(
 
 async fn add_repository(
     State(state): State<AppState>,
-    auth_user: AuthUser,
+    AdminUser(auth_user): AdminUser,
     Json(payload): Json<AddRepositoryRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     // Validate trust level
@@ -118,7 +119,7 @@ async fn add_repository(
 async fn remove_repository(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth_user: AuthUser,
+    _admin: AdminUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = PluginManager::new(state.pg_pool.clone());
 
@@ -138,7 +139,7 @@ async fn remove_repository(
 async fn fetch_repository_plugins(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth_user: AuthUser,
+    _admin: AdminUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = PluginManager::new(state.pg_pool.clone());
 
@@ -199,7 +200,7 @@ async fn list_installed_plugins(
 async fn install_plugin(
     State(state): State<AppState>,
     Path(registry_id): Path<i32>,
-    auth_user: AuthUser,
+    AdminUser(auth_user): AdminUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = PluginManager::new(state.pg_pool.clone());
 
@@ -223,7 +224,7 @@ async fn install_plugin(
 async fn uninstall_plugin(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth_user: AuthUser,
+    _admin: AdminUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = PluginManager::new(state.pg_pool.clone());
 
@@ -243,7 +244,7 @@ async fn uninstall_plugin(
 async fn enable_plugin(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth_user: AuthUser,
+    _admin: AdminUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = PluginManager::new(state.pg_pool.clone());
 
@@ -263,7 +264,7 @@ async fn enable_plugin(
 async fn disable_plugin(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth_user: AuthUser,
+    _admin: AdminUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = PluginManager::new(state.pg_pool.clone());
 
@@ -283,7 +284,7 @@ async fn disable_plugin(
 async fn configure_plugin(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
     Json(payload): Json<ConfigurePluginRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = PluginManager::new(state.pg_pool.clone());

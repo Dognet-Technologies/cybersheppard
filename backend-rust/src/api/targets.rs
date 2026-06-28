@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::middleware::auth::AuthUser;
+use crate::middleware::permissions::ManagerUser;
 use crate::models::Target;
 use crate::AppState;
 
@@ -254,7 +255,7 @@ async fn list_targets(
 /// Create a new target
 async fn create_target(
     State(state): State<AppState>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
     Json(payload): Json<CreateTargetRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     // Validate input
@@ -410,7 +411,7 @@ async fn get_target(
 async fn update_target(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
     Json(payload): Json<UpdateTargetRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     // Check if target exists
@@ -523,7 +524,7 @@ async fn update_target(
 async fn delete_target(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let result = sqlx::query("DELETE FROM targets WHERE id = $1")
         .bind(id)
@@ -604,7 +605,7 @@ async fn get_target_status(
 async fn test_target_connection(
     State(_state): State<AppState>,
     Path(_id): Path<i32>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Implement actual SSH connection test
     // This will use the SSH manager from Django backend

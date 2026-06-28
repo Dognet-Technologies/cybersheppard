@@ -42,7 +42,7 @@ impl AnomalyDetectionService {
             }
         };
 
-        let (is_anomaly, severity, description) = self.classify_z_score(
+        let (is_anomaly, severity, description) = Self::classify_z_score(
             z_score,
             &format!("User '{}' login frequency", user_name),
         );
@@ -84,7 +84,7 @@ impl AnomalyDetectionService {
             }
         };
 
-        let (is_anomaly, severity, description) = self.classify_z_score(
+        let (is_anomaly, severity, description) = Self::classify_z_score(
             z_score,
             &format!("Host '{}' network connections", host_name),
         );
@@ -147,7 +147,7 @@ impl AnomalyDetectionService {
             }
         };
 
-        let (is_anomaly, severity, description) = self.classify_z_score(
+        let (is_anomaly, severity, description) = Self::classify_z_score(
             z_score,
             &format!("Command '{}' execution frequency", command),
         );
@@ -172,7 +172,7 @@ impl AnomalyDetectionService {
     /// 3.0 ≤ |z| < 4.0:  Medium anomaly
     /// 4.0 ≤ |z| < 5.0:  High anomaly
     /// |z| ≥ 5.0:  Critical anomaly
-    fn classify_z_score(&self, z_score: f64, context: &str) -> (bool, Severity, String) {
+    fn classify_z_score(z_score: f64, context: &str) -> (bool, Severity, String) {
         let abs_z = z_score.abs();
 
         if abs_z < 2.0 {
@@ -502,32 +502,28 @@ mod tests {
 
     #[test]
     fn test_z_score_classification() {
-        let service = AnomalyDetectionService {
-            db: PgPool::connect("").await.unwrap(), // Mock
-        };
-
         // Normal
-        let (is_anomaly, severity, _) = service.classify_z_score(1.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(1.5, "Test");
         assert!(!is_anomaly);
         assert_eq!(severity, Severity::Info);
 
         // Low anomaly
-        let (is_anomaly, severity, _) = service.classify_z_score(2.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(2.5, "Test");
         assert!(is_anomaly);
         assert_eq!(severity, Severity::Low);
 
         // Medium anomaly
-        let (is_anomaly, severity, _) = service.classify_z_score(3.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(3.5, "Test");
         assert!(is_anomaly);
         assert_eq!(severity, Severity::Medium);
 
         // High anomaly
-        let (is_anomaly, severity, _) = service.classify_z_score(4.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(4.5, "Test");
         assert!(is_anomaly);
         assert_eq!(severity, Severity::High);
 
         // Critical anomaly
-        let (is_anomaly, severity, _) = service.classify_z_score(5.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(5.5, "Test");
         assert!(is_anomaly);
         assert_eq!(severity, Severity::Critical);
     }

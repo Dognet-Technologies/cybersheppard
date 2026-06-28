@@ -11,6 +11,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use crate::AppState;
+use crate::middleware::permissions::ManagerUser;
 use crate::services::correlation_engine::CorrelationEngine;
 
 pub fn routes() -> Router<AppState> {
@@ -104,6 +105,7 @@ async fn integration_status(
 
 async fn sync_sentinel_core(
     State(_state): State<AppState>,
+    _manager: ManagerUser,
 ) -> impl IntoResponse {
     (StatusCode::OK, Json(serde_json::json!({
         "success": true,
@@ -113,6 +115,7 @@ async fn sync_sentinel_core(
 
 async fn sync_firedog(
     State(_state): State<AppState>,
+    _manager: ManagerUser,
 ) -> impl IntoResponse {
     (StatusCode::OK, Json(serde_json::json!({
         "success": true,
