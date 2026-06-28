@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                id, timestamp, source_type as \"source_type: _\", source_host,\n                source_ip as \"source_ip: IpAddr\", source_port,\n                event_type, event_category as \"event_category: _\",\n                event_action, severity as \"severity: _\",\n                user_name, user_id, process_name, process_pid, process_ppid, process_cmdline,\n                file_path, file_operation,\n                destination_ip as \"destination_ip: IpAddr\", destination_port,\n                destination_host, protocol, bytes_sent, bytes_received,\n                event_data, normalized_data,\n                geo_country, geo_city, asset_criticality, threat_score,\n                correlation_id, parent_event_id, sequence_number,\n                ingestion_time, processed, anomaly_score\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n            ORDER BY timestamp DESC\n            LIMIT $2\n            ",
+  "query": "\n            SELECT\n                id, timestamp, source_type as \"source_type: _\", source_host,\n                source_ip as \"source_ip: IpAddr\", source_port,\n                event_type, event_category as \"event_category: _\",\n                event_action, severity as \"severity: _\",\n                user_name, user_id, process_name, process_pid, process_ppid, process_cmdline,\n                file_path, file_operation,\n                destination_ip as \"destination_ip: IpAddr\", destination_port,\n                destination_host, protocol, bytes_sent, bytes_received,\n                event_data, normalized_data,\n                geo_country, geo_city, asset_criticality,\n                threat_score::float8 as \"threat_score?\",\n                correlation_id, parent_event_id, sequence_number,\n                COALESCE(ingestion_time, NOW()) as \"ingestion_time!\",\n                COALESCE(processed, false) as \"processed!\",\n                anomaly_score::float8 as \"anomaly_score?\"\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n            ORDER BY timestamp DESC\n            LIMIT $2\n            ",
   "describe": {
     "columns": [
       {
@@ -150,8 +150,8 @@
       },
       {
         "ordinal": 29,
-        "name": "threat_score",
-        "type_info": "Numeric"
+        "name": "threat_score?",
+        "type_info": "Float8"
       },
       {
         "ordinal": 30,
@@ -170,18 +170,18 @@
       },
       {
         "ordinal": 33,
-        "name": "ingestion_time",
+        "name": "ingestion_time!",
         "type_info": "Timestamptz"
       },
       {
         "ordinal": 34,
-        "name": "processed",
+        "name": "processed!",
         "type_info": "Bool"
       },
       {
         "ordinal": 35,
-        "name": "anomaly_score",
-        "type_info": "Numeric"
+        "name": "anomaly_score?",
+        "type_info": "Float8"
       }
     ],
     "parameters": {
@@ -220,14 +220,14 @@
       true,
       true,
       true,
+      null,
       true,
       true,
       true,
-      true,
-      true,
-      true,
-      true
+      null,
+      null,
+      null
     ]
   },
-  "hash": "7a5a2c0d907d2df9652c8a23db99499247f2451d39816a65bc9dd6192bd460b6"
+  "hash": "1147f4da0368709bea97960cb1b5797e357b7c90dc124cd3811edcf8f787d1f5"
 }

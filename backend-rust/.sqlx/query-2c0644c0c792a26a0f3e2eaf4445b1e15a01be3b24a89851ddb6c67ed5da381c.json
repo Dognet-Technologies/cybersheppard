@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                AVG(hourly_connections)::FLOAT8 as mean,\n                STDDEV(hourly_connections)::FLOAT8 as stddev\n            FROM (\n                SELECT\n                    date_trunc('hour', timestamp) as hour,\n                    COUNT(*) as hourly_connections\n                FROM security_events\n                WHERE source_host = $1\n                  AND event_category = 'network'\n                  AND timestamp > NOW() - INTERVAL '1 day' * $2\n                GROUP BY hour\n            ) hourly_stats\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mean",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 1,
+        "name": "stddev",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "2c0644c0c792a26a0f3e2eaf4445b1e15a01be3b24a89851ddb6c67ed5da381c"
+}

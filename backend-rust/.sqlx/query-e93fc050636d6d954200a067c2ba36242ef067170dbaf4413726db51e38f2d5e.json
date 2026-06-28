@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                AVG(cmd_count)::FLOAT8 as mean,\n                STDDEV(cmd_count)::FLOAT8 as stddev\n            FROM (\n                SELECT COUNT(*) as cmd_count\n                FROM security_events\n                WHERE user_name = $1\n                  AND process_cmdline IS NOT NULL\n                  AND timestamp > NOW() - INTERVAL '1 day' * $2\n                GROUP BY date_trunc('hour', timestamp)\n            ) hourly_stats\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mean",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 1,
+        "name": "stddev",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "e93fc050636d6d954200a067c2ba36242ef067170dbaf4413726db51e38f2d5e"
+}
