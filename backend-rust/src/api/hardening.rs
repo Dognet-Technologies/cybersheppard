@@ -17,6 +17,7 @@ use sqlx::Row;
 use crate::AppState;
 use crate::models::{HardeningTemplate, HardeningExecution};
 use crate::middleware::auth::AuthUser;
+use crate::middleware::permissions::ManagerUser;
 
 pub fn routes() -> Router<crate::AppState> {
     Router::new()
@@ -299,6 +300,7 @@ async fn get_model(
 /// Apply hardening model to target
 async fn apply_hardening(
     State(state): State<AppState>,
+    _manager: ManagerUser,
     Json(payload): Json<ApplyHardeningRequest>,
 ) -> impl IntoResponse {
     // Get target SSH info
@@ -450,6 +452,7 @@ async fn hardening_history(
 /// Rollback hardening changes
 async fn rollback_hardening(
     State(state): State<AppState>,
+    _manager: ManagerUser,
     Json(payload): Json<RollbackRequest>,
 ) -> impl IntoResponse {
     // Get target SSH info
@@ -541,6 +544,7 @@ async fn list_backups(
 /// Test SSH connection to target
 async fn test_ssh_connection(
     State(state): State<AppState>,
+    _manager: ManagerUser,
     Json(payload): Json<TestConnectionRequest>,
 ) -> impl IntoResponse {
     // Get target SSH info
@@ -743,7 +747,7 @@ async fn get_template(
 /// Execute a hardening template on one or more targets
 async fn execute_template(
     State(state): State<AppState>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
     Json(payload): Json<ExecuteTemplateRequest>,
 ) -> impl IntoResponse {
     // Validate execution mode
@@ -975,7 +979,7 @@ async fn get_execution(
 async fn rollback_execution(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
 ) -> impl IntoResponse {
     // Get the execution
     let execution = match sqlx::query_as::<_, HardeningExecution>(

@@ -3,9 +3,12 @@
 // ============================================================================
 
 use axum::{
-    http::StatusCode,
-    extract::State,
+    async_trait,
+    extract::FromRequestParts,
+    http::{request::Parts, StatusCode},
+    Json,
 };
+use serde_json::json;
 use crate::middleware::auth::AuthUser;
 
 /// User roles in the system
@@ -112,27 +115,57 @@ impl Permissions {
     }
 }
 
-/// Middleware to require admin role
-pub fn require_admin(user: AuthUser) -> Result<AuthUser, StatusCode> {
-    if Permissions::is_admin(&user) {
-        Ok(user)
-    } else {
-        Err(StatusCode::FORBIDDEN)
+// ============================================================================
+// Role-gated extractors
+// ============================================================================
+// Questi estrattori applicano l'autorizzazione in modo DICHIARATIVO: basta
+// usarli nella firma di un handler (es. `AdminUser(user): AdminUser`) perché
+// la route richieda quel ruolo. Se il ruolo non è sufficiente, l'handler non
+// viene mai eseguito e si risponde 403. Riutilizzano l'estrazione di AuthUser
+// (popolato da auth_middleware), quindi l'assenza di autenticazione dà 401.
+
+fn forbidden(msg: &str) -> (StatusCode, Json<serde_json::Value>) {
+    (StatusCode::FORBIDDEN, Json(json!({ "error": msg })))
+}
+
+/// Estrattore che richiede ruolo `admin`.
+pub struct AdminUser(pub AuthUser);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for AdminUser
+where
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, Json<serde_json::Value>);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let user = AuthUser::from_request_parts(parts, state).await?;
+        if Permissions::is_admin(&user) {
+            Ok(AdminUser(user))
+        } else {
+            Err(forbidden("Admin access required"))
+        }
     }
 }
 
-/// Middleware to require admin or team leader role
-pub fn require_admin_or_team_leader(user: AuthUser) -> Result<AuthUser, StatusCode> {
-    if Permissions::is_admin_or_team_leader(&user) {
-        Ok(user)
-    } else {
-        Err(StatusCode::FORBIDDEN)
-    }
-}
+/// Estrattore che richiede ruolo `admin` oppure `teamLeader`.
+pub struct ManagerUser(pub AuthUser);
 
-/// Middleware to require any authenticated user
-pub fn require_authenticated(user: AuthUser) -> Result<AuthUser, StatusCode> {
-    Ok(user)
+#[async_trait]
+impl<S> FromRequestParts<S> for ManagerUser
+where
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, Json<serde_json::Value>);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let user = AuthUser::from_request_parts(parts, state).await?;
+        if Permissions::is_admin_or_team_leader(&user) {
+            Ok(ManagerUser(user))
+        } else {
+            Err(forbidden("Admin or team leader access required"))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -195,5 +228,53 @@ mod tests {
         assert!(!Permissions::can_configure_plugins(&user));
         assert!(Permissions::can_view_plugins(&user));
         assert!(Permissions::can_execute_scans(&user));
+    }
+
+    // ------------------------------------------------------------------
+    // Estrattori role-gated: provano l'autorizzazione effettiva (200 vs 403)
+    // ------------------------------------------------------------------
+
+    fn parts_with_role(role: &str) -> axum::http::request::Parts {
+        let mut req = axum::http::Request::builder().body(()).unwrap();
+        req.extensions_mut().insert(AuthUser {
+            user_id: 1,
+            username: "u".to_string(),
+            role: role.to_string(),
+        });
+        req.into_parts().0
+    }
+
+    #[tokio::test]
+    async fn admin_extractor_allows_admin_only() {
+        let mut p = parts_with_role("admin");
+        assert!(AdminUser::from_request_parts(&mut p, &()).await.is_ok());
+
+        for role in ["teamLeader", "user"] {
+            let mut p = parts_with_role(role);
+            assert!(
+                AdminUser::from_request_parts(&mut p, &()).await.is_err(),
+                "role {role} must NOT pass AdminUser"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn manager_extractor_allows_admin_and_team_leader() {
+        for role in ["admin", "teamLeader"] {
+            let mut p = parts_with_role(role);
+            assert!(
+                ManagerUser::from_request_parts(&mut p, &()).await.is_ok(),
+                "role {role} must pass ManagerUser"
+            );
+        }
+        let mut p = parts_with_role("user");
+        assert!(ManagerUser::from_request_parts(&mut p, &()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn extractor_rejects_unauthenticated() {
+        // Parts senza AuthUser nelle extensions => 401 (via AuthUser).
+        let mut parts = axum::http::Request::builder().body(()).unwrap().into_parts().0;
+        assert!(AdminUser::from_request_parts(&mut parts, &()).await.is_err());
     }
 }

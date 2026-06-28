@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::middleware::auth::AuthUser;
+use crate::middleware::permissions::{AdminUser, ManagerUser};
 use crate::services::settings_manager::SettingsManager;
 use crate::AppState;
 
@@ -90,7 +91,7 @@ pub struct GetSystemSettingsQuery {
 async fn get_system_settings(
     State(state): State<AppState>,
     Query(params): Query<GetSystemSettingsQuery>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = SettingsManager::new(state.pg_pool.clone());
 
@@ -110,7 +111,7 @@ async fn get_system_settings(
 async fn update_system_setting(
     State(state): State<AppState>,
     Path(key): Path<String>,
-    auth_user: AuthUser,
+    AdminUser(auth_user): AdminUser,
     Json(payload): Json<UpdateSettingRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = SettingsManager::new(state.pg_pool.clone());
@@ -185,7 +186,7 @@ async fn set_user_setting(
 async fn list_api_keys(
     State(state): State<AppState>,
     Query(params): Query<ListApiKeysQuery>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = SettingsManager::new(state.pg_pool.clone());
 
@@ -240,7 +241,7 @@ async fn generate_api_key(
 async fn revoke_api_key(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    auth_user: AuthUser,
+    ManagerUser(auth_user): ManagerUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = SettingsManager::new(state.pg_pool.clone());
 
@@ -308,7 +309,7 @@ fn validate_integration_url(url: &str) -> Result<reqwest::Url, String> {
 
 async fn test_connection(
     State(_state): State<AppState>,
-    _auth_user: AuthUser,
+    _admin: AdminUser,
     Json(payload): Json<TestConnectionRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     // Validate the URL before making any request (CWE-918 SSRF prevention)
@@ -438,7 +439,7 @@ async fn change_password(
 
 async fn cleanup_old_data(
     State(state): State<AppState>,
-    auth_user: AuthUser,
+    AdminUser(auth_user): AdminUser,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = SettingsManager::new(state.pg_pool.clone());
 
@@ -485,7 +486,7 @@ async fn cleanup_old_data(
 
 async fn reset_database(
     State(state): State<AppState>,
-    auth_user: AuthUser,
+    AdminUser(auth_user): AdminUser,
     Json(payload): Json<ResetDatabaseRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let manager = SettingsManager::new(state.pg_pool.clone());
