@@ -83,7 +83,7 @@ async fn add_repository(
     }
 
     // Only admins can add official repositories
-    if payload.trust_level == "official" && auth_user.role != Some("admin".to_string()) {
+    if payload.trust_level == "official" && auth_user.role != "admin" {
         return Err((
             StatusCode::FORBIDDEN,
             Json(json!({"error": "Only administrators can add official repositories"})),

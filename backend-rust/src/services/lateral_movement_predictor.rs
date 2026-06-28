@@ -10,6 +10,8 @@ use std::collections::{HashMap, HashSet};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
+use crate::utils::{BigDecimalExt, ToBigDecimal};
+
 /// Markov Chain state transition matrix for lateral movement prediction
 #[derive(Debug, Clone)]
 pub struct MarkovChain {
@@ -60,7 +62,7 @@ impl MarkovChain {
             GROUP BY from_host, to_host
             ORDER BY transition_count DESC
             "#,
-            days
+            days as f64
         )
         .fetch_all(db)
         .await?;
@@ -290,7 +292,7 @@ impl LateralMovementPredictor {
                 h.asset_criticality,
                 h.is_server,
                 h.expected_services,
-                t.ip_address
+                t.ip_address as "ip_address?"
             FROM host_behavior_baselines h
             LEFT JOIN targets t ON t.hostname = h.host_name OR t.ip_address::TEXT = h.host_name
             WHERE h.host_name = $1
@@ -304,10 +306,10 @@ impl LateralMovementPredictor {
         if let Some(row) = row {
             Ok(HostInfo {
                 host_name: row.host_name,
-                ip: row.ip_address,
-                criticality: row.asset_criticality,
-                is_server: row.is_server,
-                typical_services: row.expected_services,
+                ip: row.ip_address.map(|n| n.ip().to_string()),
+                criticality: row.asset_criticality.unwrap_or(5),
+                is_server: row.is_server.unwrap_or(false),
+                typical_services: row.expected_services.unwrap_or_default(),
             })
         } else {
             // Default if not found
@@ -343,7 +345,7 @@ impl LateralMovementPredictor {
         .fetch_one(&self.db)
         .await?;
 
-        Ok(row.avg_minutes.unwrap_or(30.0) as i32)
+        Ok(row.avg_minutes.map(|d| d.to_f64()).unwrap_or(30.0) as i32)
     }
 
     /// Generate reasoning text
@@ -444,7 +446,7 @@ impl LateralMovementPredictor {
             predictions_json,
             "markov_chain",
             "1.0",
-            if targets.is_empty() { 0.0 } else { targets[0].probability },
+            (if targets.is_empty() { 0.0 } else { targets[0].probability }).to_bigdecimal(),
             "active",
             Utc::now() + Duration::hours(24)
         )

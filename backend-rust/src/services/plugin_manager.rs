@@ -165,9 +165,8 @@ impl PluginManager {
         .bind(branch)
         .bind(trust_level)
         .bind(user_id)
-        .execute(&self.pg_pool)
-        .await
-        .map(|r| r.last_insert_id() as i32)?;
+        .fetch_one(&self.pg_pool)
+        .await?;
 
         Ok(repo_id)
     }

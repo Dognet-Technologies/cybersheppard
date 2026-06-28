@@ -9,6 +9,8 @@ use std::collections::{HashMap, HashSet};
 use tracing::{debug, info};
 use uuid::Uuid;
 
+use crate::utils::{BigDecimalExt, ToBigDecimal};
+
 /// Bayesian Network node representing an event type or condition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BayesianNode {
@@ -581,7 +583,7 @@ impl BayesianNetworkService {
                 event_type: row.event_type,
                 event_category: row.event_category,
                 severity: row.severity,
-                anomaly_score: row.anomaly_score.unwrap_or(0.0),
+                anomaly_score: row.anomaly_score.to_f64(),
             })
             .collect();
 
@@ -606,7 +608,7 @@ impl BayesianNetworkService {
             result.correlation_id,
             stages_json,
             next_stages_json,
-            result.confidence,
+            result.confidence.to_bigdecimal(),
             result.causal_explanation
         )
         .execute(&self.db)

@@ -189,7 +189,7 @@ async fn update_event_status(
     sqlx::query!(
         r#"
         UPDATE auditd_events
-        SET status = $1,
+        SET status = $1::TEXT,
             resolution_notes = COALESCE($2, resolution_notes),
             resolved_at = CASE WHEN $1::TEXT = 'resolved' THEN NOW() ELSE resolved_at END
         WHERE id = $3
@@ -285,7 +285,7 @@ async fn get_stats(
     .map(|rows| {
         serde_json::json!(
             rows.iter()
-                .map(|r| (r.status.as_str(), r.count.unwrap()))
+                .map(|r| (r.status.as_deref().unwrap_or(""), r.count.unwrap()))
                 .collect::<Vec<_>>()
         )
     })

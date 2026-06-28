@@ -382,7 +382,7 @@ pub async fn get_dashboard_metrics(
         WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
         GROUP BY severity
         "#,
-        params.hours
+        params.hours as f64
     )
     .fetch_all(&*db)
     .await;
