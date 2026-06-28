@@ -4,10 +4,13 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use ipnetwork::IpNetwork;
 use serde_json::json;
 use sqlx::PgPool;
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
+
+use crate::utils::{BigDecimalExt, ToBigDecimal};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -98,8 +101,8 @@ impl CorrelationEngine {
             GROUP BY user_name, source_host, source_ip
             HAVING COUNT(*) >= $2
             "#,
-            hours,
-            self.failed_login_threshold
+            hours as f64,
+            self.failed_login_threshold as i64
         )
         .fetch_all(&self.db)
         .await?;
@@ -120,7 +123,7 @@ impl CorrelationEngine {
             };
 
             let user_name = row.user_name.unwrap_or_else(|| "unknown".to_string());
-            let source_ip_str = row.source_ip.map(|ip: IpAddr| ip.to_string());
+            let source_ip_str = row.source_ip.map(|ip| ip.ip().to_string());
 
             let correlation = EventCorrelation {
                 id: Uuid::new_v4(),
@@ -146,7 +149,7 @@ impl CorrelationEngine {
                 event_count: failed_count as i32,
                 involved_users: vec![user_name.clone()],
                 involved_hosts: vec![row.source_host.clone()],
-                involved_ips: row.source_ip.into_iter().collect(),
+                involved_ips: row.source_ip.map(|ip| ip.ip()).into_iter().collect(),
                 involved_processes: vec![],
                 statistical_significance: None,
                 anomaly_score: Some(risk_score),
@@ -218,7 +221,7 @@ impl CorrelationEngine {
             ORDER BY sequence_count DESC
             LIMIT 50
             "#,
-            hours
+            hours as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -227,7 +230,9 @@ impl CorrelationEngine {
 
         for row in rows {
             let user_name = row.user_name.unwrap_or_else(|| "unknown".to_string());
-            let time_diff = row.time_diff_minutes.unwrap_or(0.0);
+            let time_diff = row.time_diff_minutes.to_f64();
+            let host1 = row.host1.clone();
+            let host2 = row.host2.clone();
 
             // Suspicious if lateral movement is very quick (< 5 minutes)
             let is_suspicious = time_diff < 5.0;
@@ -247,23 +252,17 @@ impl CorrelationEngine {
                 pattern_name: Some("Lateral Movement Detected".to_string()),
                 pattern_description: Some(format!(
                     "User '{}' moved from {} to {} in {:.1} minutes",
-                    user_name,
-                    row.host1.as_ref().unwrap_or(&"unknown".to_string()),
-                    row.host2.as_ref().unwrap_or(&"unknown".to_string()),
-                    time_diff
+                    user_name, host1, host2, time_diff
                 )),
                 confidence,
                 severity,
                 risk_score: Some(if is_suspicious { 85.0 } else { 60.0 }),
-                first_event_time: row.first_time.unwrap(),
-                last_event_time: row.second_time.unwrap(),
+                first_event_time: row.first_time,
+                last_event_time: row.second_time,
                 time_window_seconds: Some((time_diff * 60.0) as i32),
                 event_count: row.sequence_count.unwrap_or(0) as i32,
                 involved_users: vec![user_name.clone()],
-                involved_hosts: vec![
-                    row.host1.unwrap_or_else(|| "unknown".to_string()),
-                    row.host2.unwrap_or_else(|| "unknown".to_string()),
-                ],
+                involved_hosts: vec![host1, host2],
                 involved_ips: vec![],
                 involved_processes: vec![],
                 statistical_significance: None,
@@ -320,7 +319,7 @@ impl CorrelationEngine {
             GROUP BY user_name, source_host
             HAVING COUNT(*) >= 3
             "#,
-            hours
+            hours as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -410,7 +409,7 @@ impl CorrelationEngine {
             GROUP BY user_name, source_host, destination_ip
             HAVING SUM(bytes_sent) > 10000000  -- > 10MB total
             "#,
-            hours
+            hours as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -418,7 +417,7 @@ impl CorrelationEngine {
         let mut correlations = Vec::new();
 
         for row in rows {
-            let total_mb = row.total_bytes.unwrap_or(0) as f64 / 1_000_000.0;
+            let total_mb = row.total_bytes.to_f64() / 1_000_000.0;
             let confidence = if total_mb > 100.0 { 0.80 } else { 0.60 };
             let risk_score = (total_mb / 10.0).min(100.0);
 
@@ -430,7 +429,7 @@ impl CorrelationEngine {
                 Severity::Medium
             };
 
-            let dest_ip = row.destination_ip.map(|ip: IpAddr| ip.to_string());
+            let dest_ip = row.destination_ip.map(|ip| ip.ip().to_string());
 
             let correlation = EventCorrelation {
                 id: Uuid::new_v4(),
@@ -458,7 +457,7 @@ impl CorrelationEngine {
                     .map(|u| vec![u])
                     .unwrap_or_default(),
                 involved_hosts: vec![row.source_host.clone()],
-                involved_ips: row.destination_ip.into_iter().collect(),
+                involved_ips: row.destination_ip.map(|ip| ip.ip()).into_iter().collect(),
                 involved_processes: vec![],
                 statistical_significance: None,
                 anomaly_score: Some(risk_score),
@@ -503,7 +502,7 @@ impl CorrelationEngine {
             GROUP BY source_host, user_name
             HAVING COUNT(*) >= 5 AND AVG(anomaly_score) > 60
             "#,
-            hours
+            hours as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -511,7 +510,7 @@ impl CorrelationEngine {
         let mut correlations = Vec::new();
 
         for row in rows {
-            let avg_anomaly = row.avg_anomaly.unwrap_or(0.0);
+            let avg_anomaly = row.avg_anomaly.to_f64();
             let confidence = (avg_anomaly / 100.0).min(1.0);
 
             let severity = if avg_anomaly > 80.0 {
@@ -602,21 +601,21 @@ impl CorrelationEngine {
             correlation.correlation_type.to_string(),
             correlation.pattern_name,
             correlation.pattern_description,
-            correlation.confidence,
+            correlation.confidence.to_bigdecimal(),
             correlation.severity.to_string(),
-            correlation.risk_score,
+            correlation.risk_score.map(|v| v.to_bigdecimal()),
             correlation.first_event_time,
             correlation.last_event_time,
             correlation.time_window_seconds,
             correlation.event_count,
             &correlation.involved_users,
             &correlation.involved_hosts,
-            &correlation.involved_ips.iter().map(|ip| ip.to_string()).collect::<Vec<_>>(),
+            &correlation.involved_ips.iter().map(|ip| IpNetwork::from(*ip)).collect::<Vec<IpNetwork>>(),
             &correlation.involved_processes,
-            correlation.statistical_significance,
-            correlation.anomaly_score,
-            correlation.z_score,
-            correlation.baseline_deviation_percent,
+            correlation.statistical_significance.map(|v| v.to_bigdecimal()),
+            correlation.anomaly_score.map(|v| v.to_bigdecimal()),
+            correlation.z_score.map(|v| v.to_bigdecimal()),
+            correlation.baseline_deviation_percent.map(|v| v.to_bigdecimal()),
             correlation.correlation_data,
             correlation.attack_stage.as_ref().map(|s| s.to_string()),
             correlation.status.to_string()
@@ -679,30 +678,34 @@ impl CorrelationEngine {
                     correlation_type: serde_json::from_str(&format!("\"{}\"", row.correlation_type))?,
                     pattern_name: row.pattern_name,
                     pattern_description: row.pattern_description,
-                    confidence: row.confidence,
+                    confidence: row.confidence.to_f64(),
                     severity: serde_json::from_str(&format!("\"{}\"", row.severity))?,
-                    risk_score: row.risk_score,
+                    risk_score: row.risk_score.map(|d| d.to_f64()),
                     first_event_time: row.first_event_time,
                     last_event_time: row.last_event_time,
                     time_window_seconds: row.time_window_seconds,
                     event_count: row.event_count,
-                    involved_users: row.involved_users,
-                    involved_hosts: row.involved_hosts,
+                    involved_users: row.involved_users.unwrap_or_default(),
+                    involved_hosts: row.involved_hosts.unwrap_or_default(),
                     involved_ips: row
                         .involved_ips
+                        .unwrap_or_default()
                         .into_iter()
-                        .filter_map(|s| s.parse::<IpAddr>().ok())
+                        .map(|n| n.ip())
                         .collect(),
-                    involved_processes: row.involved_processes,
-                    statistical_significance: row.statistical_significance,
-                    anomaly_score: row.anomaly_score,
-                    z_score: row.z_score,
-                    baseline_deviation_percent: row.baseline_deviation_percent,
+                    involved_processes: row.involved_processes.unwrap_or_default(),
+                    statistical_significance: row.statistical_significance.map(|d| d.to_f64()),
+                    anomaly_score: row.anomaly_score.map(|d| d.to_f64()),
+                    z_score: row.z_score.map(|d| d.to_f64()),
+                    baseline_deviation_percent: row.baseline_deviation_percent.map(|d| d.to_f64()),
                     correlation_data: row.correlation_data,
                     attack_stage: row
                         .attack_stage
                         .and_then(|s| serde_json::from_str(&format!("\"{}\"", s)).ok()),
-                    status: serde_json::from_str(&format!("\"{}\"", row.status))?,
+                    status: serde_json::from_str(&format!(
+                        "\"{}\"",
+                        row.status.as_deref().unwrap_or("active")
+                    ))?,
                     resolved_at: row.resolved_at,
                     resolution_notes: row.resolution_notes,
                     assigned_to: row.assigned_to,
