@@ -74,6 +74,29 @@ pub struct InstalledPlugin {
     pub total_events_processed: i64,
 }
 
+/// Riga della vista `available_plugins` (catalogo + flag is_installed).
+/// La vista NON espone tutte le colonne di plugin_registry, quindi serve uno
+/// struct dedicato: usare PluginRegistryEntry qui causerebbe un errore FromRow.
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct AvailablePlugin {
+    pub id: i32,
+    pub plugin_name: String,
+    pub version: String,
+    pub description: Option<String>,
+    pub language: Option<String>,
+    pub quality: Option<String>,
+    pub stability_level: Option<String>,
+    pub stato: Option<String>,
+    pub license: Option<String>,
+    pub permissions: Option<serde_json::Value>,
+    pub download_url: Option<String>,
+    pub documentation_url: Option<String>,
+    pub repository_name: Option<String>,
+    pub trust_level: Option<String>,
+    pub is_official: Option<bool>,
+    pub is_installed: Option<bool>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PluginManifest {
     pub name: String,
@@ -391,8 +414,8 @@ impl PluginManager {
     // PLUGIN INSTALLATION
     // ========================================================================
 
-    pub async fn get_available_plugins(&self) -> Result<Vec<PluginRegistryEntry>, Box<dyn std::error::Error + Send + Sync>> {
-        let plugins = sqlx::query_as::<_, PluginRegistryEntry>(
+    pub async fn get_available_plugins(&self) -> Result<Vec<AvailablePlugin>, Box<dyn std::error::Error + Send + Sync>> {
+        let plugins = sqlx::query_as::<_, AvailablePlugin>(
             "SELECT * FROM available_plugins ORDER BY repository_name, plugin_name"
         )
         .fetch_all(&self.pg_pool)
@@ -402,8 +425,24 @@ impl PluginManager {
     }
 
     pub async fn get_installed_plugins(&self) -> Result<Vec<InstalledPlugin>, Box<dyn std::error::Error + Send + Sync>> {
+        // SELECT esplicito: la colonna numeric avg_execution_time_ms va castata a
+        // float8 (sqlx decodifica numeric come BigDecimal), e i contatori/flag con
+        // COALESCE per non fallire su eventuali NULL.
         let plugins = sqlx::query_as::<_, InstalledPlugin>(
-            "SELECT * FROM installed_plugins ORDER BY plugin_name"
+            r#"
+            SELECT
+                id, plugin_name, version, installed_path,
+                COALESCE(status, 'unknown') AS status,
+                COALESCE(is_enabled, false) AS is_enabled,
+                COALESCE(configuration, '{}'::jsonb) AS configuration,
+                COALESCE(execution_count, 0) AS execution_count,
+                COALESCE(error_count, 0) AS error_count,
+                COALESCE(success_count, 0) AS success_count,
+                avg_execution_time_ms::float8 AS avg_execution_time_ms,
+                COALESCE(total_events_processed, 0) AS total_events_processed
+            FROM installed_plugins
+            ORDER BY plugin_name
+            "#
         )
         .fetch_all(&self.pg_pool)
         .await?;
@@ -456,16 +495,17 @@ impl PluginManager {
         &self,
         plugin_id: i32,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Get plugin path
-        let plugin = sqlx::query_as::<_, InstalledPlugin>(
-            "SELECT * FROM installed_plugins WHERE id = $1"
+        // Recupera solo il path: SELECT * su InstalledPlugin fallirebbe sul
+        // campo numeric avg_execution_time_ms, e qui serve solo installed_path.
+        let installed_path = sqlx::query_scalar::<_, Option<String>>(
+            "SELECT installed_path FROM installed_plugins WHERE id = $1"
         )
         .bind(plugin_id)
         .fetch_one(&self.pg_pool)
         .await?;
 
         // Delete files if path exists
-        if let Some(path) = plugin.installed_path {
+        if let Some(path) = installed_path {
             let _ = std::fs::remove_dir_all(&path);
         }
 
