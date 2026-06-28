@@ -631,7 +631,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to auto-update compliance status
-CREATE TRIGGER trigger_update_compliance_status
+CREATE OR REPLACE TRIGGER trigger_update_compliance_status
     AFTER INSERT OR UPDATE ON target_control_status
     FOR EACH ROW
     EXECUTE FUNCTION update_target_compliance_status();
@@ -694,27 +694,27 @@ $$ LANGUAGE plpgsql;
 -- Update triggers
 -- ============================================================================
 
-CREATE TRIGGER update_controls_updated_at
+CREATE OR REPLACE TRIGGER update_controls_updated_at
     BEFORE UPDATE ON compliance_controls
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_templates_updated_at
+CREATE OR REPLACE TRIGGER update_templates_updated_at
     BEFORE UPDATE ON hardening_templates
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_target_compliance_updated_at
+CREATE OR REPLACE TRIGGER update_target_compliance_updated_at
     BEFORE UPDATE ON target_compliance_status
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_target_control_updated_at
+CREATE OR REPLACE TRIGGER update_target_control_updated_at
     BEFORE UPDATE ON target_control_status
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_violations_updated_at
+CREATE OR REPLACE TRIGGER update_violations_updated_at
     BEFORE UPDATE ON compliance_violations
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

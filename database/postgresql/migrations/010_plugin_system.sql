@@ -297,12 +297,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER plugin_repositories_updated
+CREATE OR REPLACE TRIGGER plugin_repositories_updated
     BEFORE UPDATE ON plugin_repositories
     FOR EACH ROW
     EXECUTE FUNCTION update_plugin_timestamp();
 
-CREATE TRIGGER installed_plugins_updated
+CREATE OR REPLACE TRIGGER installed_plugins_updated
     BEFORE UPDATE ON installed_plugins
     FOR EACH ROW
     EXECUTE FUNCTION update_plugin_timestamp();
@@ -352,7 +352,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER plugin_execution_stats
+CREATE OR REPLACE TRIGGER plugin_execution_stats
     AFTER UPDATE ON plugin_executions
     FOR EACH ROW
     EXECUTE FUNCTION update_plugin_stats();

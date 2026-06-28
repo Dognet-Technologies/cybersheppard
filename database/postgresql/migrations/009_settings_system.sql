@@ -2,6 +2,17 @@
 -- CYBERSHEPPARD - Settings & System Configuration
 -- ============================================================================
 
+-- Questa migrazione è la definizione AUTORITATIVA delle tabelle di settings.
+-- Le migrazioni precedenti (001, 004) hanno creato versioni superate con uno
+-- schema diverso (colonna `key` invece di `setting_key`, `api_keys` senza
+-- `service`). Il codice applicativo (settings_manager.rs) usa lo schema definito
+-- qui, quindi rimuoviamo le vecchie definizioni e le ricreiamo. Nessuna FK
+-- entrante referenzia queste tabelle, quindi CASCADE è sicuro e idempotente.
+DROP TABLE IF EXISTS user_settings CASCADE;
+DROP TABLE IF EXISTS settings_audit_log CASCADE;
+DROP TABLE IF EXISTS api_keys CASCADE;
+DROP TABLE IF EXISTS system_settings CASCADE;
+
 -- System-wide settings
 CREATE TABLE IF NOT EXISTS system_settings (
     id SERIAL PRIMARY KEY,
@@ -107,12 +118,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER system_settings_updated
+CREATE OR REPLACE TRIGGER system_settings_updated
     BEFORE UPDATE ON system_settings
     FOR EACH ROW
     EXECUTE FUNCTION update_settings_timestamp();
 
-CREATE TRIGGER user_settings_updated
+CREATE OR REPLACE TRIGGER user_settings_updated
     BEFORE UPDATE ON user_settings
     FOR EACH ROW
     EXECUTE FUNCTION update_settings_timestamp();
