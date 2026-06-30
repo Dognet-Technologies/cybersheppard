@@ -12,19 +12,37 @@ jobs:
   rust-audit:
     name: Rust Security Audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: backend-rust
+          # RUSTSEC-2023-0071: rsa Marvin Attack — no patch exists upstream.
+          # rsa enters the lockfile only via the sqlx-mysql optional feature,
+          # which is NOT enabled (we use postgres only). Not compiled or linked.
+          # RUSTSEC-2026-0097: rand unsound — requires a custom logger that calls
+          # rand::rng() during ThreadRng reseed. rand 0.8.5 is a transitive dep of
+          # sqlx-postgres, tower, and tungstenite; our code does not use the log feature
+          # with a custom rand-calling logger, so the unsound condition cannot trigger.
+          ignore: RUSTSEC-2023-0071 RUSTSEC-2026-0097
 
   rust-agent-audit:
     name: Rust Agent Security Audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: cybersheppard-agent
+          # RUSTSEC-2026-0097: rand unsound — rand 0.8.5 is a transitive dep of
+          # tungstenite v0.21. Same reasoning as backend: custom-logger condition
+          # cannot trigger. bytes 1.11.1 (RUSTSEC-2026-0007) is pinned above.
+          ignore: RUSTSEC-2026-0097

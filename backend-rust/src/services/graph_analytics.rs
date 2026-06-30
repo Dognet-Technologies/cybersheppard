@@ -59,7 +59,7 @@ impl NetworkGraph {
                 MAX(timestamp) as last_seen,
                 BOOL_OR(anomaly_score > 50) as has_anomalies
             FROM security_events
-            WHERE timestamp > NOW() - INTERVAL '1 day' * $1
+            WHERE timestamp > NOW() - INTERVAL '1 day' * $1::FLOAT8
               AND event_category = 'network'
               AND source_host IS NOT NULL
               AND destination_host IS NOT NULL
@@ -67,7 +67,7 @@ impl NetworkGraph {
             GROUP BY source_host, destination_host
             HAVING COUNT(*) >= 3
             "#,
-            days
+            days as f64
         )
         .fetch_all(db)
         .await?;
@@ -160,7 +160,7 @@ impl NetworkGraph {
 
         for row in rows {
             if let Some(node) = self.nodes.get_mut(&row.host_name) {
-                node.criticality = row.asset_criticality;
+                node.criticality = row.asset_criticality.unwrap_or(5);
             }
         }
 
@@ -212,7 +212,6 @@ impl NetworkGraph {
     /// Find all shortest paths between two nodes (BFS)
     fn find_all_shortest_paths(&self, source: &str, target: &str) -> Vec<Vec<String>> {
         let mut queue = VecDeque::new();
-        let mut visited = HashSet::new();
         let mut paths = Vec::new();
         let mut shortest_length = usize::MAX;
 
@@ -522,19 +521,19 @@ impl GraphAnalyticsService {
                     last_seen
                 )
                 SELECT
-                    $1,
-                    $1,
-                    $2,
-                    $3,
+                    $1::TEXT,
+                    $1::TEXT,
+                    $2::INT4,
+                    $3::FLOAT8,
                     NOW(),
                     NOW()
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM network_topology WHERE source_host = $1 AND destination_host = $1
+                    SELECT 1 FROM network_topology WHERE source_host = $1::TEXT AND destination_host = $1::TEXT
                 )
                 "#,
                 host_name,
                 node.connections as i32,
-                node.betweenness_centrality
+                node.betweenness_centrality as f64
             )
             .execute(&self.db)
             .await

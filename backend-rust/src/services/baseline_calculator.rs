@@ -118,7 +118,7 @@ impl BaselineCalculatorService {
                 baseline_start_date, baseline_end_date,
                 events_analyzed, last_updated
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+                $1, $2::FLOAT8, $3::FLOAT8, $4, $5, $6::FLOAT8, $7::FLOAT8, $8::FLOAT8, $9, $10, $11, $12::FLOAT8, $13::FLOAT8, $14::FLOAT8, $15::FLOAT8, $16, $17, $18, $19
             )
             ON CONFLICT (user_name) DO UPDATE SET
                 avg_logins_per_day = EXCLUDED.avg_logins_per_day,
@@ -231,7 +231,7 @@ impl BaselineCalculatorService {
                 events_analyzed, last_updated,
                 asset_criticality
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+                $1, $2, $3::FLOAT8, $4::FLOAT8, $5, $6, $7::FLOAT8, $8, $9, $10, $11, $12
             )
             ON CONFLICT (host_name) DO UPDATE SET
                 typical_processes = EXCLUDED.typical_processes,
@@ -277,7 +277,7 @@ impl BaselineCalculatorService {
             WHERE timestamp > NOW() - INTERVAL '1 day' * $1
               AND user_name IS NOT NULL
             "#,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -292,7 +292,7 @@ impl BaselineCalculatorService {
             FROM security_events
             WHERE timestamp > NOW() - INTERVAL '1 day' * $1
             "#,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -308,10 +308,10 @@ impl BaselineCalculatorService {
         let row = sqlx::query!(
             r#"
             SELECT
-                AVG(daily_logins) as mean,
-                STDDEV(daily_logins) as stddev,
-                MIN(daily_logins) as min,
-                MAX(daily_logins) as max,
+                AVG(daily_logins)::FLOAT8 as mean,
+                STDDEV(daily_logins)::FLOAT8 as stddev,
+                MIN(daily_logins)::FLOAT8 as min,
+                MAX(daily_logins)::FLOAT8 as max,
                 COUNT(*) as count
             FROM (
                 SELECT
@@ -325,7 +325,7 @@ impl BaselineCalculatorService {
             ) daily_stats
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -355,7 +355,7 @@ impl BaselineCalculatorService {
             ORDER BY hour
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -377,7 +377,7 @@ impl BaselineCalculatorService {
             LIMIT 20
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -411,8 +411,8 @@ impl BaselineCalculatorService {
         let row = sqlx::query!(
             r#"
             SELECT
-                AVG(cmd_count) as mean,
-                STDDEV(cmd_count) as stddev
+                AVG(cmd_count)::FLOAT8 as mean,
+                STDDEV(cmd_count)::FLOAT8 as stddev
             FROM (
                 SELECT COUNT(*) as cmd_count
                 FROM security_events
@@ -423,7 +423,7 @@ impl BaselineCalculatorService {
             ) hourly_stats
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -458,7 +458,7 @@ impl BaselineCalculatorService {
             LIMIT $3
             "#,
             user_name,
-            days,
+            days as f64,
             limit
         )
         .fetch_all(&self.db)
@@ -485,7 +485,7 @@ impl BaselineCalculatorService {
             LIMIT $3
             "#,
             user_name,
-            days,
+            days as f64,
             limit
         )
         .fetch_all(&self.db)
@@ -511,8 +511,8 @@ impl BaselineCalculatorService {
         let row = sqlx::query!(
             r#"
             SELECT
-                AVG(daily_connections) as mean,
-                STDDEV(daily_connections) as stddev
+                AVG(daily_connections)::FLOAT8 as mean,
+                STDDEV(daily_connections)::FLOAT8 as stddev
             FROM (
                 SELECT
                     date_trunc('day', timestamp) as day,
@@ -525,7 +525,7 @@ impl BaselineCalculatorService {
             ) daily_stats
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -560,7 +560,7 @@ impl BaselineCalculatorService {
             LIMIT $3
             "#,
             host_name,
-            days,
+            days as f64,
             limit
         )
         .fetch_all(&self.db)
@@ -577,8 +577,8 @@ impl BaselineCalculatorService {
         let row = sqlx::query!(
             r#"
             SELECT
-                AVG(hourly_connections) as mean,
-                STDDEV(hourly_connections) as stddev
+                AVG(hourly_connections)::FLOAT8 as mean,
+                STDDEV(hourly_connections)::FLOAT8 as stddev
             FROM (
                 SELECT
                     date_trunc('hour', timestamp) as hour,
@@ -591,7 +591,7 @@ impl BaselineCalculatorService {
             ) hourly_stats
             "#,
             host_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -620,7 +620,7 @@ impl BaselineCalculatorService {
             LIMIT 50
             "#,
             host_name,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -641,7 +641,7 @@ impl BaselineCalculatorService {
             LIMIT 20
             "#,
             host_name,
-            days
+            days as f64
         )
         .fetch_all(&self.db)
         .await?;
@@ -658,7 +658,7 @@ impl BaselineCalculatorService {
               AND timestamp > NOW() - INTERVAL '1 day' * $2
             "#,
             user_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;
@@ -675,7 +675,7 @@ impl BaselineCalculatorService {
               AND timestamp > NOW() - INTERVAL '1 day' * $2
             "#,
             host_name,
-            days
+            days as f64
         )
         .fetch_one(&self.db)
         .await?;

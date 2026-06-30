@@ -11,9 +11,8 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
-use std::sync::Arc;
 
+use crate::AppState;
 use crate::security_event::{EventCorrelation, SecurityEvent};
 use crate::services::{
     anomaly_detection::AnomalyDetectionService,
@@ -73,10 +72,10 @@ impl<T> ApiResponse<T> {
 
 /// GET /api/events - Get recent security events
 pub async fn get_events(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<Vec<SecurityEvent>>>, StatusCode> {
-    let collector = EventCollectorService::new((*db).clone(), String::new());
+    let collector = EventCollectorService::new(state.pg_pool.clone(), String::new());
 
     match collector.get_recent_events(params.hours, params.limit).await {
         Ok(events) => Ok(Json(ApiResponse::success(events))),
@@ -89,10 +88,10 @@ pub async fn get_events(
 
 /// GET /api/events/stats - Get event statistics
 pub async fn get_event_stats(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let collector = EventCollectorService::new((*db).clone(), String::new());
+    let collector = EventCollectorService::new(state.pg_pool.clone(), String::new());
 
     match collector.get_severity_stats(params.hours).await {
         Ok(stats) => {
@@ -111,10 +110,10 @@ pub async fn get_event_stats(
 
 /// GET /api/correlations - Get active correlations
 pub async fn get_correlations(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<Vec<EventCorrelation>>>, StatusCode> {
-    let engine = CorrelationEngine::new((*db).clone());
+    let engine = CorrelationEngine::new(state.pg_pool.clone());
 
     match engine.get_active_correlations(params.limit).await {
         Ok(correlations) => Ok(Json(ApiResponse::success(correlations))),
@@ -127,9 +126,9 @@ pub async fn get_correlations(
 
 /// GET /api/correlations/stats - Get correlation statistics
 pub async fn get_correlation_stats(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let engine = CorrelationEngine::new((*db).clone());
+    let engine = CorrelationEngine::new(state.pg_pool.clone());
 
     match engine.get_correlation_stats().await {
         Ok(stats) => {
@@ -153,10 +152,10 @@ pub struct AnalyzeRequest {
 }
 
 pub async fn analyze_correlations(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Json(req): Json<AnalyzeRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let engine = CorrelationEngine::new((*db).clone());
+    let engine = CorrelationEngine::new(state.pg_pool.clone());
 
     match engine.analyze_correlations(req.hours).await {
         Ok(correlations) => {
@@ -186,10 +185,10 @@ fn default_baseline_days() -> i32 {
 }
 
 pub async fn calculate_baselines(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Json(req): Json<CalculateBaselinesRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let calculator = BaselineCalculatorService::new((*db).clone());
+    let calculator = BaselineCalculatorService::new(state.pg_pool.clone());
 
     match calculator.calculate_all_baselines(req.days).await {
         Ok(_) => {
@@ -208,10 +207,10 @@ pub async fn calculate_baselines(
 
 /// POST /api/anomalies/detect - Detect anomalies
 pub async fn detect_anomalies(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
-    let detector = AnomalyDetectionService::new((*db).clone());
+    let detector = AnomalyDetectionService::new(state.pg_pool.clone());
 
     match detector.analyze_recent_events(params.hours).await {
         Ok(anomalies) => {
@@ -231,7 +230,7 @@ pub async fn detect_anomalies(
 
 /// GET /api/hosts/:host_name/risk - Get host risk score
 pub async fn get_host_risk(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Path(host_name): Path<String>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
     let row = sqlx::query!(
@@ -258,7 +257,7 @@ pub async fn get_host_risk(
         "#,
         host_name
     )
-    .fetch_optional(&*db)
+    .fetch_optional(&state.pg_pool)
     .await;
 
     match row {
@@ -301,7 +300,7 @@ pub async fn get_host_risk(
 
 /// GET /api/alerts/active - Get active high-risk alerts
 pub async fn get_active_alerts(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
     let rows = sqlx::query!(
@@ -329,7 +328,7 @@ pub async fn get_active_alerts(
         "#,
         params.limit
     )
-    .fetch_all(&*db)
+    .fetch_all(&state.pg_pool)
     .await;
 
     match rows {
@@ -371,7 +370,7 @@ pub async fn get_active_alerts(
 
 /// GET /api/dashboard/metrics - Get dashboard metrics
 pub async fn get_dashboard_metrics(
-    State(db): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
     // Event count by severity
@@ -382,9 +381,9 @@ pub async fn get_dashboard_metrics(
         WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
         GROUP BY severity
         "#,
-        params.hours
+        params.hours as f64
     )
-    .fetch_all(&*db)
+    .fetch_all(&state.pg_pool)
     .await;
 
     // Correlation stats
@@ -396,7 +395,7 @@ pub async fn get_dashboard_metrics(
         GROUP BY correlation_type
         "#
     )
-    .fetch_all(&*db)
+    .fetch_all(&state.pg_pool)
     .await;
 
     // High-risk hosts
@@ -409,7 +408,7 @@ pub async fn get_dashboard_metrics(
         LIMIT 10
         "#
     )
-    .fetch_all(&*db)
+    .fetch_all(&state.pg_pool)
     .await;
 
     match (event_stats, correlation_stats, high_risk_hosts) {

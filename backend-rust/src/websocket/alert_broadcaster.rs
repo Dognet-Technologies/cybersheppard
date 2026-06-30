@@ -254,7 +254,7 @@ impl AlertMonitorService {
                 id,
                 correlation_type,
                 severity,
-                risk_score,
+                risk_score::FLOAT8 as risk_score,
                 pattern_name,
                 pattern_description,
                 involved_hosts,
@@ -279,8 +279,8 @@ impl AlertMonitorService {
                 risk_score: row.risk_score.unwrap_or(0.0),
                 pattern_name: row.pattern_name.unwrap_or_else(|| "Unknown".to_string()),
                 description: row.pattern_description.unwrap_or_else(|| "No description".to_string()),
-                involved_hosts: row.involved_hosts,
-                involved_users: row.involved_users,
+                involved_hosts: row.involved_hosts.unwrap_or_default(),
+                involved_users: row.involved_users.unwrap_or_default(),
                 timestamp: row.created_at.to_rfc3339(),
             };
 
@@ -302,7 +302,7 @@ impl AlertMonitorService {
             SELECT
                 source_host,
                 user_name,
-                anomaly_score,
+                anomaly_score::FLOAT8 as anomaly_score,
                 event_type,
                 timestamp
             FROM security_events
@@ -398,8 +398,8 @@ impl AlertMonitorService {
             r#"
             SELECT
                 host_name,
-                total_risk_score,
-                risk_level,
+                total_risk_score::FLOAT8 as total_risk_score,
+                COALESCE(risk_level, 'low') as risk_level,
                 last_calculated
             FROM host_risk_scores
             WHERE last_calculated > $1
@@ -416,8 +416,8 @@ impl AlertMonitorService {
             let alert = AlertMessage::HostRiskChanged {
                 host_name: row.host_name,
                 old_risk_level: "unknown".to_string(), // Would need to track previous state
-                new_risk_level: row.risk_level,
-                risk_score: row.total_risk_score,
+                new_risk_level: row.risk_level.unwrap_or_default(),
+                risk_score: row.total_risk_score.unwrap_or(0.0),
                 timestamp: row.last_calculated.to_rfc3339(),
             };
 

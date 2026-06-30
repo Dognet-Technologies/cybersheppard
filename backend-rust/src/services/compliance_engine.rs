@@ -32,12 +32,12 @@ pub struct ComplianceAssessment {
     pub status: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ComplianceOverview {
     pub target_id: Option<i32>,
     pub hostname: Option<String>,
     pub frameworks_assessed: Option<i64>,
-    pub avg_compliance_score: Option<BigDecimal>,
+    pub avg_compliance_score: Option<i32>,
     pub critical_violations: Option<i64>,
     pub high_violations: Option<i64>,
     pub last_assessment_date: Option<DateTime<Utc>>,

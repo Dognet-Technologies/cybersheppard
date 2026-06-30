@@ -36,7 +36,7 @@ type TabType = 'user' | 'appearance' | 'system' | 'database' | 'api-keys' | 'int
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<TabType>('user');
-  const { user } = useAuthStore();
+  useAuthStore();
 
   const tabs = [
     { id: 'user' as TabType, label: 'User Profile', icon: <User className="w-4 h-4" /> },
@@ -97,7 +97,7 @@ export default function Settings() {
 
 function UserProfileTab() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  useAuthStore();
   const [email, setEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -259,7 +259,7 @@ function UserProfileTab() {
 
 function AppearanceTab() {
   const queryClient = useQueryClient();
-  const [selectedTheme, setSelectedTheme] = useState('light');
+  const [_selectedTheme, setSelectedTheme] = useState('light');
 
   const { data: settings } = useQuery({
     queryKey: ['settings'],

@@ -29,10 +29,12 @@ impl InfluxDbClient {
 
         let client = Client::new(url, &org).with_token(&token);
 
-        // Test connection
-        client.ping().await?;
-
-        tracing::info!("📊 InfluxDB connection established");
+        // Test connection (non-fatal: InfluxDB is optional)
+        if let Err(e) = client.ping().await {
+            tracing::warn!("⚠️  InfluxDB not available ({}), continuing without it", e);
+        } else {
+            tracing::info!("📊 InfluxDB connection established");
+        }
 
         Ok(Self {
             client,

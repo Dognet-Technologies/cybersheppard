@@ -357,7 +357,7 @@ impl EventCollectorService {
         let assets = sqlx::query!(
             r#"
             SELECT
-                COALESCE(hostname, ip_address::TEXT, name) as hostname,
+                COALESCE(hostname, ip_address::TEXT) as hostname,
                 ip_address,
                 5 as criticality
             FROM targets
@@ -371,7 +371,7 @@ impl EventCollectorService {
 
         for asset in assets {
             let hostname = asset.hostname.unwrap_or_else(|| "unknown".to_string());
-            let ip = asset.ip_address.and_then(|ip_str| ip_str.parse::<IpAddr>().ok());
+            let ip = Some(asset.ip_address.ip());
 
             self.enrichment_cache.insert(
                 hostname.clone(),
@@ -410,9 +410,9 @@ impl EventCollectorService {
                 $18, $19, $20, $21,
                 $22, $23,
                 $24, $25,
-                $26, $27, $28, $29,
+                $26, $27, $28, $29::FLOAT8,
                 $30, $31, $32,
-                $33, $34, $35
+                $33, $34, $35::FLOAT8
             )
             RETURNING id
             "#,
@@ -489,15 +489,17 @@ impl EventCollectorService {
                 destination_ip as "destination_ip: IpAddr", destination_port,
                 destination_host, protocol, bytes_sent, bytes_received,
                 event_data, normalized_data,
-                geo_country, geo_city, asset_criticality, threat_score,
+                geo_country, geo_city, asset_criticality, threat_score::FLOAT8 as threat_score,
                 correlation_id, parent_event_id, sequence_number,
-                ingestion_time, processed, anomaly_score
+                COALESCE(ingestion_time, NOW()) as "ingestion_time!",
+                COALESCE(processed, false) as "processed!",
+                anomaly_score::FLOAT8 as anomaly_score
             FROM security_events
             WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
             ORDER BY timestamp DESC
             LIMIT $2
             "#,
-            hours,
+            hours as f64,
             limit
         )
         .fetch_all(&self.db)
@@ -515,7 +517,7 @@ impl EventCollectorService {
             WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
             GROUP BY severity
             "#,
-            hours
+            hours as f64
         )
         .fetch_all(&self.db)
         .await?;

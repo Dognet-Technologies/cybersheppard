@@ -209,3 +209,6 @@ __marimo__/
 # Sistema Operativo
 README_PRIV.md
 *.zip
+
+# Claude Code local config
+.claude/

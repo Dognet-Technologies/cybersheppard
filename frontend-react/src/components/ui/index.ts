@@ -10,3 +10,5 @@ export * from './PageHeader';
 export * from './Stats';
 export * from './EmptyState';
 export * from './Modal';
+export * from './Select';
+export * from './Input';

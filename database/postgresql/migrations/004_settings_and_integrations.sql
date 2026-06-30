@@ -152,7 +152,7 @@ RETURNS TABLE (
     db_connections_max INTEGER,
     db_size_mb BIGINT,
     agents_connected INTEGER,
-    timestamp TIMESTAMP
+    recorded_at TIMESTAMP
 )
 LANGUAGE SQL
 AS $$

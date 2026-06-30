@@ -268,8 +268,8 @@ impl HardeningExecutor {
                 total_controls = $1,
                 successful_controls = $2,
                 failed_controls = $3,
-                compliance_score_before = $4,
-                compliance_score_after = $5,
+                compliance_score_before = $4::FLOAT8,
+                compliance_score_after = $5::FLOAT8,
                 execution_log = $6,
                 rollback_data = $7
             WHERE id = $8

@@ -17,7 +17,7 @@ export default function Integrations() {
   });
 
   const syncMutation = useMutation({
-    mutationFn: (integrationName: string) => api.triggerSync(integrationName),
+    mutationFn: (integrationName: string) => api.triggerIntegrationSync(integrationName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integration-status'] });
     },

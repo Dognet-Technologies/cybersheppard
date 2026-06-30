@@ -564,7 +564,7 @@ impl BayesianNetworkService {
                 e.event_type,
                 e.event_category,
                 e.severity,
-                e.anomaly_score
+                e.anomaly_score::FLOAT8 as anomaly_score
             FROM security_events e
             INNER JOIN event_correlations c ON e.correlation_id = c.id
             WHERE c.id = $1
@@ -599,14 +599,14 @@ impl BayesianNetworkService {
             SET
                 bayesian_attack_stages = $2,
                 bayesian_next_stages = $3,
-                bayesian_confidence = $4,
+                bayesian_confidence = $4::FLOAT8,
                 bayesian_explanation = $5
             WHERE id = $1
             "#,
             result.correlation_id,
             stages_json,
             next_stages_json,
-            result.confidence,
+            result.confidence as f64,
             result.causal_explanation
         )
         .execute(&self.db)

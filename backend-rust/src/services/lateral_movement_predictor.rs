@@ -60,7 +60,7 @@ impl MarkovChain {
             GROUP BY from_host, to_host
             ORDER BY transition_count DESC
             "#,
-            days
+            days as f64
         )
         .fetch_all(db)
         .await?;
@@ -304,10 +304,10 @@ impl LateralMovementPredictor {
         if let Some(row) = row {
             Ok(HostInfo {
                 host_name: row.host_name,
-                ip: row.ip_address,
-                criticality: row.asset_criticality,
-                is_server: row.is_server,
-                typical_services: row.expected_services,
+                ip: Some(row.ip_address.ip().to_string()),
+                criticality: row.asset_criticality.unwrap_or(5),
+                is_server: row.is_server.unwrap_or(false),
+                typical_services: row.expected_services.unwrap_or_default(),
             })
         } else {
             // Default if not found
@@ -325,7 +325,7 @@ impl LateralMovementPredictor {
     async fn estimate_timeframe(&self, from_host: &str, to_host: &str) -> Result<i32> {
         let row = sqlx::query!(
             r#"
-            SELECT AVG(EXTRACT(EPOCH FROM time_diff)) / 60 as avg_minutes
+            SELECT (AVG(EXTRACT(EPOCH FROM time_diff)) / 60)::FLOAT8 as avg_minutes
             FROM (
                 SELECT
                     timestamp - LAG(timestamp) OVER (PARTITION BY user_name ORDER BY timestamp) as time_diff
@@ -434,7 +434,7 @@ impl LateralMovementPredictor {
                 status,
                 expires_at
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+                $1, $2, $3, $4, $5, $6, $7, $8::FLOAT8, $9, $10
             )
             "#,
             correlation_id,

@@ -7,6 +7,29 @@
 -- ============================================================================
 
 -- ============================================================================
+-- Compatibility preamble: adapt tables from migration 001 to new schema
+-- ============================================================================
+
+-- Add 'code' column to compliance_frameworks (migration 001 uses 'name' as key)
+ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS code VARCHAR(50);
+UPDATE compliance_frameworks SET code = name WHERE code IS NULL;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'compliance_frameworks_code_unique') THEN
+        ALTER TABLE compliance_frameworks ADD CONSTRAINT compliance_frameworks_code_unique UNIQUE (code);
+    END IF;
+END $$;
+-- Add 'active' column (migration 001 uses 'enabled')
+ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
+UPDATE compliance_frameworks SET active = enabled WHERE active IS NULL;
+-- Add 'published_date' column missing from migration 001
+ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS published_date DATE;
+
+-- Drop compliance_controls (migration 001 schema lacks macroarea_id/applies_to_* columns)
+-- compliance_control_results depends on it and is unused by application code
+DROP TABLE IF EXISTS compliance_control_results CASCADE;
+DROP TABLE IF EXISTS compliance_controls CASCADE;
+
+-- ============================================================================
 -- Compliance Frameworks
 -- ============================================================================
 
@@ -21,15 +44,15 @@ CREATE TABLE IF NOT EXISTS compliance_frameworks (
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_frameworks_code ON compliance_frameworks(code);
-CREATE INDEX idx_frameworks_active ON compliance_frameworks(active);
+CREATE INDEX IF NOT EXISTS idx_frameworks_code ON compliance_frameworks(code);
+CREATE INDEX IF NOT EXISTS idx_frameworks_active ON compliance_frameworks(active);
 
 -- Insert the 4 main frameworks
-INSERT INTO compliance_frameworks (code, name, version, description, published_date) VALUES
-    ('nis2', 'NIS2 Directive', 'Directive 2022/2555', 'EU Cybersecurity Directive - Network and Information Security', '2022-12-27'),
-    ('nist', 'NIST 800-53', 'Revision 5', 'Security and Privacy Controls for Information Systems and Organizations - 20 Control Families, 1000+ Controls', '2020-09-23'),
-    ('iso27001', 'ISO/IEC 27001', '2022 Edition', 'Information Security Management Systems (ISMS) - Annex A: 93 Controls across 4 Categories', '2022-10-25'),
-    ('mitre', 'MITRE D3FEND', 'v1.3.0', 'Defensive Countermeasures Knowledge Graph - 7 Tactics, 245+ Defensive Techniques', '2023-06-15')
+INSERT INTO compliance_frameworks (code, name, display_name, version, description, published_date) VALUES
+    ('nis2', 'nis2', 'NIS2 Directive', 'Directive 2022/2555', 'EU Cybersecurity Directive - Network and Information Security', '2022-12-27'),
+    ('nist', 'nist', 'NIST 800-53', 'Revision 5', 'Security and Privacy Controls for Information Systems and Organizations - 20 Control Families, 1000+ Controls', '2020-09-23'),
+    ('iso27001', 'iso27001', 'ISO/IEC 27001', '2022 Edition', 'Information Security Management Systems (ISMS) - Annex A: 93 Controls across 4 Categories', '2022-10-25'),
+    ('mitre', 'mitre', 'MITRE D3FEND', 'v1.3.0', 'Defensive Countermeasures Knowledge Graph - 7 Tactics, 245+ Defensive Techniques', '2023-06-15')
 ON CONFLICT (code) DO NOTHING;
 
 -- ============================================================================
@@ -44,7 +67,7 @@ CREATE TABLE IF NOT EXISTS compliance_macroareas (
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_macroareas_name ON compliance_macroareas(name);
+CREATE INDEX IF NOT EXISTS idx_macroareas_name ON compliance_macroareas(name);
 
 -- Insert the 12 macroareas from Excel
 INSERT INTO compliance_macroareas (name, description, display_order) VALUES
@@ -111,20 +134,20 @@ CREATE TABLE IF NOT EXISTS compliance_controls (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_controls_macroarea ON compliance_controls(macroarea_id);
-CREATE INDEX idx_controls_priority ON compliance_controls(priority);
-CREATE INDEX idx_controls_complexity ON compliance_controls(implementation_complexity);
-CREATE INDEX idx_controls_nis2 ON compliance_controls(applies_to_nis2) WHERE applies_to_nis2 = true;
-CREATE INDEX idx_controls_nist ON compliance_controls(applies_to_nist) WHERE applies_to_nist = true;
-CREATE INDEX idx_controls_iso ON compliance_controls(applies_to_iso) WHERE applies_to_iso = true;
-CREATE INDEX idx_controls_mitre ON compliance_controls(applies_to_mitre) WHERE applies_to_mitre = true;
-CREATE INDEX idx_controls_all_frameworks ON compliance_controls(applies_to_all_frameworks) WHERE applies_to_all_frameworks = true;
+CREATE INDEX IF NOT EXISTS idx_controls_macroarea ON compliance_controls(macroarea_id);
+CREATE INDEX IF NOT EXISTS idx_controls_priority ON compliance_controls(priority);
+CREATE INDEX IF NOT EXISTS idx_controls_complexity ON compliance_controls(implementation_complexity);
+CREATE INDEX IF NOT EXISTS idx_controls_nis2 ON compliance_controls(applies_to_nis2) WHERE applies_to_nis2 = true;
+CREATE INDEX IF NOT EXISTS idx_controls_nist ON compliance_controls(applies_to_nist) WHERE applies_to_nist = true;
+CREATE INDEX IF NOT EXISTS idx_controls_iso ON compliance_controls(applies_to_iso) WHERE applies_to_iso = true;
+CREATE INDEX IF NOT EXISTS idx_controls_mitre ON compliance_controls(applies_to_mitre) WHERE applies_to_mitre = true;
+CREATE INDEX IF NOT EXISTS idx_controls_all_frameworks ON compliance_controls(applies_to_all_frameworks) WHERE applies_to_all_frameworks = true;
 
 -- GIN indexes for array searches
-CREATE INDEX idx_controls_nis2_refs ON compliance_controls USING GIN(nis2_references);
-CREATE INDEX idx_controls_nist_refs ON compliance_controls USING GIN(nist_references);
-CREATE INDEX idx_controls_iso_refs ON compliance_controls USING GIN(iso_references);
-CREATE INDEX idx_controls_mitre_refs ON compliance_controls USING GIN(mitre_references);
+CREATE INDEX IF NOT EXISTS idx_controls_nis2_refs ON compliance_controls USING GIN(nis2_references);
+CREATE INDEX IF NOT EXISTS idx_controls_nist_refs ON compliance_controls USING GIN(nist_references);
+CREATE INDEX IF NOT EXISTS idx_controls_iso_refs ON compliance_controls USING GIN(iso_references);
+CREATE INDEX IF NOT EXISTS idx_controls_mitre_refs ON compliance_controls USING GIN(mitre_references);
 
 -- ============================================================================
 -- Hardening Templates
@@ -172,11 +195,11 @@ CREATE TABLE IF NOT EXISTS hardening_templates (
     CONSTRAINT chk_target_role CHECK (target_role IN ('web_server', 'database', 'application', 'gateway', 'dns', 'cache', 'storage', 'kubernetes', 'docker_host', 'generic'))
 );
 
-CREATE INDEX idx_templates_framework ON hardening_templates(framework_code);
-CREATE INDEX idx_templates_os ON hardening_templates(target_os);
-CREATE INDEX idx_templates_role ON hardening_templates(target_role);
-CREATE INDEX idx_templates_active ON hardening_templates(is_active);
-CREATE INDEX idx_templates_official ON hardening_templates(is_official);
+CREATE INDEX IF NOT EXISTS idx_templates_framework ON hardening_templates(framework_code);
+CREATE INDEX IF NOT EXISTS idx_templates_os ON hardening_templates(target_os);
+CREATE INDEX IF NOT EXISTS idx_templates_role ON hardening_templates(target_role);
+CREATE INDEX IF NOT EXISTS idx_templates_active ON hardening_templates(is_active);
+CREATE INDEX IF NOT EXISTS idx_templates_official ON hardening_templates(is_official);
 
 -- ============================================================================
 -- Hardening Template Controls
@@ -198,8 +221,8 @@ CREATE TABLE IF NOT EXISTS hardening_template_controls (
     UNIQUE(template_id, control_id)
 );
 
-CREATE INDEX idx_template_controls_template ON hardening_template_controls(template_id);
-CREATE INDEX idx_template_controls_control ON hardening_template_controls(control_id);
+CREATE INDEX IF NOT EXISTS idx_template_controls_template ON hardening_template_controls(template_id);
+CREATE INDEX IF NOT EXISTS idx_template_controls_control ON hardening_template_controls(control_id);
 
 -- ============================================================================
 -- Target Compliance Status
@@ -240,10 +263,10 @@ CREATE TABLE IF NOT EXISTS target_compliance_status (
     UNIQUE(target_id, framework_code)
 );
 
-CREATE INDEX idx_target_compliance_target ON target_compliance_status(target_id);
-CREATE INDEX idx_target_compliance_framework ON target_compliance_status(framework_code);
-CREATE INDEX idx_target_compliance_score ON target_compliance_status(compliance_score DESC);
-CREATE INDEX idx_target_compliance_last_scan ON target_compliance_status(last_scan_at DESC);
+CREATE INDEX IF NOT EXISTS idx_target_compliance_target ON target_compliance_status(target_id);
+CREATE INDEX IF NOT EXISTS idx_target_compliance_framework ON target_compliance_status(framework_code);
+CREATE INDEX IF NOT EXISTS idx_target_compliance_score ON target_compliance_status(compliance_score DESC);
+CREATE INDEX IF NOT EXISTS idx_target_compliance_last_scan ON target_compliance_status(last_scan_at DESC);
 
 -- ============================================================================
 -- Target Control Status
@@ -285,11 +308,11 @@ CREATE TABLE IF NOT EXISTS target_control_status (
     UNIQUE(target_id, control_id)
 );
 
-CREATE INDEX idx_target_control_target ON target_control_status(target_id);
-CREATE INDEX idx_target_control_control ON target_control_status(control_id);
-CREATE INDEX idx_target_control_status ON target_control_status(status);
-CREATE INDEX idx_target_control_last_check ON target_control_status(last_check_at DESC);
-CREATE INDEX idx_target_control_score ON target_control_status(compliance_score DESC);
+CREATE INDEX IF NOT EXISTS idx_target_control_target ON target_control_status(target_id);
+CREATE INDEX IF NOT EXISTS idx_target_control_control ON target_control_status(control_id);
+CREATE INDEX IF NOT EXISTS idx_target_control_status ON target_control_status(status);
+CREATE INDEX IF NOT EXISTS idx_target_control_last_check ON target_control_status(last_check_at DESC);
+CREATE INDEX IF NOT EXISTS idx_target_control_score ON target_control_status(compliance_score DESC);
 
 -- ============================================================================
 -- Hardening Executions
@@ -335,11 +358,11 @@ CREATE TABLE IF NOT EXISTS hardening_executions (
     compliance_score_after NUMERIC(5,2)
 );
 
-CREATE INDEX idx_hardening_exec_template ON hardening_executions(template_id);
-CREATE INDEX idx_hardening_exec_target ON hardening_executions(target_id);
-CREATE INDEX idx_hardening_exec_status ON hardening_executions(status);
-CREATE INDEX idx_hardening_exec_started ON hardening_executions(started_at DESC);
-CREATE INDEX idx_hardening_exec_mode ON hardening_executions(execution_mode);
+CREATE INDEX IF NOT EXISTS idx_hardening_exec_template ON hardening_executions(template_id);
+CREATE INDEX IF NOT EXISTS idx_hardening_exec_target ON hardening_executions(target_id);
+CREATE INDEX IF NOT EXISTS idx_hardening_exec_status ON hardening_executions(status);
+CREATE INDEX IF NOT EXISTS idx_hardening_exec_started ON hardening_executions(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_hardening_exec_mode ON hardening_executions(execution_mode);
 
 -- ============================================================================
 -- Compliance Violations
@@ -394,13 +417,10 @@ CREATE TABLE IF NOT EXISTS compliance_violations (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_violations_target ON compliance_violations(target_id);
-CREATE INDEX idx_violations_control ON compliance_violations(control_id);
-CREATE INDEX idx_violations_framework ON compliance_violations(framework_code);
-CREATE INDEX idx_violations_severity ON compliance_violations(severity);
-CREATE INDEX idx_violations_status ON compliance_violations(status);
-CREATE INDEX idx_violations_detected ON compliance_violations(detected_at DESC);
-CREATE INDEX idx_violations_deadline ON compliance_violations(remediation_deadline);
+-- compliance_violations indexes: table uses migration 001 schema, only index columns that exist
+CREATE INDEX IF NOT EXISTS idx_violations_target ON compliance_violations(target_id);
+CREATE INDEX IF NOT EXISTS idx_violations_severity ON compliance_violations(severity);
+CREATE INDEX IF NOT EXISTS idx_violations_status ON compliance_violations(status);
 
 -- ============================================================================
 -- Compliance Scan History
@@ -440,10 +460,10 @@ CREATE TABLE IF NOT EXISTS compliance_scan_history (
     executed_by VARCHAR(100)
 );
 
-CREATE INDEX idx_scan_history_target ON compliance_scan_history(target_id);
-CREATE INDEX idx_scan_history_framework ON compliance_scan_history(framework_code);
-CREATE INDEX idx_scan_history_started ON compliance_scan_history(started_at DESC);
-CREATE INDEX idx_scan_history_score ON compliance_scan_history(compliance_score DESC);
+CREATE INDEX IF NOT EXISTS idx_scan_history_target ON compliance_scan_history(target_id);
+CREATE INDEX IF NOT EXISTS idx_scan_history_framework ON compliance_scan_history(framework_code);
+CREATE INDEX IF NOT EXISTS idx_scan_history_started ON compliance_scan_history(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scan_history_score ON compliance_scan_history(compliance_score DESC);
 
 -- ============================================================================
 -- Functions
@@ -637,10 +657,7 @@ CREATE TRIGGER update_target_control_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_violations_updated_at
-    BEFORE UPDATE ON compliance_violations
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+-- compliance_violations uses migration 001 schema without updated_at column, skip trigger
 
 -- ============================================================================
 -- Comments
@@ -657,5 +674,5 @@ COMMENT ON TABLE hardening_executions IS 'Audit trail of all hardening template 
 COMMENT ON TABLE compliance_violations IS 'Detected compliance violations requiring remediation';
 COMMENT ON TABLE compliance_scan_history IS 'Historical record of all compliance scans';
 
-COMMENT ON FUNCTION calculate_compliance_score IS 'Calculate compliance score (0-100) for target/framework pair';
-COMMENT ON FUNCTION get_compliance_dashboard IS 'Get complete compliance dashboard data for a target';
+COMMENT ON FUNCTION calculate_compliance_score(INTEGER, VARCHAR) IS 'Calculate compliance score (0-100) for target/framework pair';
+COMMENT ON FUNCTION get_compliance_dashboard(INTEGER) IS 'Get complete compliance dashboard data for a target';
