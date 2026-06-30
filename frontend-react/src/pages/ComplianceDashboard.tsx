@@ -6,10 +6,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Shield,
-  TrendingUp,
   AlertTriangle,
   CheckCircle,
-  XCircle,
   BarChart3,
   FileText,
   Target,
@@ -142,7 +140,7 @@ export default function ComplianceDashboard() {
           title="Avg Compliance Score"
           value={`${Math.round(avgComplianceScore)}%`}
           variant={avgComplianceScore >= 80 ? 'success' : avgComplianceScore >= 60 ? 'warning' : 'danger'}
-          trend={avgComplianceScore >= 70 ? '+5%' : undefined}
+          subtitle={avgComplianceScore >= 70 ? '+5% vs last period' : undefined}
         />
         <StatCard
           icon={<CheckCircle className="w-6 h-6" />}

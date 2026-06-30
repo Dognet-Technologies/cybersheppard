@@ -9,7 +9,6 @@ import {
   Settings as SettingsIcon,
   AlertTriangle,
   CheckCircle,
-  Shield,
   Lock,
   Filter,
   Search,

@@ -18,7 +18,7 @@ import {
   Info,
 } from 'lucide-react';
 import api from '../services/api';
-import { PageHeader, Card, Button, Badge, Input, Select, EmptyState } from '../components/ui';
+import { PageHeader, Card, Button, Badge, Input, Select } from '../components/ui';
 
 interface ComplianceControl {
   id: number;

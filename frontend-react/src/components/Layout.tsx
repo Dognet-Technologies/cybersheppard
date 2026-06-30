@@ -1,6 +1,6 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { Shield, Home, AlertTriangle, Server, LogOut, Activity, User, Zap, Link2, Bell, FileCheck, Settings as SettingsIcon, Package } from 'lucide-react';
+import { Shield, Home, AlertTriangle, Server, LogOut, Activity, User, Zap, Link2, Bell, FileCheck, FileText, Settings, Package } from 'lucide-react';
 import api from '../services/api';
 import clsx from 'clsx';
 

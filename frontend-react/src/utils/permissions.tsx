@@ -2,6 +2,8 @@
 // CYBERSHEPPARD (MicroSIEM) - Permission Utilities
 // ============================================================================
 
+import type { ComponentType } from 'react';
+
 /**
  * User roles in the system
  * - admin: Full system access
@@ -79,7 +81,7 @@ export class Permissions {
    * Check if user can view plugins
    * All authenticated users
    */
-  static canViewPlugins(role: UserRole): boolean {
+  static canViewPlugins(_role: UserRole): boolean {
     return true;
   }
 
@@ -95,7 +97,7 @@ export class Permissions {
    * Check if user can execute scans
    * All authenticated users
    */
-  static canExecuteScans(role: UserRole): boolean {
+  static canExecuteScans(_role: UserRole): boolean {
     return true;
   }
 
@@ -119,7 +121,7 @@ export class Permissions {
    * Check if user can generate API keys
    * All users (own keys)
    */
-  static canGenerateApiKeys(role: UserRole): boolean {
+  static canGenerateApiKeys(_role: UserRole): boolean {
     return true;
   }
 
@@ -222,7 +224,7 @@ export function usePermissions(role: UserRole) {
  * Higher-order component for protected routes
  */
 export function withPermission<P extends object>(
-  Component: React.ComponentType<P>,
+  Component: ComponentType<P>,
   requiredPermission: (role: UserRole) => boolean
 ) {
   return function ProtectedComponent(props: P & { userRole: UserRole }) {

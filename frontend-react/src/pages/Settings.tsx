@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Settings as SettingsIcon,
   User,
@@ -11,12 +11,10 @@ import {
   Database,
   Key,
   Activity,
-  Shield,
   Save,
   Trash2,
   Plus,
   Copy,
-  CheckCircle,
   AlertCircle,
 } from 'lucide-react';
 import api from '../services/api';
@@ -26,8 +24,6 @@ type TabType = 'user' | 'system' | 'themes' | 'api-keys' | 'health' | 'database'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<TabType>('user');
-  const queryClient = useQueryClient();
-  const { user } = useAuthStore();
 
   return (
     <div className="space-y-6">
@@ -392,21 +388,12 @@ function ThemeSettings() {
 // ============================================================================
 
 function ApiKeysSettings() {
-  const [showNewKeyModal, setShowNewKeyModal] = useState(false);
+  const [, setShowNewKeyModal] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
 
   const { data: apiKeys, isLoading } = useQuery({
     queryKey: ['api-keys'],
     queryFn: () => api.getApiKeys(),
-  });
-
-  const generateKeyMutation = useMutation({
-    mutationFn: (data: { name: string; service: string; expires_days: number }) =>
-      api.generateApiKey(data),
-    onSuccess: (data) => {
-      setGeneratedKey(data.token);
-      setShowNewKeyModal(false);
-    },
   });
 
   const revokeKeyMutation = useMutation({
@@ -563,7 +550,7 @@ function HealthCard({ title, status, metrics }: any) {
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <h4 className="font-semibold text-gray-900">{title}</h4>
-        <span className={`text-xs px-2 py-1 rounded ${statusColors[status] || statusColors.info}`}>
+        <span className={`text-xs px-2 py-1 rounded ${statusColors[status as keyof typeof statusColors] || statusColors.info}`}>
           {status}
         </span>
       </div>

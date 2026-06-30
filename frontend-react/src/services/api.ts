@@ -309,19 +309,44 @@ class ApiService {
     return response.data;
   }
 
-  async getActiveAlerts(params?: { limit?: number }) {
-    const response = await this.client.get('/api/events/alerts/active', { params });
-    return response.data;
-  }
-
   async getDashboardMetrics(params?: { hours?: number }) {
     const response = await this.client.get('/api/events/dashboard/metrics', { params });
     return response.data;
   }
 
+  // Auditd event detail / status methods
+  async getAuditdEvents(params?: {
+    target_id?: number;
+    severity?: string;
+    category?: string;
+    status?: string;
+    limit?: number;
+  }) {
+    const response = await this.client.get('/api/auditd/events', { params });
+    return response.data;
+  }
+
+  async getAuditdStats() {
+    const response = await this.client.get('/api/auditd/stats');
+    return response.data;
+  }
+
+  async getAuditdEventDetails(eventId: number) {
+    const response = await this.client.get(`/api/auditd/events/${eventId}`);
+    return response.data;
+  }
+
+  async updateAuditdEventStatus(eventId: number, status: string, resolutionNotes?: string) {
+    const response = await this.client.post(`/api/auditd/events/${eventId}/status`, {
+      status,
+      resolution_notes: resolutionNotes,
+    });
+    return response.data;
+  }
+
   // Legacy correlation methods - kept for backward compatibility
   // These now map to the new event correlation system
-  async getTargetCorrelations(targetId: number) {
+  async getTargetCorrelations(_targetId: number) {
     // Target-specific correlations can be filtered from general correlations
     const response = await this.client.get('/api/events/correlations', {
       params: { hours: 24, limit: 100 }
@@ -330,14 +355,14 @@ class ApiService {
     return response.data;
   }
 
-  async acknowledgeCorrelation(correlationId: number) {
+  async acknowledgeCorrelation(_correlationId: number) {
     // Note: The new event correlation system doesn't have acknowledge/resolve
     // This is a no-op for backward compatibility
     console.warn('acknowledgeCorrelation is deprecated - new system uses status updates');
     return { success: true, message: 'Correlation acknowledged (legacy API)' };
   }
 
-  async resolveCorrelation(correlationId: number, resolutionNotes: string) {
+  async resolveCorrelation(_correlationId: number, _resolutionNotes: string) {
     // Note: The new event correlation system doesn't have acknowledge/resolve
     // This is a no-op for backward compatibility
     console.warn('resolveCorrelation is deprecated - new system uses status updates');

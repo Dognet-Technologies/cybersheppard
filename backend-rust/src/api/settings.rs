@@ -366,8 +366,7 @@ async fn change_password(
     Json(payload): Json<ChangePasswordRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-    use argon2::password_hash::SaltString;
-    use rand::rngs::OsRng;
+    use argon2::password_hash::{rand_core::OsRng, SaltString};
 
     // Get current user
     let user = sqlx::query!(
