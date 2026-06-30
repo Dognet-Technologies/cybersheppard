@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            host_name,\n            anomaly_risk,\n            vulnerability_risk,\n            compliance_risk,\n            threat_risk,\n            total_risk_score,\n            risk_level,\n            active_alerts,\n            critical_alerts,\n            failed_compliance_controls,\n            known_vulnerabilities,\n            compromise_probability,\n            compromise_indicators,\n            last_calculated,\n            asset_criticality,\n            is_critical_asset\n        FROM host_risk_scores\n        WHERE host_name = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "host_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "anomaly_risk",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 2,
+        "name": "vulnerability_risk",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 3,
+        "name": "compliance_risk",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "threat_risk",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "total_risk_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 6,
+        "name": "risk_level",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "active_alerts",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "critical_alerts",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "failed_compliance_controls",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "known_vulnerabilities",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "compromise_probability",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 12,
+        "name": "compromise_indicators",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 13,
+        "name": "last_calculated",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "asset_criticality",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "is_critical_asset",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "8f98cd373ebf27f4dd50b21088e856baa2fb1ed6d18d2e1c8ad026da101dfc9c"
+}

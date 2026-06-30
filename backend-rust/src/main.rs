@@ -54,6 +54,15 @@ pub struct AppState {
     pub alert_broadcaster: Arc<AlertBroadcaster>,
 }
 
+/// Consente agli handler che estraggono `State<Arc<PgPool>>` di funzionare
+/// dentro un router con stato `AppState`. `PgPool` è già reference-counted
+/// internamente: il clone condivide lo stesso pool, l'Arc è solo un wrapper.
+impl axum::extract::FromRef<AppState> for Arc<sqlx::PgPool> {
+    fn from_ref(state: &AppState) -> Self {
+        Arc::new(state.pg_pool.clone())
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
@@ -110,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     tracing::info!("✅ Baseline calculator initialized");
 
-    let alert_broadcaster = std::sync::Arc::new(websocket::alert_broadcaster::AlertBroadcaster::new(1000));
+    let alert_broadcaster = std::sync::Arc::new(websocket::alert_broadcaster::AlertBroadcaster::new(1024));
     tracing::info!("✅ Alert broadcaster initialized");
 
     // Create application state
@@ -199,6 +208,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/api/settings", api::settings::routes())
         .nest("/api/integrations", api::integrations::routes())
         .nest("/api/events", api::security_events::routes())
+        .nest("/api/plugins", api::plugins::routes())
         .nest("/ws", api::websocket::routes())
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),

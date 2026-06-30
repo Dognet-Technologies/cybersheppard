@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                h.host_name,\n                h.asset_criticality,\n                h.is_server,\n                h.expected_services,\n                t.ip_address as \"ip_address?\"\n            FROM host_behavior_baselines h\n            LEFT JOIN targets t ON t.hostname = h.host_name OR t.ip_address::TEXT = h.host_name\n            WHERE h.host_name = $1\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "host_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "asset_criticality",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "is_server",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "expected_services",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 4,
+        "name": "ip_address?",
+        "type_info": "Inet"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "cf867b88d6b845d70e9c492beba6066af1c72b4604d1de729721c27f1078e109"
+}

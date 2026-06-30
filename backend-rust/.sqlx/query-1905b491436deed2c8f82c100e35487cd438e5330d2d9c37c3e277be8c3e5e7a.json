@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE hardening_executions\n            SET status = 'completed',\n                completed_at = NOW(),\n                total_controls = $1,\n                successful_controls = $2,\n                failed_controls = $3,\n                compliance_score_before = $4,\n                compliance_score_after = $5,\n                execution_log = $6,\n                rollback_data = $7\n            WHERE id = $8\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Numeric",
+        "Numeric",
+        "Text",
+        "Jsonb",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1905b491436deed2c8f82c100e35487cd438e5330d2d9c37c3e277be8c3e5e7a"
+}

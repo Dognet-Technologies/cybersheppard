@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                source_host,\n                destination_host,\n                COUNT(*) as connection_count,\n                MAX(timestamp) as last_seen,\n                BOOL_OR(anomaly_score > 50) as has_anomalies\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 day' * $1\n              AND event_category = 'network'\n              AND source_host IS NOT NULL\n              AND destination_host IS NOT NULL\n              AND source_host != destination_host\n            GROUP BY source_host, destination_host\n            HAVING COUNT(*) >= 3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "destination_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "connection_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_seen",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "has_anomalies",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "d51a10fc2cdb088037e22aa81da2591add31b935244c2c909fbb4069e9b7b265"
+}

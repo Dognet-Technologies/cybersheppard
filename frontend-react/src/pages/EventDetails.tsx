@@ -9,6 +9,8 @@ import {
   Shield,
   Server,
   AlertTriangle,
+  CheckCircle,
+  FileText,
   ArrowLeft,
   Activity,
   Database,
@@ -22,6 +24,7 @@ import {
   SeverityBadge,
   StatusBadge,
   Button,
+  Table,
 } from '../components/ui';
 
 export default function EventDetails() {

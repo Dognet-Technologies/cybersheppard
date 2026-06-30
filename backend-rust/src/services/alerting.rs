@@ -125,13 +125,11 @@ impl AlertingService {
                 a.id, a.severity, a.title, a.message, a.alert_type,
                 a.status, a.acknowledged, a.created_at,
                 ar.name as rule_name,
-                COUNT(ad.id) as "delivery_attempts!: i64",
-                COUNT(CASE WHEN ad.status = 'delivered' THEN ad.id END) as "successful_deliveries!: i64"
+                0::bigint as "delivery_attempts!: i64",
+                0::bigint as "successful_deliveries!: i64"
             FROM alerts a
             LEFT JOIN alert_rules ar ON a.rule_id = ar.id
-            LEFT JOIN alert_deliveries ad ON a.id = ad.alert_id
-            WHERE NOT a.resolved
-            GROUP BY a.id, ar.name
+            WHERE a.status != 'resolved'
             ORDER BY a.created_at DESC
             LIMIT 100
             "#

@@ -4,7 +4,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 class ApiService {
   private client: AxiosInstance;
@@ -17,19 +17,12 @@ class ApiService {
       },
     });
 
-    // Request interceptor - add auth token and CSRF token for state-changing methods
+    // Request interceptor - add auth token
     this.client.interceptors.request.use(
       (config) => {
         const token = localStorage.getItem('access_token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
-        }
-        const method = (config.method || 'get').toLowerCase();
-        if (['post', 'put', 'patch', 'delete'].includes(method)) {
-          const csrfToken = localStorage.getItem('csrf_token');
-          if (csrfToken) {
-            config.headers['X-CSRF-Token'] = csrfToken;
-          }
         }
         return config;
       },
@@ -56,7 +49,6 @@ class ApiService {
           } catch (refreshError) {
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
-            localStorage.removeItem('csrf_token');
             window.location.href = '/login';
             return Promise.reject(refreshError);
           }
@@ -96,8 +88,7 @@ class ApiService {
 
   async getTargets(params?: Record<string, any>) {
     const response = await this.client.get('/api/targets', { params });
-    // Backend wraps the list as { targets, total, limit, offset }; components expect an array.
-    return Array.isArray(response.data) ? response.data : response.data?.targets ?? [];
+    return response.data;
   }
 
   async getTarget(id: number) {
@@ -263,7 +254,7 @@ class ApiService {
     return response.data;
   }
 
-  async triggerIntegrationSync(integrationName: string) {
+  async triggerSync(integrationName: string) {
     const response = await this.client.post(`/api/integrations/${integrationName}/sync`);
     return response.data;
   }
@@ -330,7 +321,7 @@ class ApiService {
 
   // Legacy correlation methods - kept for backward compatibility
   // These now map to the new event correlation system
-  async getTargetCorrelations(_targetId: number) {
+  async getTargetCorrelations(targetId: number) {
     // Target-specific correlations can be filtered from general correlations
     const response = await this.client.get('/api/events/correlations', {
       params: { hours: 24, limit: 100 }
@@ -339,14 +330,14 @@ class ApiService {
     return response.data;
   }
 
-  async acknowledgeCorrelation(_correlationId: number) {
+  async acknowledgeCorrelation(correlationId: number) {
     // Note: The new event correlation system doesn't have acknowledge/resolve
     // This is a no-op for backward compatibility
     console.warn('acknowledgeCorrelation is deprecated - new system uses status updates');
     return { success: true, message: 'Correlation acknowledged (legacy API)' };
   }
 
-  async resolveCorrelation(_correlationId: number, _resolutionNotes: string) {
+  async resolveCorrelation(correlationId: number, resolutionNotes: string) {
     // Note: The new event correlation system doesn't have acknowledge/resolve
     // This is a no-op for backward compatibility
     console.warn('resolveCorrelation is deprecated - new system uses status updates');
@@ -462,6 +453,11 @@ class ApiService {
     return response.data;
   }
 
+  async getActiveAlerts() {
+    const response = await this.client.get('/api/alerts/active');
+    return response.data;
+  }
+
   async createAlert(data: {
     severity: string;
     title: string;
@@ -496,130 +492,44 @@ class ApiService {
   }
 
   // ========================================================================
-  // AUDITD EVENTS
-  // ========================================================================
-
-  async getAuditdEvents(params?: {
-    target_id?: number;
-    severity?: string;
-    category?: string;
-    status?: string;
-    since?: string;
-    limit?: number;
-    offset?: number;
-  }) {
-    const response = await this.client.get('/api/auditd/events', { params });
-    return response.data;
-  }
-
-  async getAuditdEventDetails(eventId: number) {
-    const response = await this.client.get(`/api/auditd/events/${eventId}`);
-    return response.data;
-  }
-
-  async updateAuditdEventStatus(eventId: number, status: string, resolutionNotes?: string) {
-    const response = await this.client.post(`/api/auditd/events/${eventId}/status`, {
-      status,
-      resolution_notes: resolutionNotes,
-    });
-    return response.data;
-  }
-
-  async getAuditdStats() {
-    const response = await this.client.get('/api/auditd/stats');
-    return response.data;
-  }
-
-  async getRealtimeAuditdEvents() {
-    const response = await this.client.get('/api/auditd/realtime');
-    return response.data;
-  }
-
-  // ========================================================================
   // SETTINGS
   // ========================================================================
 
-  // General settings
-  async getAllSettings() {
-    const response = await this.client.get('/api/settings');
+  async getSystemSettings(category?: string) {
+    const params = category ? { category } : {};
+    const response = await this.client.get('/api/settings/system', { params });
     return response.data;
   }
 
-  async getSetting(key: string) {
-    const response = await this.client.get(`/api/settings/${key}`);
+  async updateSystemSetting(key: string, value: string) {
+    const response = await this.client.put(`/api/settings/system/${key}`, { value });
     return response.data;
   }
 
-  async updateSetting(key: string, value: string, updatedBy?: string) {
-    const response = await this.client.put(`/api/settings/${key}`, {
-      value,
-      updated_by: updatedBy,
-    });
+  async getUserSettings() {
+    const response = await this.client.get('/api/settings/user');
     return response.data;
   }
 
-  // User management
-  async getUserProfile() {
-    const response = await this.client.get('/api/settings/user/profile');
+  async setUserSetting(key: string, value: string) {
+    const response = await this.client.put(`/api/settings/user/${key}`, { value });
     return response.data;
   }
 
-  async updateUserProfile(email?: string) {
-    const response = await this.client.put('/api/settings/user/profile', { email });
+  async getApiKeys(service?: string) {
+    const params = service ? { service } : {};
+    const response = await this.client.get('/api/settings/api-keys', { params });
     return response.data;
   }
 
-  async changePassword(currentPassword: string, newPassword: string) {
-    const response = await this.client.post('/api/settings/user/password', {
-      current_password: currentPassword,
-      new_password: newPassword,
-    });
-    return response.data;
-  }
-
-  // System status
-  async getSystemStatus() {
-    const response = await this.client.get('/api/settings/system/status');
-    return response.data;
-  }
-
-  async getSystemHealth() {
-    const response = await this.client.get('/api/settings/system/health');
-    return response.data;
-  }
-
-  // Database management
-  async getDatabaseStats() {
-    const response = await this.client.get('/api/settings/database/stats');
-    return response.data;
-  }
-
-  async triggerDatabaseCleanup(target: string, retentionDays: number) {
-    const response = await this.client.post('/api/settings/database/cleanup', {
-      target,
-      retention_days: retentionDays,
-    });
-    return response.data;
-  }
-
-  // API Keys
-  async listApiKeys() {
-    const response = await this.client.get('/api/settings/api-keys');
-    return response.data;
-  }
-
-  async createApiKey(data: {
+  async generateApiKey(data: {
     name: string;
     description?: string;
-    scopes: string[];
-    expires_in_days?: number;
+    service?: string;
+    permissions?: any;
+    expires_days?: number;
   }) {
     const response = await this.client.post('/api/settings/api-keys', data);
-    return response.data;
-  }
-
-  async getApiKey(id: number) {
-    const response = await this.client.get(`/api/settings/api-keys/${id}`);
     return response.data;
   }
 
@@ -628,61 +538,98 @@ class ApiService {
     return response.data;
   }
 
-  // Integrations
-  async listIntegrations() {
-    const response = await this.client.get('/api/settings/integrations');
+  async getHealthCheck() {
+    const response = await this.client.get('/api/settings/health');
     return response.data;
   }
 
-  async createIntegration(data: {
+  async testConnection(service: string, url: string, apiKey?: string) {
+    const response = await this.client.post('/api/settings/test-connection', {
+      service,
+      url,
+      api_key: apiKey,
+    });
+    return response.data;
+  }
+
+  async changePassword(data: { current_password: string; new_password: string }) {
+    const response = await this.client.post('/api/settings/change-password', data);
+    return response.data;
+  }
+
+  async cleanupOldData() {
+    const response = await this.client.post('/api/settings/cleanup');
+    return response.data;
+  }
+
+  async resetDatabase(confirmation: string) {
+    const response = await this.client.post('/api/settings/reset', { confirmation });
+    return response.data;
+  }
+
+  // ========================================================================
+  // PLUGINS
+  // ========================================================================
+
+  async getPluginRepositories() {
+    const response = await this.client.get('/api/plugins/repositories');
+    return response.data;
+  }
+
+  async addPluginRepository(data: {
     name: string;
-    type: string;
-    api_key?: string;
-    hostname?: string;
-    ip_address?: string;
-    port?: number;
-    use_ssl?: boolean;
-    sync_mode?: string;
-    sync_interval?: number;
-    config?: any;
+    url: string;
+    branch: string;
+    trust_level: string;
   }) {
-    const response = await this.client.post('/api/settings/integrations', data);
+    const response = await this.client.post('/api/plugins/repositories', data);
     return response.data;
   }
 
-  async getIntegration(id: number) {
-    const response = await this.client.get(`/api/settings/integrations/${id}`);
+  async removePluginRepository(id: number) {
+    const response = await this.client.delete(`/api/plugins/repositories/${id}`);
     return response.data;
   }
 
-  async updateIntegration(id: number, data: {
-    name?: string;
-    enabled?: boolean;
-    api_key?: string;
-    hostname?: string;
-    ip_address?: string;
-    port?: number;
-    use_ssl?: boolean;
-    sync_mode?: string;
-    sync_interval?: number;
-    config?: any;
-  }) {
-    const response = await this.client.put(`/api/settings/integrations/${id}`, data);
+  async fetchRepositoryPlugins(repoId: number) {
+    const response = await this.client.post(`/api/plugins/repositories/${repoId}/fetch`);
     return response.data;
   }
 
-  async deleteIntegration(id: number) {
-    const response = await this.client.delete(`/api/settings/integrations/${id}`);
+  async getAvailablePlugins() {
+    const response = await this.client.get('/api/plugins/registry');
     return response.data;
   }
 
-  async testIntegration(id: number) {
-    const response = await this.client.post(`/api/settings/integrations/${id}/test`);
+  async getInstalledPlugins() {
+    const response = await this.client.get('/api/plugins/installed');
     return response.data;
   }
 
-  async triggerSync(id: number) {
-    const response = await this.client.post(`/api/settings/integrations/${id}/sync`);
+  async installPlugin(registryId: number) {
+    const response = await this.client.post(`/api/plugins/install/${registryId}`);
+    return response.data;
+  }
+
+  async uninstallPlugin(pluginId: number) {
+    const response = await this.client.delete(`/api/plugins/installed/${pluginId}`);
+    return response.data;
+  }
+
+  async enablePlugin(pluginId: number) {
+    const response = await this.client.post(`/api/plugins/installed/${pluginId}/enable`);
+    return response.data;
+  }
+
+  async disablePlugin(pluginId: number) {
+    const response = await this.client.post(`/api/plugins/installed/${pluginId}/disable`);
+    return response.data;
+  }
+
+  async configurePlugin(pluginId: number, configuration: any) {
+    const response = await this.client.put(`/api/plugins/installed/${pluginId}/configure`, {
+      configuration,
+    });
     return response.data;
   }
 }

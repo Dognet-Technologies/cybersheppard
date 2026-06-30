@@ -1,5 +1,8 @@
 name: cargo-deny
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, develop]
@@ -21,8 +24,8 @@ jobs:
     name: cargo-deny (backend-rust)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: EmbarkStudios/cargo-deny-action@ac5da7b151d5b8ed3d422ae8c357d1ff62ff9cb5 # v2
         with:
           manifest-path: backend-rust/Cargo.toml
           command: check
@@ -32,8 +35,8 @@ jobs:
     name: cargo-deny (cybersheppard-agent)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: EmbarkStudios/cargo-deny-action@ac5da7b151d5b8ed3d422ae8c357d1ff62ff9cb5 # v2
         with:
           manifest-path: cybersheppard-agent/Cargo.toml
           command: check

@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_by VARCHAR(100)
 );
 
-CREATE INDEX idx_settings_category ON settings(category);
-CREATE INDEX idx_settings_key ON settings(key);
+CREATE INDEX IF NOT EXISTS idx_settings_category ON settings(category);
+CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key);
 
 -- Insert default settings
 INSERT INTO settings (key, value, category, description) VALUES
@@ -55,10 +55,10 @@ CREATE TABLE IF NOT EXISTS api_keys (
     CONSTRAINT chk_scopes CHECK (scopes IS NOT NULL AND array_length(scopes, 1) > 0)
 );
 
-CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
-CREATE INDEX idx_api_keys_key_prefix ON api_keys(key_prefix);
-CREATE INDEX idx_api_keys_is_active ON api_keys(is_active);
-CREATE INDEX idx_api_keys_created_at ON api_keys(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_prefix ON api_keys(key_prefix);
+CREATE INDEX IF NOT EXISTS idx_api_keys_is_active ON api_keys(is_active);
+CREATE INDEX IF NOT EXISTS idx_api_keys_created_at ON api_keys(created_at DESC);
 
 -- ============================================================================
 -- Integrations Table
@@ -97,9 +97,9 @@ CREATE TABLE IF NOT EXISTS integrations (
     CONSTRAINT chk_sync_mode CHECK (sync_mode IN ('pull', 'push', 'bidirectional'))
 );
 
-CREATE INDEX idx_integrations_type ON integrations(type);
-CREATE INDEX idx_integrations_enabled ON integrations(enabled);
-CREATE INDEX idx_integrations_last_sync_at ON integrations(last_sync_at DESC);
+CREATE INDEX IF NOT EXISTS idx_integrations_type ON integrations(type);
+CREATE INDEX IF NOT EXISTS idx_integrations_enabled ON integrations(enabled);
+CREATE INDEX IF NOT EXISTS idx_integrations_last_sync_at ON integrations(last_sync_at DESC);
 
 -- ============================================================================
 -- System Status Log Table
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS system_status_log (
     metrics JSONB DEFAULT '{}'
 );
 
-CREATE INDEX idx_system_status_log_timestamp ON system_status_log(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_system_status_log_timestamp ON system_status_log(timestamp DESC);
 
 -- Function to get latest system status
 CREATE OR REPLACE FUNCTION get_latest_system_status()
@@ -152,7 +152,7 @@ RETURNS TABLE (
     db_connections_max INTEGER,
     db_size_mb BIGINT,
     agents_connected INTEGER,
-    recorded_at TIMESTAMP
+    logged_at TIMESTAMP
 )
 LANGUAGE SQL
 AS $$
@@ -169,9 +169,9 @@ AS $$
         db_connections_max,
         db_size_mb,
         agents_connected,
-        timestamp
+        "timestamp"
     FROM system_status_log
-    ORDER BY timestamp DESC
+    ORDER BY "timestamp" DESC
     LIMIT 1;
 $$;
 
@@ -279,12 +279,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER update_settings_updated_at
+CREATE OR REPLACE TRIGGER update_settings_updated_at
     BEFORE UPDATE ON settings
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_integrations_updated_at
+CREATE OR REPLACE TRIGGER update_integrations_updated_at
     BEFORE UPDATE ON integrations
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

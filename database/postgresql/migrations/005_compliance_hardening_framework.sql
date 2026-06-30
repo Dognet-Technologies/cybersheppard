@@ -7,29 +7,6 @@
 -- ============================================================================
 
 -- ============================================================================
--- Compatibility preamble: adapt tables from migration 001 to new schema
--- ============================================================================
-
--- Add 'code' column to compliance_frameworks (migration 001 uses 'name' as key)
-ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS code VARCHAR(50);
-UPDATE compliance_frameworks SET code = name WHERE code IS NULL;
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'compliance_frameworks_code_unique') THEN
-        ALTER TABLE compliance_frameworks ADD CONSTRAINT compliance_frameworks_code_unique UNIQUE (code);
-    END IF;
-END $$;
--- Add 'active' column (migration 001 uses 'enabled')
-ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
-UPDATE compliance_frameworks SET active = enabled WHERE active IS NULL;
--- Add 'published_date' column missing from migration 001
-ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS published_date DATE;
-
--- Drop compliance_controls (migration 001 schema lacks macroarea_id/applies_to_* columns)
--- compliance_control_results depends on it and is unused by application code
-DROP TABLE IF EXISTS compliance_control_results CASCADE;
-DROP TABLE IF EXISTS compliance_controls CASCADE;
-
--- ============================================================================
 -- Compliance Frameworks
 -- ============================================================================
 
@@ -44,15 +21,40 @@ CREATE TABLE IF NOT EXISTS compliance_frameworks (
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- Ensure compliance_frameworks has all columns needed by this migration
+-- (table may already exist with a different schema from migration 001)
+ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS code VARCHAR(50);
+ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
+ALTER TABLE compliance_frameworks ADD COLUMN IF NOT EXISTS published_date DATE;
+-- display_name exists in migration 001 schema as NOT NULL; provide a default for compatibility
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'compliance_frameworks' AND column_name = 'display_name'
+    ) THEN
+        ALTER TABLE compliance_frameworks ALTER COLUMN display_name SET DEFAULT '';
+    END IF;
+END $$;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'compliance_frameworks_code_key' AND conrelid = 'compliance_frameworks'::regclass
+    ) THEN
+        ALTER TABLE compliance_frameworks ADD CONSTRAINT compliance_frameworks_code_key UNIQUE (code);
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_frameworks_code ON compliance_frameworks(code);
 CREATE INDEX IF NOT EXISTS idx_frameworks_active ON compliance_frameworks(active);
 
 -- Insert the 4 main frameworks
-INSERT INTO compliance_frameworks (code, name, display_name, version, description, published_date) VALUES
-    ('nis2', 'nis2', 'NIS2 Directive', 'Directive 2022/2555', 'EU Cybersecurity Directive - Network and Information Security', '2022-12-27'),
-    ('nist', 'nist', 'NIST 800-53', 'Revision 5', 'Security and Privacy Controls for Information Systems and Organizations - 20 Control Families, 1000+ Controls', '2020-09-23'),
-    ('iso27001', 'iso27001', 'ISO/IEC 27001', '2022 Edition', 'Information Security Management Systems (ISMS) - Annex A: 93 Controls across 4 Categories', '2022-10-25'),
-    ('mitre', 'mitre', 'MITRE D3FEND', 'v1.3.0', 'Defensive Countermeasures Knowledge Graph - 7 Tactics, 245+ Defensive Techniques', '2023-06-15')
+INSERT INTO compliance_frameworks (code, name, version, description, published_date) VALUES
+    ('nis2', 'NIS2 Directive', 'Directive 2022/2555', 'EU Cybersecurity Directive - Network and Information Security', '2022-12-27'),
+    ('nist', 'NIST 800-53', 'Revision 5', 'Security and Privacy Controls for Information Systems and Organizations - 20 Control Families, 1000+ Controls', '2020-09-23'),
+    ('iso27001', 'ISO/IEC 27001', '2022 Edition', 'Information Security Management Systems (ISMS) - Annex A: 93 Controls across 4 Categories', '2022-10-25'),
+    ('mitre', 'MITRE D3FEND', 'v1.3.0', 'Defensive Countermeasures Knowledge Graph - 7 Tactics, 245+ Defensive Techniques', '2023-06-15')
 ON CONFLICT (code) DO NOTHING;
 
 -- ============================================================================
@@ -84,6 +86,58 @@ INSERT INTO compliance_macroareas (name, description, display_order) VALUES
     ('Physical & Environmental Security', 'Physical access controls, environmental monitoring, hardware security', 11),
     ('Supply Chain Security', 'Vendor security, third-party risk, software supply chain, SBOM', 12)
 ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================================
+-- Patch: add columns missing from migration 001 to compliance_controls
+-- ============================================================================
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS macroarea_id INTEGER REFERENCES compliance_macroareas(id);
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS sub_control VARCHAR(255);
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS sub_sub_control VARCHAR(255);
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS requirement TEXT;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS priority VARCHAR(20);
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS implementation_complexity VARCHAR(20);
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS implementation_notes TEXT;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS verification_method TEXT;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS nis2_references TEXT[];
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS nist_references TEXT[];
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS iso_references TEXT[];
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS mitre_references TEXT[];
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS applies_to_nis2 BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS applies_to_nist BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS applies_to_iso BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS applies_to_mitre BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS applies_to_all_frameworks BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS supports_debian_ubuntu BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS supports_rhel_oracle BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS supports_sles BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS supports_windows_2019 BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS supports_windows_2022 BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS supports_docker BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS supports_lxc BOOLEAN DEFAULT false;
+ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+
+-- ============================================================================
+-- Patch: add columns missing from migration 001 to compliance_violations
+-- ============================================================================
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS control_id INTEGER REFERENCES compliance_controls(id);
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS framework_code VARCHAR(50) REFERENCES compliance_frameworks(code);
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS title VARCHAR(500);
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS current_value TEXT;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS expected_value TEXT;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS deviation_details TEXT;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS risk_score NUMERIC(5,2);
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS business_impact TEXT;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS technical_impact TEXT;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS detected_at TIMESTAMP DEFAULT NOW();
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS detection_method VARCHAR(100);
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS remediation_plan TEXT;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS remediation_deadline TIMESTAMP;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(100);
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS resolved_by VARCHAR(100);
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS resolution_notes TEXT;
+ALTER TABLE compliance_violations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 
 -- ============================================================================
 -- Compliance Controls
@@ -417,10 +471,13 @@ CREATE TABLE IF NOT EXISTS compliance_violations (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- compliance_violations indexes: table uses migration 001 schema, only index columns that exist
 CREATE INDEX IF NOT EXISTS idx_violations_target ON compliance_violations(target_id);
+CREATE INDEX IF NOT EXISTS idx_violations_control ON compliance_violations(control_id);
+CREATE INDEX IF NOT EXISTS idx_violations_framework ON compliance_violations(framework_code);
 CREATE INDEX IF NOT EXISTS idx_violations_severity ON compliance_violations(severity);
 CREATE INDEX IF NOT EXISTS idx_violations_status ON compliance_violations(status);
+CREATE INDEX IF NOT EXISTS idx_violations_detected ON compliance_violations(detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_violations_deadline ON compliance_violations(remediation_deadline);
 
 -- ============================================================================
 -- Compliance Scan History
@@ -574,7 +631,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to auto-update compliance status
-CREATE TRIGGER trigger_update_compliance_status
+CREATE OR REPLACE TRIGGER trigger_update_compliance_status
     AFTER INSERT OR UPDATE ON target_control_status
     FOR EACH ROW
     EXECUTE FUNCTION update_target_compliance_status();
@@ -637,27 +694,30 @@ $$ LANGUAGE plpgsql;
 -- Update triggers
 -- ============================================================================
 
-CREATE TRIGGER update_controls_updated_at
+CREATE OR REPLACE TRIGGER update_controls_updated_at
     BEFORE UPDATE ON compliance_controls
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_templates_updated_at
+CREATE OR REPLACE TRIGGER update_templates_updated_at
     BEFORE UPDATE ON hardening_templates
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_target_compliance_updated_at
+CREATE OR REPLACE TRIGGER update_target_compliance_updated_at
     BEFORE UPDATE ON target_compliance_status
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_target_control_updated_at
+CREATE OR REPLACE TRIGGER update_target_control_updated_at
     BEFORE UPDATE ON target_control_status
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- compliance_violations uses migration 001 schema without updated_at column, skip trigger
+CREATE OR REPLACE TRIGGER update_violations_updated_at
+    BEFORE UPDATE ON compliance_violations
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
 -- Comments
@@ -675,4 +735,4 @@ COMMENT ON TABLE compliance_violations IS 'Detected compliance violations requir
 COMMENT ON TABLE compliance_scan_history IS 'Historical record of all compliance scans';
 
 COMMENT ON FUNCTION calculate_compliance_score(INTEGER, VARCHAR) IS 'Calculate compliance score (0-100) for target/framework pair';
-COMMENT ON FUNCTION get_compliance_dashboard(INTEGER) IS 'Get complete compliance dashboard data for a target';
+COMMENT ON FUNCTION get_compliance_dashboard IS 'Get complete compliance dashboard data for a target';

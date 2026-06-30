@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                target_id,\n                hostname,\n                frameworks_assessed,\n                avg_compliance_score::numeric as \"avg_compliance_score\",\n                critical_violations,\n                high_violations,\n                last_assessment_date\n            FROM target_compliance_overview\n            ORDER BY avg_compliance_score ASC NULLS LAST, critical_violations DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "target_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "hostname",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "frameworks_assessed",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "avg_compliance_score",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "critical_violations",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "high_violations",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_assessment_date",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      null,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f7709b9cce205edddf19ab6cd5eccb80f1ca34f03df926091cc1ee57127779cb"
+}

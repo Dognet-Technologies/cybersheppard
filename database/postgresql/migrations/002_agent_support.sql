@@ -11,7 +11,7 @@ ALTER TABLE targets ADD COLUMN IF NOT EXISTS agent_last_seen TIMESTAMP;
 ALTER TABLE targets ADD COLUMN IF NOT EXISTS agent_auth_token VARCHAR(255);
 ALTER TABLE targets ADD COLUMN IF NOT EXISTS agent_version VARCHAR(50);
 
--- Create index for agent queries
+-- CREATE INDEX IF NOT EXISTS for agent queries
 CREATE INDEX IF NOT EXISTS idx_targets_agent_enabled ON targets(agent_enabled);
 CREATE INDEX IF NOT EXISTS idx_targets_agent_connected ON targets(agent_connected);
 

@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use tracing::{info, warn};
 
 use crate::security_event::BaselineCalculationResult;
+use crate::utils::ToBigDecimal;
 
 /// Baseline Calculator Service - Computes statistical baselines for UEBA
 pub struct BaselineCalculatorService {
@@ -118,7 +119,7 @@ impl BaselineCalculatorService {
                 baseline_start_date, baseline_end_date,
                 events_analyzed, last_updated
             ) VALUES (
-                $1, $2::FLOAT8, $3::FLOAT8, $4, $5, $6::FLOAT8, $7::FLOAT8, $8::FLOAT8, $9, $10, $11, $12::FLOAT8, $13::FLOAT8, $14::FLOAT8, $15::FLOAT8, $16, $17, $18, $19
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
             )
             ON CONFLICT (user_name) DO UPDATE SET
                 avg_logins_per_day = EXCLUDED.avg_logins_per_day,
@@ -141,20 +142,20 @@ impl BaselineCalculatorService {
                 last_updated = EXCLUDED.last_updated
             "#,
             user_name,
-            login_stats.mean,
-            login_stats.stddev,
+            login_stats.mean.to_bigdecimal(),
+            login_stats.stddev.to_bigdecimal(),
             &typical_hours,
             &typical_hosts,
-            session_stats.mean,
-            session_stats.stddev,
-            command_stats.mean,
+            session_stats.mean.to_bigdecimal(),
+            session_stats.stddev.to_bigdecimal(),
+            command_stats.mean.to_bigdecimal(),
             &common_commands,
             &typical_paths,
             &typical_processes,
-            network_stats.mean,
-            login_threshold,
-            session_threshold,
-            command_threshold,
+            network_stats.mean.to_bigdecimal(),
+            login_threshold.to_bigdecimal(),
+            session_threshold.to_bigdecimal(),
+            command_threshold.to_bigdecimal(),
             baseline_start.date_naive(),
             baseline_end.date_naive(),
             events_analyzed,
@@ -231,7 +232,7 @@ impl BaselineCalculatorService {
                 events_analyzed, last_updated,
                 asset_criticality
             ) VALUES (
-                $1, $2, $3::FLOAT8, $4::FLOAT8, $5, $6, $7::FLOAT8, $8, $9, $10, $11, $12
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
             )
             ON CONFLICT (host_name) DO UPDATE SET
                 typical_processes = EXCLUDED.typical_processes,
@@ -248,11 +249,11 @@ impl BaselineCalculatorService {
             "#,
             host_name,
             &typical_processes,
-            connection_stats.mean,
-            connection_stats.stddev,
+            connection_stats.mean.to_bigdecimal(),
+            connection_stats.stddev.to_bigdecimal(),
             &typical_ports,
             &typical_users,
-            connection_threshold,
+            connection_threshold.to_bigdecimal(),
             baseline_start.date_naive(),
             baseline_end.date_naive(),
             events_analyzed,

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE hardening_executions\n            SET status = 'running',\n                started_at = NOW()\n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "460d9fe0850faf6889be2e3cd75d7dcddb0006d81141a2f2b60c4ee689907cba"
+}

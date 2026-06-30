@@ -7,8 +7,7 @@
 -- Mathematical/Statistical algorithms: Z-Score, Markov Chain, Graph Analytics
 -- ============================================================================
 
--- Enable TimescaleDB extension
--- CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE; -- TimescaleDB not available
+-- TimescaleDB extension skipped (not required for standard PostgreSQL deployment)
 
 -- ============================================================================
 -- Security Events (TimescaleDB Hypertable)
@@ -76,8 +75,7 @@ CREATE TABLE IF NOT EXISTS security_events (
     CONSTRAINT security_events_severity_check CHECK (severity IN ('critical', 'high', 'medium', 'low', 'info'))
 );
 
--- Convert to hypertable (partitioned by timestamp)
--- TimescaleDB hypertable skipped (not available)
+-- Hypertable conversion skipped (TimescaleDB not available)
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_security_events_source_type ON security_events(source_type, timestamp DESC);
@@ -97,13 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_security_events_user_time ON security_events(user
 CREATE INDEX IF NOT EXISTS idx_security_events_host_time ON security_events(source_host, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_security_events_processed ON security_events(processed, timestamp DESC) WHERE NOT processed;
 
--- Retention policy: Drop chunks older than 90 days
--- TimescaleDB retention policy skipped
-
--- Compression policy: Compress chunks older than 7 days
--- TimescaleDB compression skipped
-
--- TimescaleDB compression policy skipped
+-- Retention and compression policies skipped (TimescaleDB not available)
 
 COMMENT ON TABLE security_events IS 'Time-series security events from multiple sources (auditd, SNMP, IDS/IPS)';
 
@@ -460,9 +452,6 @@ FROM security_events
 GROUP BY hour, source_type, event_category, severity
 WITH NO DATA;
 
--- Refresh policy
--- TimescaleDB continuous aggregate policy skipped
-
 COMMENT ON MATERIALIZED VIEW security_metrics_hourly IS 'Hourly aggregated security metrics for dashboards';
 
 -- ============================================================================
@@ -478,7 +467,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_correlations_updated
+CREATE OR REPLACE TRIGGER trigger_correlations_updated
     BEFORE UPDATE ON event_correlations
     FOR EACH ROW
     EXECUTE FUNCTION update_correlation_timestamp();
@@ -506,7 +495,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_host_risk_level
+CREATE OR REPLACE TRIGGER trigger_host_risk_level
     BEFORE INSERT OR UPDATE OF total_risk_score ON host_risk_scores
     FOR EACH ROW
     EXECUTE FUNCTION update_host_risk_level();
@@ -516,7 +505,11 @@ CREATE TRIGGER trigger_host_risk_level
 -- ============================================================================
 
 -- Active high-risk correlations
-CREATE OR REPLACE VIEW active_high_risk_correlations AS
+-- DROP+CREATE (non REPLACE): la vista usa c.* su event_correlations, che 008
+-- estende con colonne bayesian_*; il REPLACE fallirebbe alla riapplicazione
+-- perché cambierebbe ordine/nome delle colonne della vista.
+DROP VIEW IF EXISTS active_high_risk_correlations CASCADE;
+CREATE VIEW active_high_risk_correlations AS
 SELECT
     c.*,
     p.predictions AS lateral_movement_predictions

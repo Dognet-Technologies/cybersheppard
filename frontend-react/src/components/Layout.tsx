@@ -1,6 +1,6 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { Shield, Home, AlertTriangle, Server, LogOut, Activity, User, Zap, Link2, Bell, FileCheck, FileText, Settings } from 'lucide-react';
+import { Shield, Home, AlertTriangle, Server, LogOut, Activity, User, Zap, Link2, Bell, FileCheck, Settings as SettingsIcon, Package } from 'lucide-react';
 import api from '../services/api';
 import clsx from 'clsx';
 
@@ -39,6 +39,7 @@ export default function Layout() {
           <NavLink to="/alerts" icon={<Bell />} label="Alerts" currentPath={location.pathname} />
           <NavLink to="/audit-events" icon={<FileText />} label="Audit Events" currentPath={location.pathname} />
           <NavLink to="/settings" icon={<Settings />} label="Settings" currentPath={location.pathname} />
+          <NavLink to="/plugins" icon={<Package />} label="Plugins" currentPath={location.pathname} />
         </nav>
 
         <div className="absolute bottom-0 w-full p-4 border-t border-gray-800">

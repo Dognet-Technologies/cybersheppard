@@ -13,12 +13,12 @@ ADD COLUMN IF NOT EXISTS bayesian_confidence DECIMAL(10, 4),
 ADD COLUMN IF NOT EXISTS bayesian_explanation TEXT,
 ADD COLUMN IF NOT EXISTS bayesian_analyzed_at TIMESTAMPTZ;
 
--- Create index for efficient querying of Bayesian results
+-- CREATE INDEX IF NOT EXISTS for efficient querying of Bayesian results
 CREATE INDEX IF NOT EXISTS idx_event_correlations_bayesian_confidence
 ON event_correlations(bayesian_confidence DESC)
 WHERE bayesian_confidence IS NOT NULL;
 
--- Create index for Bayesian attack stages JSONB queries
+-- CREATE INDEX IF NOT EXISTS for Bayesian attack stages JSONB queries
 CREATE INDEX IF NOT EXISTS idx_event_correlations_bayesian_stages
 ON event_correlations USING GIN (bayesian_attack_stages)
 WHERE bayesian_attack_stages IS NOT NULL;

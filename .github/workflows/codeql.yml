@@ -1,74 +1,47 @@
-name: CodeQL Analysis
+name: CodeQL
 
 on:
   push:
-    branches: [main, develop]
+    branches: ["stabile", "main", "develop"]
   pull_request:
-    branches: [main, develop]
+    branches: ["stabile", "main", "develop"]
   schedule:
-    - cron: '0 7 * * 2'  # Every Tuesday at 7 AM UTC
+    - cron: '19 19 * * 3'
 
 jobs:
-  analyze-javascript:
-    name: Analyze JavaScript/TypeScript
+  analyze:
+    name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:
+      security-events: write
+      packages: read
       actions: read
       contents: read
-      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+          - language: rust
+            build-mode: none
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@d4b3ca9fa7f69d38bfcd667bdc45bc373d16277e # v4
         with:
-          languages: javascript-typescript
-          source-root: frontend-react
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@d4b3ca9fa7f69d38bfcd667bdc45bc373d16277e # v4
         with:
-          category: "/language:javascript"
-
-  # Rust static analysis via Clippy (CodeQL does not support Rust natively)
-  clippy-sarif:
-    name: Clippy SARIF (Rust SAST)
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    strategy:
-      matrix:
-        workspace: [backend-rust, cybersheppard-agent]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ${{ matrix.workspace }}
-
-      - name: Install clippy-sarif and sarif-fmt
-        run: cargo install clippy-sarif sarif-fmt --locked
-
-      - name: Run Clippy and emit SARIF
-        working-directory: ${{ matrix.workspace }}
-        run: |
-          cargo clippy --all-features --message-format=json 2>/dev/null \
-            | clippy-sarif \
-            | tee ../clippy-${{ matrix.workspace }}.sarif \
-            | sarif-fmt
-        continue-on-error: true
-
-      - name: Upload SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: clippy-${{ matrix.workspace }}.sarif
-          category: clippy-${{ matrix.workspace }}
+          category: "/language:${{ matrix.language }}"

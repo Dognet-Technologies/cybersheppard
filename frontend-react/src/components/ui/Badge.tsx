@@ -64,7 +64,7 @@ export function SeverityBadge({ severity, className }: SeverityBadgeProps) {
 }
 
 interface StatusBadgeProps {
-  status: 'online' | 'offline' | 'active' | 'inactive' | 'new' | 'acknowledged' | 'resolved' | 'revoked';
+  status: 'online' | 'offline' | 'active' | 'inactive' | 'new' | 'acknowledged' | 'resolved';
   className?: string;
 }
 
@@ -77,7 +77,6 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     new: { variant: 'info' as const, label: 'New' },
     acknowledged: { variant: 'warning' as const, label: 'Acknowledged' },
     resolved: { variant: 'success' as const, label: 'Resolved' },
-    revoked: { variant: 'danger' as const, label: 'Revoked' },
   };
 
   const config = statusMap[status] || { variant: 'default' as const, label: status };

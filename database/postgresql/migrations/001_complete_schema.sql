@@ -12,7 +12,7 @@ BEGIN;
 -- ============================================================================
 
 -- Users table
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
@@ -39,13 +39,13 @@ CREATE TABLE users (
     CONSTRAINT email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$')
 );
 
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_active ON users(is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active) WHERE is_active = TRUE;
 
 -- Refresh tokens table
-CREATE TABLE refresh_tokens (
+CREATE TABLE IF NOT EXISTS refresh_tokens (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash VARCHAR(64) NOT NULL UNIQUE,
@@ -62,13 +62,13 @@ CREATE TABLE refresh_tokens (
     revoked_reason VARCHAR(100)
 );
 
-CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
-CREATE INDEX idx_refresh_tokens_hash ON refresh_tokens(token_hash);
-CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens(expires_at);
-CREATE INDEX idx_refresh_tokens_active ON refresh_tokens(user_id, is_revoked) WHERE is_revoked = FALSE;
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_active ON refresh_tokens(user_id, is_revoked) WHERE is_revoked = FALSE;
 
 -- CSRF tokens table
-CREATE TABLE csrf_tokens (
+CREATE TABLE IF NOT EXISTS csrf_tokens (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash VARCHAR(64) NOT NULL UNIQUE,
@@ -80,12 +80,12 @@ CREATE TABLE csrf_tokens (
     used_at TIMESTAMP
 );
 
-CREATE INDEX idx_csrf_tokens_user ON csrf_tokens(user_id);
-CREATE INDEX idx_csrf_tokens_hash ON csrf_tokens(token_hash);
-CREATE INDEX idx_csrf_tokens_expires ON csrf_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_csrf_tokens_user ON csrf_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_csrf_tokens_hash ON csrf_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_csrf_tokens_expires ON csrf_tokens(expires_at);
 
 -- Password reset tokens table
-CREATE TABLE password_reset_tokens (
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash VARCHAR(64) NOT NULL UNIQUE,
@@ -99,11 +99,11 @@ CREATE TABLE password_reset_tokens (
     created_ip INET NOT NULL
 );
 
-CREATE INDEX idx_password_reset_user ON password_reset_tokens(user_id);
-CREATE INDEX idx_password_reset_token ON password_reset_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token_hash);
 
 -- Audit logs table
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id BIGSERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     username VARCHAR(50),
@@ -123,17 +123,17 @@ CREATE TABLE audit_logs (
     timestamp TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_logs_user ON audit_logs(user_id, timestamp DESC);
-CREATE INDEX idx_audit_logs_action ON audit_logs(action, timestamp DESC);
-CREATE INDEX idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
-CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
-CREATE INDEX idx_audit_logs_ip ON audit_logs(ip_address, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_ip ON audit_logs(ip_address, timestamp DESC);
 
 -- ============================================================================
 -- 2. SSH KEYS MANAGEMENT
 -- ============================================================================
 
-CREATE TABLE ssh_keys (
+CREATE TABLE IF NOT EXISTS ssh_keys (
     id SERIAL PRIMARY KEY,
 
     name VARCHAR(255) NOT NULL,
@@ -161,16 +161,16 @@ CREATE TABLE ssh_keys (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_ssh_keys_scope ON ssh_keys(scope, scope_value);
-CREATE INDEX idx_ssh_keys_fingerprint ON ssh_keys(fingerprint);
-CREATE INDEX idx_ssh_keys_active ON ssh_keys(is_active) WHERE is_active = TRUE;
-CREATE INDEX idx_ssh_keys_rotation ON ssh_keys(next_rotation_date) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_ssh_keys_scope ON ssh_keys(scope, scope_value);
+CREATE INDEX IF NOT EXISTS idx_ssh_keys_fingerprint ON ssh_keys(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_ssh_keys_active ON ssh_keys(is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_ssh_keys_rotation ON ssh_keys(next_rotation_date) WHERE is_active = TRUE;
 
 -- ============================================================================
 -- 3. TARGETS MANAGEMENT
 -- ============================================================================
 
-CREATE TABLE target_groups (
+CREATE TABLE IF NOT EXISTS target_groups (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
@@ -183,9 +183,9 @@ CREATE TABLE target_groups (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_target_groups_name ON target_groups(name);
+CREATE INDEX IF NOT EXISTS idx_target_groups_name ON target_groups(name);
 
-CREATE TABLE targets (
+CREATE TABLE IF NOT EXISTS targets (
     id SERIAL PRIMARY KEY,
 
     hostname VARCHAR(255) NOT NULL,
@@ -231,20 +231,20 @@ CREATE TABLE targets (
     CONSTRAINT unique_ip_port UNIQUE (ip_address, ssh_port)
 );
 
-CREATE INDEX idx_targets_hostname ON targets(hostname);
-CREATE INDEX idx_targets_ip ON targets(ip_address);
-CREATE INDEX idx_targets_status ON targets(status);
-CREATE INDEX idx_targets_role ON targets(role);
-CREATE INDEX idx_targets_gruppo ON targets(gruppo);
-CREATE INDEX idx_targets_compliance ON targets(compliance_standard);
-CREATE INDEX idx_targets_active ON targets(status) WHERE status = 'active';
-CREATE INDEX idx_targets_last_seen ON targets(last_seen DESC);
-CREATE INDEX idx_targets_tags ON targets USING GIN (tags);
+CREATE INDEX IF NOT EXISTS idx_targets_hostname ON targets(hostname);
+CREATE INDEX IF NOT EXISTS idx_targets_ip ON targets(ip_address);
+CREATE INDEX IF NOT EXISTS idx_targets_status ON targets(status);
+CREATE INDEX IF NOT EXISTS idx_targets_role ON targets(role);
+CREATE INDEX IF NOT EXISTS idx_targets_gruppo ON targets(gruppo);
+CREATE INDEX IF NOT EXISTS idx_targets_compliance ON targets(compliance_standard);
+CREATE INDEX IF NOT EXISTS idx_targets_active ON targets(status) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_targets_last_seen ON targets(last_seen DESC);
+CREATE INDEX IF NOT EXISTS idx_targets_tags ON targets USING GIN (tags);
 
 COMMENT ON COLUMN targets.sentinel_asset_id IS 'Asset ID in Sentinel Core system';
 COMMENT ON COLUMN targets.firedog_target_id IS 'Target ID in FireDog system';
 
-CREATE TABLE target_network_interfaces (
+CREATE TABLE IF NOT EXISTS target_network_interfaces (
     id SERIAL PRIMARY KEY,
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
 
@@ -260,14 +260,14 @@ CREATE TABLE target_network_interfaces (
     CONSTRAINT unique_target_interface UNIQUE (target_id, interface_name)
 );
 
-CREATE INDEX idx_target_interfaces_target ON target_network_interfaces(target_id);
-CREATE INDEX idx_target_interfaces_ip ON target_network_interfaces(ip_address);
+CREATE INDEX IF NOT EXISTS idx_target_interfaces_target ON target_network_interfaces(target_id);
+CREATE INDEX IF NOT EXISTS idx_target_interfaces_ip ON target_network_interfaces(ip_address);
 
 -- ============================================================================
 -- 4. HARDENING MODELS
 -- ============================================================================
 
-CREATE TABLE hardening_models (
+CREATE TABLE IF NOT EXISTS hardening_models (
     id SERIAL PRIMARY KEY,
 
     name VARCHAR(100) UNIQUE NOT NULL,
@@ -302,18 +302,19 @@ CREATE TABLE hardening_models (
     last_integrity_check TIMESTAMP
 );
 
-CREATE INDEX idx_hardening_models_name ON hardening_models(name);
-CREATE INDEX idx_hardening_models_role ON hardening_models(role);
-CREATE INDEX idx_hardening_models_compliance ON hardening_models(compliance_standard);
-CREATE INDEX idx_hardening_models_level ON hardening_models(level);
-CREATE INDEX idx_hardening_models_active ON hardening_models(is_active) WHERE is_active = TRUE;
-CREATE INDEX idx_hardening_models_hash ON hardening_models(hash_sha512);
+CREATE INDEX IF NOT EXISTS idx_hardening_models_name ON hardening_models(name);
+CREATE INDEX IF NOT EXISTS idx_hardening_models_role ON hardening_models(role);
+CREATE INDEX IF NOT EXISTS idx_hardening_models_compliance ON hardening_models(compliance_standard);
+CREATE INDEX IF NOT EXISTS idx_hardening_models_level ON hardening_models(level);
+CREATE INDEX IF NOT EXISTS idx_hardening_models_active ON hardening_models(is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_hardening_models_hash ON hardening_models(hash_sha512);
 
 -- Add foreign key to targets now that hardening_models exists
+ALTER TABLE targets DROP CONSTRAINT IF EXISTS fk_targets_hardening_model;
 ALTER TABLE targets ADD CONSTRAINT fk_targets_hardening_model
     FOREIGN KEY (hardening_model_id) REFERENCES hardening_models(id) ON DELETE SET NULL;
 
-CREATE TABLE hardening_files (
+CREATE TABLE IF NOT EXISTS hardening_files (
     id SERIAL PRIMARY KEY,
     model_id INTEGER NOT NULL REFERENCES hardening_models(id) ON DELETE CASCADE,
 
@@ -333,12 +334,12 @@ CREATE TABLE hardening_files (
     CONSTRAINT unique_model_file UNIQUE (model_id, file_name)
 );
 
-CREATE INDEX idx_hardening_files_model ON hardening_files(model_id);
-CREATE INDEX idx_hardening_files_path ON hardening_files(target_path);
-CREATE INDEX idx_hardening_files_hash ON hardening_files(hash_sha256);
+CREATE INDEX IF NOT EXISTS idx_hardening_files_model ON hardening_files(model_id);
+CREATE INDEX IF NOT EXISTS idx_hardening_files_path ON hardening_files(target_path);
+CREATE INDEX IF NOT EXISTS idx_hardening_files_hash ON hardening_files(hash_sha256);
 
 -- Hardening applications table (CORRECTED VERSION from migration 004)
-CREATE TABLE hardening_applications (
+CREATE TABLE IF NOT EXISTS hardening_applications (
     id BIGSERIAL PRIMARY KEY,
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
     model_path VARCHAR(255) NOT NULL,  -- e.g., "base/ssh.yml"
@@ -354,10 +355,10 @@ CREATE TABLE hardening_applications (
     CONSTRAINT valid_steps CHECK (steps_completed >= 0 AND steps_failed >= 0)
 );
 
-CREATE INDEX idx_hardening_applications_target_id ON hardening_applications(target_id, applied_at DESC);
-CREATE INDEX idx_hardening_applications_model_path ON hardening_applications(model_path);
-CREATE INDEX idx_hardening_applications_success ON hardening_applications(success);
-CREATE INDEX idx_hardening_applications_applied_at ON hardening_applications(applied_at DESC);
+CREATE INDEX IF NOT EXISTS idx_hardening_applications_target_id ON hardening_applications(target_id, applied_at DESC);
+CREATE INDEX IF NOT EXISTS idx_hardening_applications_model_path ON hardening_applications(model_path);
+CREATE INDEX IF NOT EXISTS idx_hardening_applications_success ON hardening_applications(success);
+CREATE INDEX IF NOT EXISTS idx_hardening_applications_applied_at ON hardening_applications(applied_at DESC);
 
 COMMENT ON TABLE hardening_applications IS 'Tracks history of hardening model applications to targets';
 COMMENT ON COLUMN hardening_applications.model_path IS 'Path to hardening model (e.g., base/ssh.yml)';
@@ -382,7 +383,7 @@ ORDER BY target_id, applied_at DESC;
 -- 5. NOTIFICATIONS
 -- ============================================================================
 
-CREATE TABLE notification_config (
+CREATE TABLE IF NOT EXISTS notification_config (
     id INTEGER PRIMARY KEY DEFAULT 1,
 
     email_enabled BOOLEAN DEFAULT FALSE,
@@ -417,9 +418,9 @@ CREATE TABLE notification_config (
 );
 
 -- Insert default config
-INSERT INTO notification_config (id) VALUES (1);
+INSERT INTO notification_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
-CREATE TABLE notification_logs (
+CREATE TABLE IF NOT EXISTS notification_logs (
     id BIGSERIAL PRIMARY KEY,
 
     notification_type VARCHAR(20) CHECK (notification_type IN ('email', 'slack', 'discord')),
@@ -443,17 +444,17 @@ CREATE TABLE notification_logs (
     fingerprint VARCHAR(64)
 );
 
-CREATE INDEX idx_notification_logs_type ON notification_logs(notification_type, sent_at DESC);
-CREATE INDEX idx_notification_logs_alert ON notification_logs(alert_type, sent_at DESC);
-CREATE INDEX idx_notification_logs_target ON notification_logs(target_id, sent_at DESC);
-CREATE INDEX idx_notification_logs_date ON notification_logs(sent_at DESC);
-CREATE INDEX idx_notification_logs_fingerprint ON notification_logs(fingerprint, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_type ON notification_logs(notification_type, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_alert ON notification_logs(alert_type, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_target ON notification_logs(target_id, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_date ON notification_logs(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_fingerprint ON notification_logs(fingerprint, sent_at DESC);
 
 -- ============================================================================
 -- 6. COMPLIANCE SYSTEM (from migration 002)
 -- ============================================================================
 
-CREATE TABLE compliance_policies (
+CREATE TABLE IF NOT EXISTS compliance_policies (
     id SERIAL PRIMARY KEY,
 
     -- Associazione
@@ -489,12 +490,12 @@ CREATE TABLE compliance_policies (
     CONSTRAINT unique_metric_per_target UNIQUE (target_id, metric_name)
 );
 
-CREATE INDEX idx_compliance_policies_target ON compliance_policies(target_id);
-CREATE INDEX idx_compliance_policies_model ON compliance_policies(hardening_model_id);
-CREATE INDEX idx_compliance_policies_category ON compliance_policies(category);
-CREATE INDEX idx_compliance_policies_active ON compliance_policies(is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_compliance_policies_target ON compliance_policies(target_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_policies_model ON compliance_policies(hardening_model_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_policies_category ON compliance_policies(category);
+CREATE INDEX IF NOT EXISTS idx_compliance_policies_active ON compliance_policies(is_active) WHERE is_active = TRUE;
 
-CREATE TABLE compliance_violations (
+CREATE TABLE IF NOT EXISTS compliance_violations (
     id BIGSERIAL PRIMARY KEY,
 
     -- Associazione
@@ -539,15 +540,15 @@ CREATE TABLE compliance_violations (
     notification_sent_at TIMESTAMP
 );
 
-CREATE INDEX idx_violations_target ON compliance_violations(target_id, first_detected_at DESC);
-CREATE INDEX idx_violations_policy ON compliance_violations(policy_id);
-CREATE INDEX idx_violations_status ON compliance_violations(status, severity);
-CREATE INDEX idx_violations_new ON compliance_violations(status, first_detected_at DESC) WHERE status = 'new';
-CREATE INDEX idx_violations_severity ON compliance_violations(severity, status);
-CREATE INDEX idx_violations_category ON compliance_violations(category, status);
-CREATE INDEX idx_violations_timeline ON compliance_violations(first_detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_violations_target ON compliance_violations(target_id, first_detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_violations_policy ON compliance_violations(policy_id);
+CREATE INDEX IF NOT EXISTS idx_violations_status ON compliance_violations(status, severity);
+CREATE INDEX IF NOT EXISTS idx_violations_new ON compliance_violations(status, first_detected_at DESC) WHERE status = 'new';
+CREATE INDEX IF NOT EXISTS idx_violations_severity ON compliance_violations(severity, status);
+CREATE INDEX IF NOT EXISTS idx_violations_category ON compliance_violations(category, status);
+CREATE INDEX IF NOT EXISTS idx_violations_timeline ON compliance_violations(first_detected_at DESC);
 
-CREATE TABLE compliance_history (
+CREATE TABLE IF NOT EXISTS compliance_history (
     id BIGSERIAL PRIMARY KEY,
 
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
@@ -575,9 +576,9 @@ CREATE TABLE compliance_history (
     policies_failed INTEGER DEFAULT 0
 );
 
-CREATE INDEX idx_compliance_history_target ON compliance_history(target_id, checked_at DESC);
-CREATE INDEX idx_compliance_history_status ON compliance_history(compliance_status, checked_at DESC);
-CREATE INDEX idx_compliance_history_date ON compliance_history(checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_history_target ON compliance_history(target_id, checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_history_status ON compliance_history(compliance_status, checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_history_date ON compliance_history(checked_at DESC);
 
 -- Insert default compliance policies
 INSERT INTO compliance_policies
@@ -638,7 +639,7 @@ VALUES
      'system', 'failed_services_count', 'max', 0, 5, 'high', TRUE, TRUE);
 
 -- Old compliance tables from 001 (kept for compatibility)
-CREATE TABLE compliance_checks (
+CREATE TABLE IF NOT EXISTS compliance_checks (
     id BIGSERIAL PRIMARY KEY,
 
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
@@ -662,12 +663,12 @@ CREATE TABLE compliance_checks (
     automated BOOLEAN DEFAULT TRUE
 );
 
-CREATE INDEX idx_compliance_checks_target ON compliance_checks(target_id, checked_at DESC);
-CREATE INDEX idx_compliance_checks_standard ON compliance_checks(standard, status);
-CREATE INDEX idx_compliance_checks_status ON compliance_checks(status);
-CREATE INDEX idx_compliance_checks_date ON compliance_checks(checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_checks_target ON compliance_checks(target_id, checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_checks_standard ON compliance_checks(standard, status);
+CREATE INDEX IF NOT EXISTS idx_compliance_checks_status ON compliance_checks(status);
+CREATE INDEX IF NOT EXISTS idx_compliance_checks_date ON compliance_checks(checked_at DESC);
 
-CREATE TABLE compliance_reports (
+CREATE TABLE IF NOT EXISTS compliance_reports (
     id SERIAL PRIMARY KEY,
 
     target_id INTEGER REFERENCES targets(id) ON DELETE CASCADE,
@@ -690,15 +691,15 @@ CREATE TABLE compliance_reports (
     generated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_compliance_reports_target ON compliance_reports(target_id, generated_at DESC);
-CREATE INDEX idx_compliance_reports_standard ON compliance_reports(standard, generated_at DESC);
-CREATE INDEX idx_compliance_reports_date ON compliance_reports(generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_reports_target ON compliance_reports(target_id, generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_reports_standard ON compliance_reports(standard, generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_reports_date ON compliance_reports(generated_at DESC);
 
 -- ============================================================================
 -- 7. INTEGRATIONS (from migration 005)
 -- ============================================================================
 
-CREATE TABLE integration_configs (
+CREATE TABLE IF NOT EXISTS integration_configs (
     id SERIAL PRIMARY KEY,
 
     service_name VARCHAR(50) UNIQUE NOT NULL,
@@ -723,10 +724,10 @@ CREATE TABLE integration_configs (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_integration_configs_service ON integration_configs(service_name);
-CREATE INDEX idx_integration_configs_enabled ON integration_configs(is_enabled) WHERE is_enabled = TRUE;
+CREATE INDEX IF NOT EXISTS idx_integration_configs_service ON integration_configs(service_name);
+CREATE INDEX IF NOT EXISTS idx_integration_configs_enabled ON integration_configs(is_enabled) WHERE is_enabled = TRUE;
 
-CREATE TABLE integration_sync_logs (
+CREATE TABLE IF NOT EXISTS integration_sync_logs (
     id BIGSERIAL PRIMARY KEY,
 
     integration_id INTEGER NOT NULL REFERENCES integration_configs(id) ON DELETE CASCADE,
@@ -748,12 +749,12 @@ CREATE TABLE integration_sync_logs (
     triggered_by INTEGER REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_integration_sync_logs_integration ON integration_sync_logs(integration_id, started_at DESC);
-CREATE INDEX idx_integration_sync_logs_status ON integration_sync_logs(status);
-CREATE INDEX idx_integration_sync_logs_date ON integration_sync_logs(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_integration_sync_logs_integration ON integration_sync_logs(integration_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_integration_sync_logs_status ON integration_sync_logs(status);
+CREATE INDEX IF NOT EXISTS idx_integration_sync_logs_date ON integration_sync_logs(started_at DESC);
 
 -- Sentinel Core vulnerabilities table (EXTENDED VERSION from 005)
-CREATE TABLE sentinel_vulnerabilities (
+CREATE TABLE IF NOT EXISTS sentinel_vulnerabilities (
     id SERIAL PRIMARY KEY,
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
     cve_id VARCHAR(50) NOT NULL,
@@ -771,16 +772,16 @@ CREATE TABLE sentinel_vulnerabilities (
     UNIQUE(target_id, cve_id)
 );
 
-CREATE INDEX idx_sentinel_vulnerabilities_target ON sentinel_vulnerabilities(target_id);
-CREATE INDEX idx_sentinel_vulnerabilities_cve ON sentinel_vulnerabilities(cve_id);
-CREATE INDEX idx_sentinel_vulnerabilities_severity ON sentinel_vulnerabilities(severity);
-CREATE INDEX idx_sentinel_vulnerabilities_cvss ON sentinel_vulnerabilities(cvss_score DESC);
+CREATE INDEX IF NOT EXISTS idx_sentinel_vulnerabilities_target ON sentinel_vulnerabilities(target_id);
+CREATE INDEX IF NOT EXISTS idx_sentinel_vulnerabilities_cve ON sentinel_vulnerabilities(cve_id);
+CREATE INDEX IF NOT EXISTS idx_sentinel_vulnerabilities_severity ON sentinel_vulnerabilities(severity);
+CREATE INDEX IF NOT EXISTS idx_sentinel_vulnerabilities_cvss ON sentinel_vulnerabilities(cvss_score DESC);
 
 COMMENT ON TABLE sentinel_vulnerabilities IS 'Vulnerabilities synced from Sentinel Core';
 COMMENT ON COLUMN sentinel_vulnerabilities.epss_score IS 'Exploit Prediction Scoring System score (0.0-1.0)';
 
 -- Vulnerability scan history
-CREATE TABLE sentinel_scan_history (
+CREATE TABLE IF NOT EXISTS sentinel_scan_history (
     id SERIAL PRIMARY KEY,
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
     scan_id VARCHAR(100) NOT NULL,
@@ -796,14 +797,14 @@ CREATE TABLE sentinel_scan_history (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_sentinel_scan_target ON sentinel_scan_history(target_id);
-CREATE INDEX idx_sentinel_scan_id ON sentinel_scan_history(scan_id);
-CREATE INDEX idx_sentinel_scan_status ON sentinel_scan_history(status);
+CREATE INDEX IF NOT EXISTS idx_sentinel_scan_target ON sentinel_scan_history(target_id);
+CREATE INDEX IF NOT EXISTS idx_sentinel_scan_id ON sentinel_scan_history(scan_id);
+CREATE INDEX IF NOT EXISTS idx_sentinel_scan_status ON sentinel_scan_history(status);
 
 COMMENT ON TABLE sentinel_scan_history IS 'History of vulnerability scans triggered via Sentinel Core';
 
 -- FireDog threats table (EXTENDED VERSION from 005)
-CREATE TABLE firedog_threats (
+CREATE TABLE IF NOT EXISTS firedog_threats (
     id SERIAL PRIMARY KEY,
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
     firedog_threat_id INTEGER NOT NULL,
@@ -822,17 +823,17 @@ CREATE TABLE firedog_threats (
     UNIQUE(firedog_threat_id)
 );
 
-CREATE INDEX idx_firedog_threats_target ON firedog_threats(target_id);
-CREATE INDEX idx_firedog_threats_source_ip ON firedog_threats(source_ip);
-CREATE INDEX idx_firedog_threats_score ON firedog_threats(score DESC);
-CREATE INDEX idx_firedog_threats_detected ON firedog_threats(detected_at DESC);
-CREATE INDEX idx_firedog_threats_acknowledged ON firedog_threats(acknowledged) WHERE NOT acknowledged;
+CREATE INDEX IF NOT EXISTS idx_firedog_threats_target ON firedog_threats(target_id);
+CREATE INDEX IF NOT EXISTS idx_firedog_threats_source_ip ON firedog_threats(source_ip);
+CREATE INDEX IF NOT EXISTS idx_firedog_threats_score ON firedog_threats(score DESC);
+CREATE INDEX IF NOT EXISTS idx_firedog_threats_detected ON firedog_threats(detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_firedog_threats_acknowledged ON firedog_threats(acknowledged) WHERE NOT acknowledged;
 
 COMMENT ON TABLE firedog_threats IS 'Threats synced from FireDog firewall system';
 COMMENT ON COLUMN firedog_threats.score IS 'Threat severity score (0.0-10.0)';
 
 -- FireDog target statistics
-CREATE TABLE firedog_statistics (
+CREATE TABLE IF NOT EXISTS firedog_statistics (
     id SERIAL PRIMARY KEY,
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
     input_packets BIGINT DEFAULT 0,
@@ -847,13 +848,13 @@ CREATE TABLE firedog_statistics (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_firedog_stats_target ON firedog_statistics(target_id);
-CREATE INDEX idx_firedog_stats_collected ON firedog_statistics(collected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_firedog_stats_target ON firedog_statistics(target_id);
+CREATE INDEX IF NOT EXISTS idx_firedog_stats_collected ON firedog_statistics(collected_at DESC);
 
 COMMENT ON TABLE firedog_statistics IS 'Network statistics from FireDog for each target';
 
 -- Security correlations table (EXTENDED VERSION from 005)
-CREATE TABLE security_correlations (
+CREATE TABLE IF NOT EXISTS security_correlations (
     id SERIAL PRIMARY KEY,
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
     correlation_type VARCHAR(50) NOT NULL,
@@ -888,19 +889,19 @@ CREATE TABLE security_correlations (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_correlations_target ON security_correlations(target_id);
-CREATE INDEX idx_correlations_risk ON security_correlations(risk_level);
-CREATE INDEX idx_correlations_status ON security_correlations(status);
-CREATE INDEX idx_correlations_created ON security_correlations(created_at DESC);
-CREATE INDEX idx_correlations_cve ON security_correlations(vulnerability_cve) WHERE vulnerability_cve IS NOT NULL;
-CREATE INDEX idx_correlations_threat_ip ON security_correlations(threat_source_ip) WHERE threat_source_ip IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_correlations_target ON security_correlations(target_id);
+CREATE INDEX IF NOT EXISTS idx_correlations_risk ON security_correlations(risk_level);
+CREATE INDEX IF NOT EXISTS idx_correlations_status ON security_correlations(status);
+CREATE INDEX IF NOT EXISTS idx_correlations_created ON security_correlations(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_correlations_cve ON security_correlations(vulnerability_cve) WHERE vulnerability_cve IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_correlations_threat_ip ON security_correlations(threat_source_ip) WHERE threat_source_ip IS NOT NULL;
 
 COMMENT ON TABLE security_correlations IS 'Security event correlations between vulnerabilities and threats';
 COMMENT ON COLUMN security_correlations.correlation_confidence IS 'Confidence score (0.0-1.0)';
 COMMENT ON COLUMN security_correlations.correlation_type IS 'Type: vuln_threat_match, targeted_attack, privesc_attempt, etc.';
 
 -- Integration settings table
-CREATE TABLE integration_settings (
+CREATE TABLE IF NOT EXISTS integration_settings (
     id SERIAL PRIMARY KEY,
     integration_name VARCHAR(50) NOT NULL UNIQUE,
     enabled BOOLEAN DEFAULT FALSE,
@@ -916,7 +917,7 @@ CREATE TABLE integration_settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_integration_name ON integration_settings(integration_name);
+CREATE INDEX IF NOT EXISTS idx_integration_name ON integration_settings(integration_name);
 
 COMMENT ON TABLE integration_settings IS 'Configuration for external integrations (Sentinel Core, FireDog)';
 
@@ -928,7 +929,7 @@ VALUES
 ON CONFLICT (integration_name) DO NOTHING;
 
 -- Integration sync log
-CREATE TABLE integration_sync_log (
+CREATE TABLE IF NOT EXISTS integration_sync_log (
     id SERIAL PRIMARY KEY,
     integration_name VARCHAR(50) NOT NULL,
     sync_type VARCHAR(50) NOT NULL,
@@ -942,14 +943,14 @@ CREATE TABLE integration_sync_log (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_sync_log_integration ON integration_sync_log(integration_name);
-CREATE INDEX idx_sync_log_status ON integration_sync_log(status);
-CREATE INDEX idx_sync_log_started ON integration_sync_log(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sync_log_integration ON integration_sync_log(integration_name);
+CREATE INDEX IF NOT EXISTS idx_sync_log_status ON integration_sync_log(status);
+CREATE INDEX IF NOT EXISTS idx_sync_log_started ON integration_sync_log(started_at DESC);
 
 COMMENT ON TABLE integration_sync_log IS 'Log of integration synchronization operations';
 
 -- Automated actions table
-CREATE TABLE automated_actions (
+CREATE TABLE IF NOT EXISTS automated_actions (
     id SERIAL PRIMARY KEY,
     correlation_id INTEGER REFERENCES security_correlations(id) ON DELETE CASCADE,
     action_type VARCHAR(50) NOT NULL,
@@ -962,9 +963,9 @@ CREATE TABLE automated_actions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_automated_actions_correlation ON automated_actions(correlation_id);
-CREATE INDEX idx_automated_actions_status ON automated_actions(status);
-CREATE INDEX idx_automated_actions_type ON automated_actions(action_type);
+CREATE INDEX IF NOT EXISTS idx_automated_actions_correlation ON automated_actions(correlation_id);
+CREATE INDEX IF NOT EXISTS idx_automated_actions_status ON automated_actions(status);
+CREATE INDEX IF NOT EXISTS idx_automated_actions_type ON automated_actions(action_type);
 
 COMMENT ON TABLE automated_actions IS 'Automated response actions triggered by correlations';
 COMMENT ON COLUMN automated_actions.action_type IS 'Type: block_ip, apply_hardening, send_alert, etc.';
@@ -974,7 +975,7 @@ COMMENT ON COLUMN automated_actions.action_type IS 'Type: block_ip, apply_harden
 -- ============================================================================
 
 -- Compliance frameworks table (CIS, PCI-DSS, NIST, ISO27001, etc.)
-CREATE TABLE compliance_frameworks (
+CREATE TABLE IF NOT EXISTS compliance_frameworks (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     display_name VARCHAR(200) NOT NULL,
@@ -987,8 +988,8 @@ CREATE TABLE compliance_frameworks (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_compliance_frameworks_enabled ON compliance_frameworks(enabled);
-CREATE INDEX idx_compliance_frameworks_category ON compliance_frameworks(category);
+CREATE INDEX IF NOT EXISTS idx_compliance_frameworks_enabled ON compliance_frameworks(enabled);
+CREATE INDEX IF NOT EXISTS idx_compliance_frameworks_category ON compliance_frameworks(category);
 
 COMMENT ON TABLE compliance_frameworks IS 'Security compliance frameworks (CIS, PCI-DSS, NIST, etc.)';
 
@@ -1005,7 +1006,7 @@ VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- Compliance controls/requirements table
-CREATE TABLE compliance_controls (
+CREATE TABLE IF NOT EXISTS compliance_controls (
     id SERIAL PRIMARY KEY,
     framework_id INTEGER NOT NULL REFERENCES compliance_frameworks(id) ON DELETE CASCADE,
     control_id VARCHAR(50) NOT NULL,
@@ -1020,14 +1021,14 @@ CREATE TABLE compliance_controls (
     UNIQUE(framework_id, control_id)
 );
 
-CREATE INDEX idx_compliance_controls_framework ON compliance_controls(framework_id);
-CREATE INDEX idx_compliance_controls_severity ON compliance_controls(severity);
-CREATE INDEX idx_compliance_controls_automated ON compliance_controls(automated_check) WHERE automated_check = true;
+CREATE INDEX IF NOT EXISTS idx_compliance_controls_framework ON compliance_controls(framework_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_controls_severity ON compliance_controls(severity);
+CREATE INDEX IF NOT EXISTS idx_compliance_controls_automated ON compliance_controls(automated_check) WHERE automated_check = true;
 
 COMMENT ON TABLE compliance_controls IS 'Individual controls/requirements within compliance frameworks';
 
 -- Compliance assessment results
-CREATE TABLE compliance_assessments (
+CREATE TABLE IF NOT EXISTS compliance_assessments (
     id SERIAL PRIMARY KEY,
     target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
     framework_id INTEGER NOT NULL REFERENCES compliance_frameworks(id) ON DELETE CASCADE,
@@ -1043,15 +1044,15 @@ CREATE TABLE compliance_assessments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_compliance_assessments_target ON compliance_assessments(target_id);
-CREATE INDEX idx_compliance_assessments_framework ON compliance_assessments(framework_id);
-CREATE INDEX idx_compliance_assessments_date ON compliance_assessments(assessment_date DESC);
-CREATE INDEX idx_compliance_assessments_score ON compliance_assessments(compliance_score DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_assessments_target ON compliance_assessments(target_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_assessments_framework ON compliance_assessments(framework_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_assessments_date ON compliance_assessments(assessment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_assessments_score ON compliance_assessments(compliance_score DESC);
 
 COMMENT ON TABLE compliance_assessments IS 'Compliance assessment results per target and framework';
 
 -- Compliance control results
-CREATE TABLE compliance_control_results (
+CREATE TABLE IF NOT EXISTS compliance_control_results (
     id SERIAL PRIMARY KEY,
     assessment_id INTEGER NOT NULL REFERENCES compliance_assessments(id) ON DELETE CASCADE,
     control_id INTEGER NOT NULL REFERENCES compliance_controls(id) ON DELETE CASCADE,
@@ -1063,14 +1064,14 @@ CREATE TABLE compliance_control_results (
     assessed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_compliance_control_results_assessment ON compliance_control_results(assessment_id);
-CREATE INDEX idx_compliance_control_results_control ON compliance_control_results(control_id);
-CREATE INDEX idx_compliance_control_results_status ON compliance_control_results(status);
+CREATE INDEX IF NOT EXISTS idx_compliance_control_results_assessment ON compliance_control_results(assessment_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_control_results_control ON compliance_control_results(control_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_control_results_status ON compliance_control_results(status);
 
 COMMENT ON TABLE compliance_control_results IS 'Individual control assessment results';
 
 -- Alert channels (email, slack, webhook, etc.)
-CREATE TABLE alert_channels (
+CREATE TABLE IF NOT EXISTS alert_channels (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     channel_type VARCHAR(50) NOT NULL,
@@ -1080,8 +1081,8 @@ CREATE TABLE alert_channels (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_alert_channels_type ON alert_channels(channel_type);
-CREATE INDEX idx_alert_channels_enabled ON alert_channels(enabled) WHERE enabled = true;
+CREATE INDEX IF NOT EXISTS idx_alert_channels_type ON alert_channels(channel_type);
+CREATE INDEX IF NOT EXISTS idx_alert_channels_enabled ON alert_channels(enabled) WHERE enabled = true;
 
 COMMENT ON TABLE alert_channels IS 'Alert delivery channels (email, Slack, webhooks, etc.)';
 
@@ -1094,7 +1095,7 @@ VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- Alert rules
-CREATE TABLE alert_rules (
+CREATE TABLE IF NOT EXISTS alert_rules (
     id SERIAL PRIMARY KEY,
     name VARCHAR(200) NOT NULL,
     description TEXT,
@@ -1108,15 +1109,15 @@ CREATE TABLE alert_rules (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_alert_rules_enabled ON alert_rules(enabled) WHERE enabled = true;
-CREATE INDEX idx_alert_rules_severity ON alert_rules(severity);
-CREATE INDEX idx_alert_rules_type ON alert_rules(trigger_type);
+CREATE INDEX IF NOT EXISTS idx_alert_rules_enabled ON alert_rules(enabled) WHERE enabled = true;
+CREATE INDEX IF NOT EXISTS idx_alert_rules_severity ON alert_rules(severity);
+CREATE INDEX IF NOT EXISTS idx_alert_rules_type ON alert_rules(trigger_type);
 
 COMMENT ON TABLE alert_rules IS 'Alert rules configuration';
 COMMENT ON COLUMN alert_rules.trigger_type IS 'Type: violation_detected, correlation_created, threshold_exceeded, compliance_failed';
 
 -- Alerts table
-CREATE TABLE alerts (
+CREATE TABLE IF NOT EXISTS alerts (
     id SERIAL PRIMARY KEY,
     rule_id INTEGER REFERENCES alert_rules(id) ON DELETE SET NULL,
     severity VARCHAR(20) NOT NULL,
@@ -1137,18 +1138,18 @@ CREATE TABLE alerts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_alerts_rule ON alerts(rule_id);
-CREATE INDEX idx_alerts_severity ON alerts(severity);
-CREATE INDEX idx_alerts_type ON alerts(alert_type);
-CREATE INDEX idx_alerts_status ON alerts(status);
-CREATE INDEX idx_alerts_created ON alerts(created_at DESC);
-CREATE INDEX idx_alerts_unresolved ON alerts(status) WHERE NOT resolved;
+CREATE INDEX IF NOT EXISTS idx_alerts_rule ON alerts(rule_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(alert_type);
+CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
+CREATE INDEX IF NOT EXISTS idx_alerts_created ON alerts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_unresolved ON alerts(status) WHERE NOT resolved;
 
 COMMENT ON TABLE alerts IS 'System alerts and notifications';
 COMMENT ON COLUMN alerts.alert_type IS 'Type: security_violation, compliance_failure, threat_detected, system_error';
 
 -- Alert deliveries (tracking)
-CREATE TABLE alert_deliveries (
+CREATE TABLE IF NOT EXISTS alert_deliveries (
     id SERIAL PRIMARY KEY,
     alert_id INTEGER NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
     channel_id INTEGER NOT NULL REFERENCES alert_channels(id) ON DELETE CASCADE,
@@ -1160,14 +1161,14 @@ CREATE TABLE alert_deliveries (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_alert_deliveries_alert ON alert_deliveries(alert_id);
-CREATE INDEX idx_alert_deliveries_channel ON alert_deliveries(channel_id);
-CREATE INDEX idx_alert_deliveries_status ON alert_deliveries(status);
+CREATE INDEX IF NOT EXISTS idx_alert_deliveries_alert ON alert_deliveries(alert_id);
+CREATE INDEX IF NOT EXISTS idx_alert_deliveries_channel ON alert_deliveries(channel_id);
+CREATE INDEX IF NOT EXISTS idx_alert_deliveries_status ON alert_deliveries(status);
 
 COMMENT ON TABLE alert_deliveries IS 'Alert delivery tracking per channel';
 
 -- Report templates
-CREATE TABLE report_templates (
+CREATE TABLE IF NOT EXISTS report_templates (
     id SERIAL PRIMARY KEY,
     name VARCHAR(200) NOT NULL UNIQUE,
     template_type VARCHAR(50) NOT NULL,
@@ -1178,13 +1179,13 @@ CREATE TABLE report_templates (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_report_templates_type ON report_templates(template_type);
-CREATE INDEX idx_report_templates_enabled ON report_templates(enabled) WHERE enabled = true;
+CREATE INDEX IF NOT EXISTS idx_report_templates_type ON report_templates(template_type);
+CREATE INDEX IF NOT EXISTS idx_report_templates_enabled ON report_templates(enabled) WHERE enabled = true;
 
 COMMENT ON TABLE report_templates IS 'Report templates for compliance and security reports';
 
 -- Generated reports
-CREATE TABLE generated_reports (
+CREATE TABLE IF NOT EXISTS generated_reports (
     id SERIAL PRIMARY KEY,
     template_id INTEGER REFERENCES report_templates(id) ON DELETE SET NULL,
     report_name VARCHAR(300) NOT NULL,
@@ -1193,8 +1194,8 @@ CREATE TABLE generated_reports (
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_generated_reports_template ON generated_reports(template_id);
-CREATE INDEX idx_generated_reports_date ON generated_reports(generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_generated_reports_template ON generated_reports(template_id);
+CREATE INDEX IF NOT EXISTS idx_generated_reports_date ON generated_reports(generated_at DESC);
 
 COMMENT ON TABLE generated_reports IS 'History of generated compliance and security reports';
 
@@ -1202,7 +1203,7 @@ COMMENT ON TABLE generated_reports IS 'History of generated compliance and secur
 -- 9. SYSTEM SETTINGS (from migration 001)
 -- ============================================================================
 
-CREATE TABLE system_settings (
+CREATE TABLE IF NOT EXISTS system_settings (
     id SERIAL PRIMARY KEY,
 
     category VARCHAR(50) NOT NULL,
@@ -1224,16 +1225,11 @@ CREATE TABLE system_settings (
     CONSTRAINT unique_category_key UNIQUE (category, key)
 );
 
-CREATE INDEX idx_system_settings_category ON system_settings(category);
-CREATE INDEX idx_system_settings_key ON system_settings(key);
-
--- Insert default settings
-INSERT INTO system_settings (category, key, value_type, value_integer, description) VALUES
-    ('monitoring', 'default_interval_seconds', 'integer', 30, 'Default monitoring interval'),
-    ('monitoring', 'data_retention_days', 'integer', 90, 'Days to keep monitoring data'),
-    ('security', 'session_timeout_minutes', 'integer', 30, 'JWT session timeout'),
-    ('security', 'max_login_attempts', 'integer', 5, 'Max failed login attempts before lockout'),
-    ('security', 'lockout_duration_minutes', 'integer', 15, 'Account lockout duration');
+-- NB: system_settings è ridefinita e popolata in 009_settings_system.sql
+-- (schema basato su setting_key), che droppa e ricrea questa tabella. Qui non
+-- creiamo l'indice su `key` né inseriamo i default del vecchio schema:
+-- alla riapplicazione fallirebbero contro lo schema nuovo. L'unico indice
+-- compatibile con entrambi gli schemi (category) viene comunque ricreato da 009.
 
 -- ============================================================================
 -- 10. FUNCTIONS, TRIGGERS, AND VIEWS
@@ -1249,22 +1245,22 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Triggers for updated_at on various tables
-CREATE TRIGGER update_compliance_policies_updated_at
+CREATE OR REPLACE TRIGGER update_compliance_policies_updated_at
     BEFORE UPDATE ON compliance_policies
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_sentinel_vulnerabilities_updated_at
+CREATE OR REPLACE TRIGGER update_sentinel_vulnerabilities_updated_at
     BEFORE UPDATE ON sentinel_vulnerabilities
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_security_correlations_updated_at
+CREATE OR REPLACE TRIGGER update_security_correlations_updated_at
     BEFORE UPDATE ON security_correlations
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_integration_settings_updated_at
+CREATE OR REPLACE TRIGGER update_integration_settings_updated_at
     BEFORE UPDATE ON integration_settings
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                correlation_type,\n                COUNT(*) as count\n            FROM event_correlations\n            WHERE status = 'active'\n            GROUP BY correlation_type\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "correlation_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "ad78f9cd28d491930459b8887357ff4de96e28f3562d60e10de2a66a0341374a"
+}

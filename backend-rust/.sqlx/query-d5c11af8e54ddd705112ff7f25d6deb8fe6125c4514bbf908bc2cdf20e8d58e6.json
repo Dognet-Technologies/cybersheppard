@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH auth_sequences AS (\n                SELECT\n                    user_name,\n                    source_host as from_host,\n                    LEAD(source_host) OVER (PARTITION BY user_name ORDER BY timestamp) as to_host,\n                    timestamp,\n                    LEAD(timestamp) OVER (PARTITION BY user_name ORDER BY timestamp) as next_timestamp\n                FROM security_events\n                WHERE timestamp > NOW() - INTERVAL '1 day' * $1\n                  AND event_category IN ('authentication', 'network')\n                  AND user_name IS NOT NULL\n                  AND source_host IS NOT NULL\n            )\n            SELECT\n                from_host,\n                to_host,\n                COUNT(*) as transition_count\n            FROM auth_sequences\n            WHERE to_host IS NOT NULL\n              AND from_host != to_host\n              AND EXTRACT(EPOCH FROM (next_timestamp - timestamp)) < 3600\n            GROUP BY from_host, to_host\n            ORDER BY transition_count DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "from_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "to_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "transition_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "d5c11af8e54ddd705112ff7f25d6deb8fe6125c4514bbf908bc2cdf20e8d58e6"
+}

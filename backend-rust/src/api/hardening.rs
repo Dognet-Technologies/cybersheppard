@@ -17,6 +17,7 @@ use sqlx::Row;
 use crate::AppState;
 use crate::models::{HardeningTemplate, HardeningExecution};
 use crate::middleware::auth::AuthUser;
+use crate::middleware::permissions::ManagerUser;
 
 pub fn routes() -> Router<crate::AppState> {
     Router::new()
@@ -121,6 +122,34 @@ struct TestConnectionResponse {
 fn get_django_url() -> String {
     std::env::var("DJANGO_HARDENING_URL")
         .unwrap_or_else(|_| "http://localhost:8001".to_string())
+}
+
+/// Validate that a model path contains only safe characters and no traversal sequences.
+/// Allowed: alphanumeric, `/`, `-`, `_`, `.` — no `..`, null bytes, or leading `/`.
+/// Returns Err with a 400 response if the path is invalid (CWE-22, CWE-918).
+fn validate_model_path(path: &str) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
+    if path.is_empty() || path.len() > 256 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid model path"})),
+        ));
+    }
+    if path.contains("..") || path.starts_with('/') {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid model path"})),
+        ));
+    }
+    let valid = path
+        .chars()
+        .all(|c| c.is_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'));
+    if !valid {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Invalid model path"})),
+        ));
+    }
+    Ok(())
 }
 
 /// Get target SSH info from database
@@ -234,6 +263,11 @@ async fn get_model(
     State(state): State<AppState>,
     Path(model_path): Path<String>,
 ) -> impl IntoResponse {
+    // Validate model_path before embedding it in the Django URL (CWE-918, CWE-22)
+    if let Err(err) = validate_model_path(&model_path) {
+        return err.into_response();
+    }
+
     let client = Client::new();
     let django_url = get_django_url();
 
@@ -266,6 +300,7 @@ async fn get_model(
 /// Apply hardening model to target
 async fn apply_hardening(
     State(state): State<AppState>,
+    _manager: ManagerUser,
     Json(payload): Json<ApplyHardeningRequest>,
 ) -> impl IntoResponse {
     // Get target SSH info
@@ -417,6 +452,7 @@ async fn hardening_history(
 /// Rollback hardening changes
 async fn rollback_hardening(
     State(state): State<AppState>,
+    _manager: ManagerUser,
     Json(payload): Json<RollbackRequest>,
 ) -> impl IntoResponse {
     // Get target SSH info
@@ -508,6 +544,7 @@ async fn list_backups(
 /// Test SSH connection to target
 async fn test_ssh_connection(
     State(state): State<AppState>,
+    _manager: ManagerUser,
     Json(payload): Json<TestConnectionRequest>,
 ) -> impl IntoResponse {
     // Get target SSH info
@@ -710,7 +747,7 @@ async fn get_template(
 /// Execute a hardening template on one or more targets
 async fn execute_template(
     State(state): State<AppState>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
     Json(payload): Json<ExecuteTemplateRequest>,
 ) -> impl IntoResponse {
     // Validate execution mode
@@ -942,7 +979,7 @@ async fn get_execution(
 async fn rollback_execution(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    _auth_user: AuthUser,
+    _manager: ManagerUser,
 ) -> impl IntoResponse {
     // Get the execution
     let execution = match sqlx::query_as::<_, HardeningExecution>(

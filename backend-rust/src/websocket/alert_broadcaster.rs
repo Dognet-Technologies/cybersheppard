@@ -13,6 +13,8 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
+
+use crate::utils::BigDecimalExt;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -254,7 +256,7 @@ impl AlertMonitorService {
                 id,
                 correlation_type,
                 severity,
-                risk_score::FLOAT8 as risk_score,
+                risk_score,
                 pattern_name,
                 pattern_description,
                 involved_hosts,
@@ -276,7 +278,7 @@ impl AlertMonitorService {
                 correlation_id: row.id,
                 correlation_type: row.correlation_type,
                 severity: row.severity,
-                risk_score: row.risk_score.unwrap_or(0.0),
+                risk_score: row.risk_score.to_f64(),
                 pattern_name: row.pattern_name.unwrap_or_else(|| "Unknown".to_string()),
                 description: row.pattern_description.unwrap_or_else(|| "No description".to_string()),
                 involved_hosts: row.involved_hosts.unwrap_or_default(),
@@ -302,7 +304,7 @@ impl AlertMonitorService {
             SELECT
                 source_host,
                 user_name,
-                anomaly_score::FLOAT8 as anomaly_score,
+                anomaly_score,
                 event_type,
                 timestamp
             FROM security_events
@@ -320,9 +322,9 @@ impl AlertMonitorService {
             let alert = AlertMessage::AnomalyDetected {
                 host_name: row.source_host,
                 user_name: row.user_name,
-                anomaly_score: row.anomaly_score.unwrap_or(0.0),
+                anomaly_score: row.anomaly_score.to_f64(),
                 description: format!("High anomaly score for event type: {}", row.event_type),
-                z_score: row.anomaly_score.unwrap_or(0.0) / 10.0, // Approximate
+                z_score: row.anomaly_score.to_f64() / 10.0, // Approximate
                 timestamp: row.timestamp.to_rfc3339(),
             };
 
@@ -398,8 +400,8 @@ impl AlertMonitorService {
             r#"
             SELECT
                 host_name,
-                total_risk_score::FLOAT8 as total_risk_score,
-                COALESCE(risk_level, 'low') as risk_level,
+                total_risk_score,
+                risk_level,
                 last_calculated
             FROM host_risk_scores
             WHERE last_calculated > $1
@@ -416,8 +418,8 @@ impl AlertMonitorService {
             let alert = AlertMessage::HostRiskChanged {
                 host_name: row.host_name,
                 old_risk_level: "unknown".to_string(), // Would need to track previous state
-                new_risk_level: row.risk_level.unwrap_or_default(),
-                risk_score: row.total_risk_score.unwrap_or(0.0),
+                new_risk_level: row.risk_level.unwrap_or_else(|| "unknown".to_string()),
+                risk_score: row.total_risk_score.to_f64(),
                 timestamp: row.last_calculated.to_rfc3339(),
             };
 

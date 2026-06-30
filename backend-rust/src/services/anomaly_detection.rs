@@ -8,6 +8,7 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use tracing::{debug, info};
 
+use crate::utils::ToBigDecimal;
 use crate::security_event::{
     AnomalyDetectionResult, BaselineCalculationResult, Severity,
 };
@@ -32,13 +33,16 @@ impl AnomalyDetectionService {
         // Get baseline
         let baseline = self.get_user_baseline(user_name).await?;
 
-        let z_score = if baseline.stddev > 0.0 {
-            (current_logins as f64 - baseline.mean) / baseline.stddev
-        } else {
-            0.0
+        let z_score = {
+            let stddev = baseline.stddev;
+            if stddev > 0.0 {
+                (current_logins as f64 - baseline.mean) / stddev
+            } else {
+                0.0
+            }
         };
 
-        let (is_anomaly, severity, description) = self.classify_z_score(
+        let (is_anomaly, severity, description) = Self::classify_z_score(
             z_score,
             &format!("User '{}' login frequency", user_name),
         );
@@ -71,13 +75,16 @@ impl AnomalyDetectionService {
         // Get baseline
         let baseline = self.get_host_baseline(host_name).await?;
 
-        let z_score = if baseline.stddev > 0.0 {
-            (current_connections as f64 - baseline.mean) / baseline.stddev
-        } else {
-            0.0
+        let z_score = {
+            let stddev = baseline.stddev;
+            if stddev > 0.0 {
+                (current_connections as f64 - baseline.mean) / stddev
+            } else {
+                0.0
+            }
         };
 
-        let (is_anomaly, severity, description) = self.classify_z_score(
+        let (is_anomaly, severity, description) = Self::classify_z_score(
             z_score,
             &format!("Host '{}' network connections", host_name),
         );
@@ -131,13 +138,16 @@ impl AnomalyDetectionService {
         // For typical commands, check execution frequency
         let baseline = self.get_command_baseline(user_name, command).await?;
 
-        let z_score = if baseline.stddev > 0.0 {
-            (execution_count as f64 - baseline.mean) / baseline.stddev
-        } else {
-            0.0
+        let z_score = {
+            let stddev = baseline.stddev;
+            if stddev > 0.0 {
+                (execution_count as f64 - baseline.mean) / stddev
+            } else {
+                0.0
+            }
         };
 
-        let (is_anomaly, severity, description) = self.classify_z_score(
+        let (is_anomaly, severity, description) = Self::classify_z_score(
             z_score,
             &format!("Command '{}' execution frequency", command),
         );
@@ -162,7 +172,7 @@ impl AnomalyDetectionService {
     /// 3.0 ≤ |z| < 4.0:  Medium anomaly
     /// 4.0 ≤ |z| < 5.0:  High anomaly
     /// |z| ≥ 5.0:  Critical anomaly
-    fn classify_z_score(&self, z_score: f64, context: &str) -> (bool, Severity, String) {
+    fn classify_z_score(z_score: f64, context: &str) -> (bool, Severity, String) {
         let abs_z = z_score.abs();
 
         if abs_z < 2.0 {
@@ -311,7 +321,7 @@ impl AnomalyDetectionService {
         .await?;
 
         if let Some(row) = row {
-            Ok(row.common_commands.as_ref().map(|cmds| cmds.contains(&command.to_string())).unwrap_or(false))
+            Ok(row.common_commands.map(|cmds| cmds.contains(&command.to_string())).unwrap_or(false))
         } else {
             Ok(false)
         }
@@ -454,11 +464,11 @@ impl AnomalyDetectionService {
         sqlx::query!(
             r#"
             UPDATE security_events
-            SET anomaly_score = $2::FLOAT8
+            SET anomaly_score = $2
             WHERE id = $1
             "#,
             event_id,
-            anomaly_score
+            anomaly_score.to_bigdecimal()
         )
         .execute(&self.db)
         .await?;
@@ -492,32 +502,28 @@ mod tests {
 
     #[test]
     fn test_z_score_classification() {
-        let service = AnomalyDetectionService {
-            db: PgPool::connect("").await.unwrap(), // Mock
-        };
-
         // Normal
-        let (is_anomaly, severity, _) = service.classify_z_score(1.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(1.5, "Test");
         assert!(!is_anomaly);
         assert_eq!(severity, Severity::Info);
 
         // Low anomaly
-        let (is_anomaly, severity, _) = service.classify_z_score(2.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(2.5, "Test");
         assert!(is_anomaly);
         assert_eq!(severity, Severity::Low);
 
         // Medium anomaly
-        let (is_anomaly, severity, _) = service.classify_z_score(3.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(3.5, "Test");
         assert!(is_anomaly);
         assert_eq!(severity, Severity::Medium);
 
         // High anomaly
-        let (is_anomaly, severity, _) = service.classify_z_score(4.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(4.5, "Test");
         assert!(is_anomaly);
         assert_eq!(severity, Severity::High);
 
         // Critical anomaly
-        let (is_anomaly, severity, _) = service.classify_z_score(5.5, "Test");
+        let (is_anomaly, severity, _) = AnomalyDetectionService::classify_z_score(5.5, "Test");
         assert!(is_anomaly);
         assert_eq!(severity, Severity::Critical);
     }

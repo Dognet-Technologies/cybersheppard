@@ -8,6 +8,8 @@ use sqlx::PgPool;
 use std::collections::{HashMap, HashSet, VecDeque};
 use tracing::{debug, info};
 
+use crate::utils::ToBigDecimal;
+
 /// Graph node representing a host
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {
@@ -59,7 +61,7 @@ impl NetworkGraph {
                 MAX(timestamp) as last_seen,
                 BOOL_OR(anomaly_score > 50) as has_anomalies
             FROM security_events
-            WHERE timestamp > NOW() - INTERVAL '1 day' * $1::FLOAT8
+            WHERE timestamp > NOW() - INTERVAL '1 day' * $1
               AND event_category = 'network'
               AND source_host IS NOT NULL
               AND destination_host IS NOT NULL
@@ -212,6 +214,7 @@ impl NetworkGraph {
     /// Find all shortest paths between two nodes (BFS)
     fn find_all_shortest_paths(&self, source: &str, target: &str) -> Vec<Vec<String>> {
         let mut queue = VecDeque::new();
+        let mut visited: HashSet<String> = HashSet::new();
         let mut paths = Vec::new();
         let mut shortest_length = usize::MAX;
 
@@ -521,19 +524,19 @@ impl GraphAnalyticsService {
                     last_seen
                 )
                 SELECT
-                    $1::TEXT,
-                    $1::TEXT,
-                    $2::INT4,
-                    $3::FLOAT8,
+                    $1::VARCHAR,
+                    $1::VARCHAR,
+                    $2,
+                    $3,
                     NOW(),
                     NOW()
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM network_topology WHERE source_host = $1::TEXT AND destination_host = $1::TEXT
+                    SELECT 1 FROM network_topology WHERE source_host = $1::VARCHAR AND destination_host = $1::VARCHAR
                 )
                 "#,
                 host_name,
                 node.connections as i32,
-                node.betweenness_centrality as f64
+                node.betweenness_centrality.to_bigdecimal()
             )
             .execute(&self.db)
             .await

@@ -1,0 +1,75 @@
+{
+  "name": "example-plugin",
+  "version": "1.0.0",
+  "product": "cybersheppard",
+  "stato": "stable",
+  "stability_level": "beta",
+  "description": "Example plugin demonstrating CyberSheppard plugin development",
+  "author": "CyberSheppard Team",
+  "author_email": "dev@cybersheppard.com",
+  "homepage": "https://github.com/your-org/plugins-official/tree/main/cybersheppard/example-plugin",
+  "documentation": "https://docs.cybersheppard.com/plugins/example",
+  "license": "MIT",
+  "requires_version": ">=1.0.0",
+  "entry_point": "plugin.py",
+  "checksum_sha256": "",
+  "keywords": [
+    "example",
+    "tutorial",
+    "development"
+  ],
+  "permissions": [
+    "network.http",
+    "storage.read",
+    "storage.write"
+  ],
+  "events": [
+    "security.violation.detected",
+    "target.scan.complete",
+    "alert.triggered"
+  ],
+  "configuration_schema": {
+    "api_endpoint": {
+      "type": "string",
+      "required": true,
+      "description": "API endpoint URL for external service",
+      "default": "https://api.example.com/v1"
+    },
+    "api_key": {
+      "type": "string",
+      "required": true,
+      "description": "API authentication key",
+      "sensitive": true
+    },
+    "timeout": {
+      "type": "integer",
+      "required": false,
+      "default": 30,
+      "min": 5,
+      "max": 300,
+      "description": "Request timeout in seconds"
+    },
+    "retry_attempts": {
+      "type": "integer",
+      "required": false,
+      "default": 3,
+      "min": 0,
+      "max": 10,
+      "description": "Number of retry attempts for failed requests"
+    },
+    "enabled_features": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["enrichment", "notification", "export"]
+      },
+      "default": ["enrichment"],
+      "description": "List of enabled features"
+    },
+    "debug_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable verbose debug logging"
+    }
+  }
+}

@@ -10,6 +10,8 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
+
 use crate::AppState;
 
 pub fn routes() -> Router<AppState> {
@@ -187,9 +189,9 @@ async fn update_event_status(
     sqlx::query!(
         r#"
         UPDATE auditd_events
-        SET status = $1::VARCHAR,
+        SET status = $1::TEXT,
             resolution_notes = COALESCE($2, resolution_notes),
-            resolved_at = CASE WHEN $1::VARCHAR = 'resolved' THEN NOW() ELSE resolved_at END
+            resolved_at = CASE WHEN $1::TEXT = 'resolved' THEN NOW() ELSE resolved_at END
         WHERE id = $3
         "#,
         payload.status,
@@ -283,7 +285,7 @@ async fn get_stats(
     .map(|rows| {
         serde_json::json!(
             rows.iter()
-                .map(|r| (r.status.as_deref().unwrap_or("unknown"), r.count.unwrap_or(0)))
+                .map(|r| (r.status.as_deref().unwrap_or(""), r.count.unwrap()))
                 .collect::<Vec<_>>()
         )
     })

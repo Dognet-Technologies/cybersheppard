@@ -163,7 +163,7 @@ export default function ComplianceFrameworks() {
                   <div className="flex justify-between">
                     <span className="text-gray-500">Category:</span>
                     <span className="font-medium text-gray-900 capitalize">
-                      {framework.category?.replace(/_/g, ' ') ?? '—'}
+                      {framework.category.replace(/_/g, ' ')}
                     </span>
                   </div>
                   {frameworkStats && (

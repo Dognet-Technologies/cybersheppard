@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE targets\n        SET status = $1, agent_connected = $2, agent_last_seen = NOW()\n        WHERE id = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "868d524ad01da9979b4cc4721ac7650070267f02fce22caf9465db8cc90e1d9c"
+}

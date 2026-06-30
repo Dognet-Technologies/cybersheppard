@@ -4,11 +4,13 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use ipnetwork::IpNetwork;
 use serde_json::json;
 use sqlx::PgPool;
 use std::collections::{HashMap, HashSet};
-use ipnetwork::IpNetwork;
 use std::net::IpAddr;
+
+use crate::utils::{BigDecimalExt, ToBigDecimal};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -121,7 +123,7 @@ impl CorrelationEngine {
             };
 
             let user_name = row.user_name.unwrap_or_else(|| "unknown".to_string());
-            let source_ip_str = row.source_ip.as_ref().map(|ip| ip.ip().to_string());
+            let source_ip_str = row.source_ip.map(|ip| ip.ip().to_string());
 
             let correlation = EventCorrelation {
                 id: Uuid::new_v4(),
@@ -138,10 +140,11 @@ impl CorrelationEngine {
                 confidence,
                 severity,
                 risk_score: Some(risk_score),
-                first_event_time: row.first_attempt.unwrap_or_else(Utc::now),
-                last_event_time: row.last_attempt.unwrap_or_else(Utc::now),
+                first_event_time: row.first_attempt.unwrap(),
+                last_event_time: row.last_attempt.unwrap(),
                 time_window_seconds: Some(
-                    row.last_attempt.and_then(|last| row.first_attempt.map(|first| (last - first).num_seconds() as i32)).unwrap_or(0)
+                    (row.last_attempt.unwrap() - row.first_attempt.unwrap())
+                        .num_seconds() as i32,
                 ),
                 event_count: failed_count as i32,
                 involved_users: vec![user_name.clone()],
@@ -197,7 +200,7 @@ impl CorrelationEngine {
                     a2.source_host as host2,
                     a1.timestamp as first_time,
                     a2.timestamp as second_time,
-                    (EXTRACT(EPOCH FROM (a2.timestamp - a1.timestamp)) / 60)::FLOAT8 as time_diff_minutes
+                    EXTRACT(EPOCH FROM (a2.timestamp - a1.timestamp)) / 60 as time_diff_minutes
                 FROM auth_events a1
                 JOIN auth_events a2 ON a1.user_name = a2.user_name
                 WHERE a1.source_host != a2.source_host
@@ -227,7 +230,9 @@ impl CorrelationEngine {
 
         for row in rows {
             let user_name = row.user_name.unwrap_or_else(|| "unknown".to_string());
-            let time_diff = row.time_diff_minutes.unwrap_or(0.0);
+            let time_diff = row.time_diff_minutes.to_f64();
+            let host1 = row.host1.clone();
+            let host2 = row.host2.clone();
 
             // Suspicious if lateral movement is very quick (< 5 minutes)
             let is_suspicious = time_diff < 5.0;
@@ -247,10 +252,7 @@ impl CorrelationEngine {
                 pattern_name: Some("Lateral Movement Detected".to_string()),
                 pattern_description: Some(format!(
                     "User '{}' moved from {} to {} in {:.1} minutes",
-                    user_name,
-                    &row.host1,
-                    &row.host2,
-                    time_diff
+                    user_name, host1, host2, time_diff
                 )),
                 confidence,
                 severity,
@@ -260,10 +262,7 @@ impl CorrelationEngine {
                 time_window_seconds: Some((time_diff * 60.0) as i32),
                 event_count: row.sequence_count.unwrap_or(0) as i32,
                 involved_users: vec![user_name.clone()],
-                involved_hosts: vec![
-                    row.host1.clone(),
-                    row.host2.clone(),
-                ],
+                involved_hosts: vec![host1, host2],
                 involved_ips: vec![],
                 involved_processes: vec![],
                 statistical_significance: None,
@@ -355,10 +354,11 @@ impl CorrelationEngine {
                 confidence,
                 severity,
                 risk_score: Some(risk_score),
-                first_event_time: row.first_attempt.unwrap_or_else(Utc::now),
-                last_event_time: row.last_attempt.unwrap_or_else(Utc::now),
+                first_event_time: row.first_attempt.unwrap(),
+                last_event_time: row.last_attempt.unwrap(),
                 time_window_seconds: Some(
-                    row.last_attempt.and_then(|last| row.first_attempt.map(|first| (last - first).num_seconds() as i32)).unwrap_or(0)
+                    (row.last_attempt.unwrap() - row.first_attempt.unwrap())
+                        .num_seconds() as i32,
                 ),
                 event_count: escalation_count as i32,
                 involved_users: vec![user_name.clone()],
@@ -397,7 +397,7 @@ impl CorrelationEngine {
                 source_host,
                 destination_ip,
                 COUNT(*) as transfer_count,
-                SUM(bytes_sent)::FLOAT8 as total_bytes,
+                SUM(bytes_sent) as total_bytes,
                 MIN(timestamp) as first_transfer,
                 MAX(timestamp) as last_transfer
             FROM security_events
@@ -417,7 +417,7 @@ impl CorrelationEngine {
         let mut correlations = Vec::new();
 
         for row in rows {
-            let total_mb = row.total_bytes.unwrap_or(0.0) / 1_000_000.0;
+            let total_mb = row.total_bytes.to_f64() / 1_000_000.0;
             let confidence = if total_mb > 100.0 { 0.80 } else { 0.60 };
             let risk_score = (total_mb / 10.0).min(100.0);
 
@@ -429,7 +429,7 @@ impl CorrelationEngine {
                 Severity::Medium
             };
 
-            let dest_ip = row.destination_ip.as_ref().map(|ip| ip.ip().to_string());
+            let dest_ip = row.destination_ip.map(|ip| ip.ip().to_string());
 
             let correlation = EventCorrelation {
                 id: Uuid::new_v4(),
@@ -445,10 +445,11 @@ impl CorrelationEngine {
                 confidence,
                 severity,
                 risk_score: Some(risk_score),
-                first_event_time: row.first_transfer.unwrap_or_else(Utc::now),
-                last_event_time: row.last_transfer.unwrap_or_else(Utc::now),
+                first_event_time: row.first_transfer.unwrap(),
+                last_event_time: row.last_transfer.unwrap(),
                 time_window_seconds: Some(
-                    row.last_transfer.and_then(|last| row.first_transfer.map(|first| (last - first).num_seconds() as i32)).unwrap_or(0)
+                    (row.last_transfer.unwrap() - row.first_transfer.unwrap())
+                        .num_seconds() as i32,
                 ),
                 event_count: row.transfer_count.unwrap_or(0) as i32,
                 involved_users: row
@@ -490,8 +491,8 @@ impl CorrelationEngine {
                 source_host,
                 user_name,
                 COUNT(*) as anomaly_count,
-                AVG(anomaly_score)::FLOAT8 as avg_anomaly,
-                MAX(anomaly_score)::FLOAT8 as max_anomaly,
+                AVG(anomaly_score) as avg_anomaly,
+                MAX(anomaly_score) as max_anomaly,
                 MIN(timestamp) as first_anomaly,
                 MAX(timestamp) as last_anomaly,
                 array_agg(DISTINCT event_type) as event_types
@@ -509,7 +510,7 @@ impl CorrelationEngine {
         let mut correlations = Vec::new();
 
         for row in rows {
-            let avg_anomaly = row.avg_anomaly.unwrap_or(0.0);
+            let avg_anomaly = row.avg_anomaly.to_f64();
             let confidence = (avg_anomaly / 100.0).min(1.0);
 
             let severity = if avg_anomaly > 80.0 {
@@ -586,8 +587,8 @@ impl CorrelationEngine {
                 statistical_significance, anomaly_score, z_score, baseline_deviation_percent,
                 correlation_data, attack_stage, status
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7::FLOAT8, $8, $9::FLOAT8, $10, $11, $12, $13,
-                $14, $15, $16, $17, $18::FLOAT8, $19::FLOAT8, $20::FLOAT8, $21::FLOAT8, $22, $23, $24
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+                $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
             )
             ON CONFLICT (id) DO UPDATE SET
                 updated_at = EXCLUDED.updated_at,
@@ -600,21 +601,21 @@ impl CorrelationEngine {
             correlation.correlation_type.to_string(),
             correlation.pattern_name,
             correlation.pattern_description,
-            correlation.confidence,
+            correlation.confidence.to_bigdecimal(),
             correlation.severity.to_string(),
-            correlation.risk_score,
+            correlation.risk_score.map(|v| v.to_bigdecimal()),
             correlation.first_event_time,
             correlation.last_event_time,
             correlation.time_window_seconds,
             correlation.event_count,
             &correlation.involved_users,
             &correlation.involved_hosts,
-            &correlation.involved_ips.iter().map(|ip| IpNetwork::from(*ip)).collect::<Vec<_>>(),
+            &correlation.involved_ips.iter().map(|ip| IpNetwork::from(*ip)).collect::<Vec<IpNetwork>>(),
             &correlation.involved_processes,
-            correlation.statistical_significance,
-            correlation.anomaly_score,
-            correlation.z_score,
-            correlation.baseline_deviation_percent,
+            correlation.statistical_significance.map(|v| v.to_bigdecimal()),
+            correlation.anomaly_score.map(|v| v.to_bigdecimal()),
+            correlation.z_score.map(|v| v.to_bigdecimal()),
+            correlation.baseline_deviation_percent.map(|v| v.to_bigdecimal()),
             correlation.correlation_data,
             correlation.attack_stage.as_ref().map(|s| s.to_string()),
             correlation.status.to_string()
@@ -651,13 +652,10 @@ impl CorrelationEngine {
             SELECT
                 id, created_at, updated_at,
                 correlation_type, pattern_name, pattern_description,
-                confidence::FLOAT8 as confidence, severity, risk_score::FLOAT8 as risk_score,
+                confidence, severity, risk_score,
                 first_event_time, last_event_time, time_window_seconds, event_count,
                 involved_users, involved_hosts, involved_ips, involved_processes,
-                statistical_significance::FLOAT8 as statistical_significance,
-                anomaly_score::FLOAT8 as anomaly_score,
-                z_score::FLOAT8 as z_score,
-                baseline_deviation_percent::FLOAT8 as baseline_deviation_percent,
+                statistical_significance, anomaly_score, z_score, baseline_deviation_percent,
                 correlation_data, attack_stage, status,
                 resolved_at, resolution_notes, assigned_to, assigned_at
             FROM event_correlations
@@ -680,9 +678,9 @@ impl CorrelationEngine {
                     correlation_type: serde_json::from_str(&format!("\"{}\"", row.correlation_type))?,
                     pattern_name: row.pattern_name,
                     pattern_description: row.pattern_description,
-                    confidence: row.confidence.unwrap_or(0.0),
+                    confidence: row.confidence.to_f64(),
                     severity: serde_json::from_str(&format!("\"{}\"", row.severity))?,
-                    risk_score: row.risk_score,
+                    risk_score: row.risk_score.map(|d| d.to_f64()),
                     first_event_time: row.first_event_time,
                     last_event_time: row.last_event_time,
                     time_window_seconds: row.time_window_seconds,
@@ -693,18 +691,21 @@ impl CorrelationEngine {
                         .involved_ips
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|ip: IpNetwork| ip.ip())
+                        .map(|n| n.ip())
                         .collect(),
                     involved_processes: row.involved_processes.unwrap_or_default(),
-                    statistical_significance: row.statistical_significance,
-                    anomaly_score: row.anomaly_score,
-                    z_score: row.z_score,
-                    baseline_deviation_percent: row.baseline_deviation_percent,
+                    statistical_significance: row.statistical_significance.map(|d| d.to_f64()),
+                    anomaly_score: row.anomaly_score.map(|d| d.to_f64()),
+                    z_score: row.z_score.map(|d| d.to_f64()),
+                    baseline_deviation_percent: row.baseline_deviation_percent.map(|d| d.to_f64()),
                     correlation_data: row.correlation_data,
                     attack_stage: row
                         .attack_stage
                         .and_then(|s| serde_json::from_str(&format!("\"{}\"", s)).ok()),
-                    status: serde_json::from_str(&format!("\"{}\"", row.status.as_deref().unwrap_or("active")))?,
+                    status: serde_json::from_str(&format!(
+                        "\"{}\"",
+                        row.status.as_deref().unwrap_or("active")
+                    ))?,
                     resolved_at: row.resolved_at,
                     resolution_notes: row.resolution_notes,
                     assigned_to: row.assigned_to,
