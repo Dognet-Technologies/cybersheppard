@@ -136,6 +136,24 @@ Tre capacità aggiunte per coerenza con gli altri prodotti della suite, portando
 - Infrastruttura **react-i18next** (base inglese, `src/i18n/locales/en/translation.json`).
   Traduzione effettiva verso altre lingue: step successivo.
 
+### Pipeline eventi → correlazione MITRE ✅ (verificata live)
+Flusso: **auditd (regole) → Laurel (JSON arricchito sul target) → dog_agent (inoltro) →
+`security_events` (tag MITRE solo se intrinseco) → correlatore (eleva a evento di sicurezza)**.
+- **Ingest**: `api/agents.rs` (msg `SecurityEvents`) → `event_collector::ingest_event`; tagging
+  MITRE **conservativo** (`map_mitre_attack`): l'intrinseco mappa, il normale resta grezzo e
+  viene sorvegliato.
+- **Correlazione**: `correlation_engine` con **14 regole** (5 pre-esistenti + 9 nuove: exec
+  sospetta, privesc via auid, beaconing, persistenza, credential access, discovery, defense
+  evasion, sessione, mass-file/ransomware), ognuna con **tattica ATT&CK + cross-link D3FEND**.
+  `AttackStage` esteso a 13 tattiche. Catalogo tracciato con stati e lacune in
+  **`docs/CORRELATION_RULES.md`**.
+- **Frontend**: `SecurityCorrelations` mostra badge ATT&CK + D3FEND.
+- **Deploy Laurel** (starter): `deploy/laurel/` (config, plugin auditd, install) +
+  `deploy/audit/cybersheppard.rules` + step nel template logging-monitoring. Da finalizzare: il
+  binario Laurel.
+- **Lacune tracciate** (dipendenze esterne): GeoIP (impossible-travel), threat-intel; più
+  live-verify di R8/R9/R11/R15 e rifinitura R10. Vedi `docs/CORRELATION_RULES.md`.
+
 ---
 
 ## 🎯 Prossimi passi consigliati
