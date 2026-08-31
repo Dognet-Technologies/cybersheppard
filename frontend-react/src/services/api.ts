@@ -4,7 +4,12 @@
 
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Same-origin di default: in produzione il frontend è servito da nginx, che fa
+// da reverse-proxy TLS verso il backend (location /api → backend_rust), quindi
+// le richieste relative viaggiano su HTTPS senza mixed-content. In sviluppo il
+// dev-server Vite proxya /api verso il backend (vedi vite.config). Un override
+// esplicito è possibile via VITE_API_URL.
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 class ApiService {
   private client: AxiosInstance;
