@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_host, event_data->>'ses' as ses,\n                   COUNT(*) FILTER (WHERE event_category = 'authentication'\n                       AND (event_data->>'result' LIKE '%fail%' OR event_data->>'res' LIKE '%fail%')) as fails,\n                   COUNT(*) FILTER (WHERE event_data->>'uid' = '0') as root_events,\n                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND event_data->>'ses' IS NOT NULL\n              AND event_data->>'ses' NOT IN ('unset', '4294967295', '-1')\n            GROUP BY source_host, event_data->>'ses'\n            HAVING COUNT(*) FILTER (WHERE event_category = 'authentication'\n                       AND (event_data->>'result' LIKE '%fail%' OR event_data->>'res' LIKE '%fail%')) >= 1\n               AND COUNT(*) FILTER (WHERE event_data->>'uid' = '0') >= 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "ses",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "fails",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "root_events",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "cnt",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "first_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_t",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "144f9b47d712c7edcc206fe46dcede02f9e53c8144010dec6c01e19b4873b25e"
+}

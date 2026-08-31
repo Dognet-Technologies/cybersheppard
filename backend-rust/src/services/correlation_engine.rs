@@ -94,6 +94,8 @@ impl CorrelationEngine {
         correlations.extend(self.detect_credential_file_access(hours).await?); // R12
         correlations.extend(self.detect_discovery_burst(hours).await?); // R13
         correlations.extend(self.detect_defense_evasion(hours).await?); // R14
+        correlations.extend(self.detect_suspicious_session(hours).await?); // R8
+        correlations.extend(self.detect_mass_file_ops(hours).await?); // R15
 
         info!("Total correlations detected: {}", correlations.len());
 
@@ -1003,6 +1005,103 @@ impl CorrelationEngine {
                 cmds.clone(),
                 json!({ "commands": cmds }),
                 AttackStage::DefenseEvasion,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R8 — Sessione sospetta: un login (ses) con auth fallite E poi eventi uid=0
+    /// (la sessione "è partita male" ed è escalata — la storia dell'intrusione).
+    async fn detect_suspicious_session(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, event_data->>'ses' as ses,
+                   COUNT(*) FILTER (WHERE event_category = 'authentication'
+                       AND (event_data->>'result' LIKE '%fail%' OR event_data->>'res' LIKE '%fail%')) as fails,
+                   COUNT(*) FILTER (WHERE event_data->>'uid' = '0') as root_events,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND event_data->>'ses' IS NOT NULL
+              AND event_data->>'ses' NOT IN ('unset', '4294967295', '-1')
+            GROUP BY source_host, event_data->>'ses'
+            HAVING COUNT(*) FILTER (WHERE event_category = 'authentication'
+                       AND (event_data->>'result' LIKE '%fail%' OR event_data->>'res' LIKE '%fail%')) >= 1
+               AND COUNT(*) FILTER (WHERE event_data->>'uid' = '0') >= 1
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let fails = r.fails.unwrap_or(0);
+            let root_events = r.root_events.unwrap_or(0);
+            let host = r.source_host;
+            let ses = r.ses.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Suspicious Session Lifecycle",
+                format!("Sessione {ses} su {host}: {fails} auth fallite poi {root_events} eventi root"),
+                Severity::High,
+                Self::calculate_confidence(cnt, 2, 10),
+                Self::calculate_risk_score(cnt as f64, 2.0, 10.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![],
+                vec![host],
+                vec![],
+                vec![],
+                json!({ "session": ses, "failed_auths": fails, "root_events": root_events }),
+                AttackStage::PrivilegeEscalation,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R15 — Impact/ransomware: scritture/cancellazioni di massa in finestra breve.
+    async fn detect_mass_file_ops(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name, COUNT(*) as cnt,
+                   MIN(timestamp) as first_t, MAX(timestamp) as last_t
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND file_path IS NOT NULL
+              AND file_operation IN ('write', 'delete')
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 100
+               AND (MAX(timestamp) - MIN(timestamp)) < INTERVAL '5 minutes'
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            out.push(Self::build_correlation(
+                CorrelationType::Frequency,
+                "Mass File Operations",
+                format!("Operazioni di massa su file ({cnt}) su {host} da '{user}' in <5 min — possibile ransomware"),
+                Severity::Critical,
+                Self::calculate_confidence(cnt, 100, 1000),
+                Self::calculate_risk_score(cnt as f64, 100.0, 1000.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                vec![],
+                json!({ "file_ops": cnt }),
+                AttackStage::Impact,
             ));
         }
         Ok(out)
