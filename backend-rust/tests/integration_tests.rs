@@ -69,9 +69,9 @@ mod integration_tests {
 
         for (value, threshold, expected_severity) in test_cases {
             let deviation = ((value as f64 - threshold as f64) / threshold as f64) * 100.0;
-            let severity = if deviation > 100.0 {
+            let severity = if deviation >= 100.0 {
                 "critical"
-            } else if deviation > 50.0 {
+            } else if deviation >= 50.0 {
                 "high"
             } else {
                 "medium"
