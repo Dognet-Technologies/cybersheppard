@@ -62,19 +62,30 @@ sono la sorveglianza che eleva per **frequenza**, **sequenza**, **lignaggio di p
 | R14 | Defense evasion | defense_evasion (T1070) | file/processo | tamper audit log, clear `~/.bash_history`, `auditctl -D` | ✅ |
 | R15 | Impact / ransomware | impact (T1486/T1490) | file | ≥100 scritture/cancellazioni in <5 min | 🟢 (live TODO) |
 
-### Batch 3 — con prerequisiti esterni (lacune)
-| # | Regola | Tattica | Prerequisito mancante | Stato |
-|---|---|---|---|---|
-| R16 | Impossible travel | initial_access/credential_access | **GeoIP** (MaxMind) — oggi `lookup_geo_*` è placeholder in `event_collector.rs` | ⛔ |
-| R17 | IP/dominio malevolo noto | command_and_control | **Threat-intel feed** (nessuna sorgente integrata) | ⛔ |
-| R18 | Correlazione cross-source (auditd × firewall/IDS) | varia | ingest da FireDog/SentinelCore normalizzato in `security_events` (`source_type`) | ⛔ parziale (integrations esistono) |
-| R19 | Deviazione da baseline comportamentale | anomaly | baseline popolati per utente/host (servizi presenti, dati da alimentare) | 🟡 |
+### Delegato a **Intellidog** (modulo premium esterno)
+Queste correlazioni richiedono **intelligence esterna / dati cross-prodotto** e sono competenza del
+modulo premium **Intellidog** (Threat Intelligence: feed MISP/OTX/CSV/JSON, IOC matching,
+correlazione con firewall FireDog e vulnerabilità SentinelCore — vedi
+`docs/Modulo_Intellidog/`). **Non** sono lacune del core CyberSheppard: vanno **delegate**, non
+implementate qui.
+
+| Ambito | Cosa | Dove |
+|---|---|---|
+| Threat-intel / IOC | IP/domini/hash/CVE malevoli noti → detection | Intellidog (feed) |
+| Impossible travel / GeoIP | geolocalizzazione + viaggio impossibile | Intellidog (enrichment esterno) |
+| Cross-source | correlazione con firewall FireDog / vuln SentinelCore | Intellidog (`firedog_replica`/`sentinel_replica`) |
+
+### Rimane nel core CyberSheppard
+| # | Regola | Tattica | Stato |
+|---|---|---|---|
+| R19 | Deviazione da baseline comportamentale | anomaly | 🟡 (baseline **interni**, dati da alimentare) |
 
 ---
 
 ## Lacune / placeholder noti (riepilogo)
-- **GeoIP** non integrato → R16 bloccata; `event_collector::lookup_geo_country/city` ritornano `None`.
-- **Threat intel** non integrato → R17 bloccata.
+> Threat-intel, GeoIP/impossible-travel e correlazione cross-prodotto **non** sono lacune del core:
+> sono delegate a **Intellidog** (vedi sopra). L'enrichment geo/IOC su `security_events` arriva da
+> lì; il core non integra feed esterni.
 - **Mappa MITRE evento→tecnica**: oggi conservativa in codice (`event_collector::map_mitre_attack`)
   + tabella `mitre_attack_map` (seed) non ancora caricata a runtime → estensione a copertura
   tecnica completa (T-code per-evento) è TODO.

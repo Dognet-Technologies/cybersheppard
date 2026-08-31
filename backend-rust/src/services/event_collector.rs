@@ -354,11 +354,8 @@ impl EventCollectorService {
             event.source_ip = asset.ip;
         }
 
-        // Geo-IP enrichment (placeholder - would use MaxMind GeoIP2)
-        if let Some(ip) = event.destination_ip {
-            event.geo_country = self.lookup_geo_country(ip);
-            event.geo_city = self.lookup_geo_city(ip);
-        }
+        // L'enrichment geo/IOC (GeoIP, threat-intel) è competenza del modulo
+        // premium **Intellidog**, non del core: qui `geo_*` resta NULL.
 
         Ok(())
     }
@@ -498,18 +495,6 @@ impl EventCollectorService {
         .await?;
 
         Ok(event_id)
-    }
-
-    /// Geo-IP lookup (placeholder)
-    fn lookup_geo_country(&self, _ip: IpAddr) -> Option<String> {
-        // TODO: Integrate MaxMind GeoIP2 database
-        None
-    }
-
-    /// Geo-IP city lookup (placeholder)
-    fn lookup_geo_city(&self, _ip: IpAddr) -> Option<String> {
-        // TODO: Integrate MaxMind GeoIP2 database
-        None
     }
 
     /// Get recent events for analysis
