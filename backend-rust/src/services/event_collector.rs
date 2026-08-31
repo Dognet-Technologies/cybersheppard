@@ -32,34 +32,32 @@ struct AssetEnrichment {
     ip: Option<IpAddr>,
 }
 
-/// Mappa un evento auditd sulla tattica/tecnica MITRE ATT&CK. Speculare al seed
-/// di `mitre_attack_map` (migr. 015). `is_failure` distingue, es., brute force
-/// (credential_access) da valid accounts (initial_access).
-/// TODO: caricare la mappa dalla tabella `mitre_attack_map`, così da estenderla
-/// (verso la copertura completa a livello di tecnica) senza ricompilare.
+/// Mappa un evento auditd sulla tattica/tecnica MITRE ATT&CK **solo quando è
+/// intrinsecamente rilevante per la sicurezza**. Principio: ciò che mappa su
+/// MITRE è già un evento di sicurezza; ciò che non mappa nasce come evento
+/// grezzo (`mitre_tactic = NULL`) e va **sorvegliato** dal motore di
+/// correlazione, che può elevarlo (per frequenza o sequenza) a evento di
+/// sicurezza. Perciò la mappa è **conservativa**: attività normale (login
+/// valido, sudo/execve/connect ordinari) resta NON mappata.
+///
+/// Speculare al seed di `mitre_attack_map` (migr. 015).
+/// TODO: caricare la mappa dalla tabella per estenderla senza ricompilare, e
+/// spostare i pattern contestuali (es. execve → shell uid=0) nel correlatore.
 fn map_mitre_attack(
     event_type: &str,
-    event_category: &EventCategory,
+    _event_category: &EventCategory,
     is_failure: bool,
 ) -> (Option<String>, Option<String>) {
-    let by_type: Option<(&str, &str)> = match (event_type, is_failure) {
+    // Solo eventi intrinsecamente sospetti. Il resto → (None, None) = grezzo.
+    let mapped: Option<(&str, &str)> = match (event_type, is_failure) {
+        // Autenticazione FALLITA: sospetta di per sé (candidata brute force).
         ("USER_AUTH", true) | ("USER_LOGIN", true) => Some(("credential_access", "T1110")),
-        ("USER_AUTH", false) | ("USER_LOGIN", false) => Some(("initial_access", "T1078")),
+        // Acquisizione credenziali: sempre notevole.
         ("CRED_ACQ", _) => Some(("credential_access", "T1003")),
-        ("USER_CMD", _) => Some(("privilege_escalation", "T1548")),
-        ("EXECVE", _) => Some(("execution", "T1059")),
-        ("SYSCALL", true) => Some(("execution", "T1059")),
-        ("PATH", _) => Some(("persistence", "T1547")),
-        ("CONNECT", _) | ("SOCKADDR", _) => Some(("lateral_movement", "T1021")),
+        // Un login/auth RIUSCITO è attività normale: NON mappa (lo elevano i
+        // pattern di correlazione, es. molti login in poco tempo).
         _ => None,
     };
-
-    let mapped = by_type.or_else(|| match event_category {
-        EventCategory::Network => Some(("exfiltration", "T1041")),
-        EventCategory::Authentication => Some(("credential_access", "T1110")),
-        EventCategory::Authorization => Some(("privilege_escalation", "T1548")),
-        _ => None,
-    });
 
     match mapped {
         Some((tactic, technique)) => (Some(tactic.to_string()), Some(technique.to_string())),
@@ -582,34 +580,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn maps_failed_auth_to_credential_access_brute_force() {
+    fn failed_auth_is_intrinsic_security_event_credential_access() {
         let (tac, tech) = map_mitre_attack("USER_AUTH", &EventCategory::Authentication, true);
         assert_eq!(tac.as_deref(), Some("credential_access"));
         assert_eq!(tech.as_deref(), Some("T1110"));
     }
 
     #[test]
-    fn maps_successful_login_to_initial_access_valid_accounts() {
+    fn credential_acquisition_maps_to_credential_access() {
+        let (tac, tech) = map_mitre_attack("CRED_ACQ", &EventCategory::Authorization, false);
+        assert_eq!(tac.as_deref(), Some("credential_access"));
+        assert_eq!(tech.as_deref(), Some("T1003"));
+    }
+
+    // Attività NORMALE: non mappa (resta grezza, la eleva la correlazione).
+    #[test]
+    fn successful_login_is_raw_not_a_security_event() {
         let (tac, tech) = map_mitre_attack("USER_LOGIN", &EventCategory::Authentication, false);
-        assert_eq!(tac.as_deref(), Some("initial_access"));
-        assert_eq!(tech.as_deref(), Some("T1078"));
+        assert!(tac.is_none());
+        assert!(tech.is_none());
     }
 
     #[test]
-    fn maps_sudo_cmd_to_privilege_escalation() {
-        let (tac, _) = map_mitre_attack("USER_CMD", &EventCategory::Authorization, false);
-        assert_eq!(tac.as_deref(), Some("privilege_escalation"));
+    fn ordinary_sudo_and_exec_are_raw() {
+        assert!(map_mitre_attack("USER_CMD", &EventCategory::Authorization, false).0.is_none());
+        assert!(map_mitre_attack("EXECVE", &EventCategory::System, false).0.is_none());
+        assert!(map_mitre_attack("CONNECT", &EventCategory::Network, false).0.is_none());
     }
 
     #[test]
-    fn falls_back_to_category_when_type_unknown() {
-        let (tac, tech) = map_mitre_attack("WEIRD_TYPE", &EventCategory::Network, false);
-        assert_eq!(tac.as_deref(), Some("exfiltration"));
-        assert_eq!(tech.as_deref(), Some("T1041"));
-    }
-
-    #[test]
-    fn returns_none_when_unmapped() {
+    fn unknown_type_is_raw() {
         let (tac, tech) = map_mitre_attack("WEIRD_TYPE", &EventCategory::System, false);
         assert!(tac.is_none());
         assert!(tech.is_none());

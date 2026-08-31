@@ -26,6 +26,22 @@ pub struct CorrelationEngine {
     sequence_window_minutes: i32,
 }
 
+/// Tecnica difensiva MITRE **D3FEND** che mitiga una data tattica ATT&CK
+/// (cross-link con la mappatura compliance della suite — vedi
+/// `documentazione/Host_Compliance_Framework_Mapping`). Usata per indicare
+/// "quale controllo avrebbe fermato questa minaccia".
+/// TODO: derivare dal controllo compliance specifico invece che dalla tattica.
+fn d3fend_for_tactic(tactic: &str) -> Option<&'static str> {
+    match tactic {
+        "credential_access" | "initial_access" => Some("D3-MFA"), // Multi-factor Authentication
+        "privilege_escalation" => Some("D3-PA"),                  // Process Analysis
+        "execution" => Some("D3-PSEP"),                           // Process Segment Exec. Prevention
+        "persistence" => Some("D3-FIM"),                          // File Integrity Monitoring
+        "lateral_movement" | "exfiltration" => Some("D3-NTF"),    // Network Traffic Filtering
+        _ => None,
+    }
+}
+
 impl CorrelationEngine {
     pub fn new(db: PgPool) -> Self {
         Self {
@@ -160,7 +176,8 @@ impl CorrelationEngine {
                     "target_user": user_name,
                     "source": source_ip_str.unwrap_or_else(|| row.source_host.clone()),
                 })),
-                attack_stage: Some(AttackStage::InitialAccess),
+                // Brute force = credential_access (TA0006), non initial_access.
+                attack_stage: Some(AttackStage::CredentialAccess),
                 status: CorrelationStatus::Active,
                 resolved_at: None,
                 resolution_notes: None,
@@ -575,6 +592,26 @@ impl CorrelationEngine {
 
     /// Save correlation to database
     async fn save_correlation(&self, correlation: &EventCorrelation) -> Result<()> {
+        // Arricchisce correlation_data con la tattica ATT&CK e la tecnica
+        // difensiva D3FEND che avrebbe mitigato la minaccia (cross-link con la
+        // mappatura compliance della suite). Nessuna migrazione: sta nel JSONB.
+        let correlation_data = {
+            let mut base = correlation
+                .correlation_data
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            if let (Some(stage), Some(obj)) =
+                (correlation.attack_stage.as_ref(), base.as_object_mut())
+            {
+                let tactic = stage.to_string();
+                if let Some(d3) = d3fend_for_tactic(&tactic) {
+                    obj.insert("mitigating_d3fend".to_string(), json!(d3));
+                }
+                obj.insert("mitre_tactic".to_string(), json!(tactic));
+            }
+            base
+        };
+
         sqlx::query!(
             r#"
             INSERT INTO event_correlations (
@@ -615,7 +652,7 @@ impl CorrelationEngine {
             correlation.anomaly_score.map(|v| v.to_bigdecimal()),
             correlation.z_score.map(|v| v.to_bigdecimal()),
             correlation.baseline_deviation_percent.map(|v| v.to_bigdecimal()),
-            correlation.correlation_data,
+            correlation_data,
             correlation.attack_stage.as_ref().map(|s| s.to_string()),
             correlation.status.to_string()
         )
