@@ -4,7 +4,7 @@
 
 use axum::{
     middleware as axum_middleware,
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use std::net::SocketAddr;
@@ -21,7 +21,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use cybersheppard_backend::middleware::auth::auth_middleware;
 use cybersheppard_backend::middleware::csrf::csrf_middleware;
 use cybersheppard_backend::services::agent_registry::AgentRegistry;
-use cybersheppard_backend::{api, db, services, websocket, AppState};
+use cybersheppard_backend::{api, db, mcp, services, websocket, AppState};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -166,9 +166,11 @@ fn build_router(state: AppState) -> Router {
         .nest("/api/compliance-frameworks", api::compliance_frameworks::routes())
         .nest("/api/alerts", api::alerts::routes())
         .nest("/api/settings", api::settings::routes())
+        .nest("/api/api-keys", api::api_keys::routes())
         .nest("/api/integrations", api::integrations::routes())
         .nest("/api/events", api::security_events::routes())
         .nest("/api/plugins", api::plugins::routes())
+        .route("/api/mcp", post(mcp::handle_mcp))
         .nest("/ws", api::websocket::routes())
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),

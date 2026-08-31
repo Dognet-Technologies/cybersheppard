@@ -4,6 +4,7 @@
 
 pub mod agents;
 pub mod alerts;
+pub mod api_keys;
 pub mod auditd;
 pub mod auth;
 pub mod compliance;

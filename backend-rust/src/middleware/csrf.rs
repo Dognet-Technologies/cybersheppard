@@ -29,6 +29,18 @@ pub async fn csrf_middleware(
         return Ok(next.run(request).await);
     }
 
+    // API-key authenticated clients (mcp_key_scope set — e.g. the MCP server)
+    // carry a bearer credential, not a cookie session, so they have no CSRF
+    // token and don't need one. CSRF protects cookie-based browser sessions.
+    if request
+        .extensions()
+        .get::<AuthUser>()
+        .map(|u| u.mcp_key_scope.is_some())
+        .unwrap_or(false)
+    {
+        return Ok(next.run(request).await);
+    }
+
     // Extract user from extensions (must be authenticated first)
     let auth_user = request.extensions().get::<AuthUser>().ok_or_else(|| {
         (

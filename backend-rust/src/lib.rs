@@ -10,6 +10,7 @@
 pub mod api;
 pub mod db;
 pub mod integrations;
+pub mod mcp;
 pub mod middleware;
 pub mod models;
 pub mod security_event;

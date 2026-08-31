@@ -187,6 +187,7 @@ mod tests {
             user_id: 1,
             username: "admin".to_string(),
             role: "admin".to_string(),
+            mcp_key_scope: None,
         };
 
         assert!(Permissions::is_admin(&admin));
@@ -202,6 +203,7 @@ mod tests {
             user_id: 2,
             username: "leader".to_string(),
             role: "teamLeader".to_string(),
+            mcp_key_scope: None,
         };
 
         assert!(!Permissions::is_admin(&team_leader));
@@ -218,6 +220,7 @@ mod tests {
             user_id: 3,
             username: "user".to_string(),
             role: "user".to_string(),
+            mcp_key_scope: None,
         };
 
         assert!(!Permissions::is_admin(&user));
@@ -240,6 +243,7 @@ mod tests {
             user_id: 1,
             username: "u".to_string(),
             role: role.to_string(),
+            mcp_key_scope: None,
         });
         req.into_parts().0
     }

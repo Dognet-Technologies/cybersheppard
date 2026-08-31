@@ -21,6 +21,11 @@ pub struct AuthUser {
     pub user_id: i32,
     pub username: String,
     pub role: String,
+    /// Scope della API-key ('read'/'write') quando la richiesta è autenticata
+    /// via API-key; `None` per una normale sessione JWT. Usato dal server MCP
+    /// per gating dei tool di scrittura e dal CSRF per bypassare i client
+    /// bearer (che non hanno un token CSRF).
+    pub mcp_key_scope: Option<String>,
 }
 
 impl From<Claims> for AuthUser {
@@ -29,6 +34,7 @@ impl From<Claims> for AuthUser {
             user_id: claims.sub,
             username: claims.username,
             role: claims.role,
+            mcp_key_scope: None,
         }
     }
 }
@@ -58,7 +64,7 @@ where
 
 /// Authentication middleware - validates JWT tokens
 pub async fn auth_middleware(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     mut request: Request,
     next: Next,
@@ -86,18 +92,25 @@ pub async fn auth_middleware(
         )
     })?;
 
-    // Validate token
-    let claims = validate_access_token(&token).map_err(|e| {
-        (
-            StatusCode::UNAUTHORIZED,
-            axum::Json(json!({
-                "error": e.to_string()
-            })),
-        )
-    })?;
+    // Validate the token: first as a JWT (browser session), then — as a
+    // fallback — as an API key ("sk_..."). An API key impersonates its owner
+    // user, so downstream RBAC applies unchanged.
+    let auth_user: AuthUser = match validate_access_token(&token) {
+        Ok(claims) => claims.into(),
+        Err(_) => match crate::utils::api_key::authenticate_api_key(&state.pg_pool, &token).await {
+            Some(user) => user,
+            None => {
+                return Err((
+                    StatusCode::UNAUTHORIZED,
+                    axum::Json(json!({
+                        "error": "Invalid or expired credentials"
+                    })),
+                ));
+            }
+        },
+    };
 
     // Add user info to request extensions
-    let auth_user: AuthUser = claims.into();
     request.extensions_mut().insert(auth_user);
 
     Ok(next.run(request).await)
