@@ -37,6 +37,9 @@ enum MessageType {
     Heartbeat,
     Command,
     CommandResponse,
+    /// Batch di eventi di sicurezza (auditd arricchiti da Laurel) inoltrati
+    /// dall'agent, compressi come le metriche.
+    SecurityEvents,
 }
 
 pub fn routes() -> Router<AppState> {
@@ -104,11 +107,12 @@ async fn handle_agent_socket(socket: WebSocket, state: AppState) {
         let pg_pool = state.pg_pool.clone();
         let hardening_executor = state.hardening_executor.clone();
         let compliance_scanner = state.compliance_scanner.clone();
+        let event_collector = state.event_collector.clone();
         async move {
             while let Some(msg) = ws_receiver.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
-                        if let Err(e) = handle_agent_message(&text, target_id, &pg_pool, &hardening_executor, &compliance_scanner).await {
+                        if let Err(e) = handle_agent_message(&text, target_id, &pg_pool, &hardening_executor, &compliance_scanner, &event_collector).await {
                             error!("Error handling message: {}", e);
                         }
                     }
@@ -185,12 +189,16 @@ async fn handle_agent_message(
     db: &PgPool,
     hardening_executor: &std::sync::Arc<crate::services::hardening_executor::HardeningExecutor>,
     compliance_scanner: &std::sync::Arc<crate::services::compliance_scanner::ComplianceScanner>,
+    event_collector: &std::sync::Arc<crate::services::event_collector::EventCollectorService>,
 ) -> anyhow::Result<()> {
     let msg: AgentMessage = serde_json::from_str(text)?;
 
     match msg.msg_type {
         MessageType::Metrics => {
             process_metrics(msg.payload, target_id, db).await?;
+        }
+        MessageType::SecurityEvents => {
+            process_security_events(msg.payload, target_id, event_collector).await?;
         }
         MessageType::Heartbeat => {
             // Update last_seen
@@ -220,6 +228,40 @@ async fn handle_agent_message(
         _ => {}
     }
 
+    Ok(())
+}
+
+/// Ingest a batch of Laurel-enriched auditd events forwarded by the agent.
+/// Il payload è compresso come le metriche (base64+zstd di un array JSON di
+/// eventi). Ogni evento passa da `event_collector.ingest_event` → security_events
+/// (con tagging MITRE).
+async fn process_security_events(
+    payload: serde_json::Value,
+    target_id: i32,
+    event_collector: &std::sync::Arc<crate::services::event_collector::EventCollectorService>,
+) -> anyhow::Result<()> {
+    #[derive(Deserialize)]
+    struct CompressedPayload {
+        data: String,
+    }
+    let compressed: CompressedPayload = serde_json::from_value(payload)?;
+    let events = decode_metric_snapshots(&compressed.data)?;
+
+    let mut ingested = 0usize;
+    for ev in &events {
+        match event_collector.ingest_event(ev).await {
+            Ok(Some(_)) => ingested += 1,
+            Ok(None) => {} // evento filtrato (rumore)
+            Err(e) => error!("Failed to ingest security event (target {}): {}", target_id, e),
+        }
+    }
+
+    info!(
+        "Ingested {}/{} security events for target_id={}",
+        ingested,
+        events.len(),
+        target_id
+    );
     Ok(())
 }
 
