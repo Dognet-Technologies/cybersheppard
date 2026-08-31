@@ -17,9 +17,10 @@ Lo scaffolding e l'implementazione di **tutte le fasi core (1–6)** del piano e
 compilanti: **entrambi i build** (backend Rust e frontend React) sono verdi su `develop/v0.0.2`.
 
 La verifica end-to-end (Fase 7) è stata eseguita: build backend+frontend verdi, migrazioni
-applicate da zero su DB pulito, e le suite di test ora **compilano ed eseguono** (41 test
-backend, 21 test frontend). Il lavoro residuo è ampliare la copertura e consolidare il
-deployment.
+applicate da zero su DB pulito, e le suite di test ora **compilano ed eseguono** (47 test
+backend, 21 test frontend). Sono state inoltre aggiunte tre capacità di integrazione della
+suite — **collegamento dell'agent `dog_agent`**, **server MCP** e **HTTPS** (vedi sezione
+"Integrazione suite"). Il lavoro residuo è ampliare la copertura e consolidare il deployment.
 
 **Completamento stimato**: **~75–85% "on paper"** — da confermare con verifica funzionale.
 
@@ -27,12 +28,12 @@ deployment.
 
 | Componente        | LOC     | File | Test |
 |-------------------|---------|------|------|
-| Backend Rust      | ~19.500 | 58   | **41 test** (4 file integrazione + 5 moduli `#[cfg(test)]`) ✅ |
+| Backend Rust      | ~20.000 | 62   | **47 test** (4 file integrazione + moduli `#[cfg(test)]`) ✅ |
 | Backend Django    | ~2.960  | 11   | — |
-| Frontend React    | ~8.300  | 37 (17 pagine) | **21 test** (Vitest + RTL: Permissions, Button, Badge) ✅ |
+| Frontend React    | ~8.600  | 40 (17 pagine) | **21 test** (Vitest + RTL: Permissions, Button, Badge) ✅ |
 | Target collectors | 9 script bash | — | — |
 | Hardening models/templates | 11 YAML | — | — |
-| Migrazioni SQL    | 12      | —    | — |
+| Migrazioni SQL    | 14      | —    | — |
 
 ---
 
@@ -49,7 +50,10 @@ deployment.
 - API: `monitoring.rs`, `auditd.rs`, `security_events.rs`.
 - **Collectors** (tutti e 9 presenti): auditd, network, process, sudo, system_metrics,
   **files, packages, users, services** (i 4 "mancanti" di dicembre ora esistono).
-- Da verificare: setup buckets/retention InfluxDB, flusso SCP → parse → write reale.
+- **Ingest agent funzionante** (vedi "Integrazione suite"): `dog_agent` invia metriche via
+  WebSocket → decompressione zstd → snapshot JSONB su PostgreSQL. Verificato end-to-end.
+- Da verificare: setup buckets/retention InfluxDB, mapping fine metriche agent → measurement
+  InfluxDB tipizzate (ora snapshot JSONB lossless in `agent_metric_snapshots`).
 
 ### Fase 3 — Frontend Core ✅ Implementato
 - `Login.tsx`, `Layout.tsx`, `Dashboard.tsx`, `Targets.tsx` + UI kit (`components/ui`).
@@ -99,13 +103,52 @@ deployment.
 
 ---
 
+## 🔗 Integrazione suite (SentinelCore · FireDog · CyberSheppard)
+
+Tre capacità aggiunte per coerenza con gli altri prodotti della suite, portando i pattern da
+**SentinelCore** (riferimento Rust) dove già esistevano.
+
+### Agent `dog_agent` collegato ✅ (verificato live)
+- L'agent Rust esistente (`~/Repos/Progetti/LAVORO/dog_agent`) si connette via WebSocket a
+  `/api/agents/ws`, si autentica e invia batch di metriche compresse (zstd+base64).
+- Lato server (`api/agents.rs`): implementati **AuthAck** (l'agent lo attende prima di
+  inviare), **decompressione zstd reale** (era un placeholder) e **persistenza lossless** in
+  `agent_metric_snapshots` (migr. 013, JSONB). 3 unit test + prova end-to-end reale.
+
+### Server MCP ✅ (verificato via curl)
+- `POST /api/mcp` — JSON-RPC 2.0 (`initialize`/`ping`/`tools/list`/`tools/call`), portato da
+  SentinelCore (`mcp/{protocol,mod,tools}.rs`). 5 tool: `list_targets`, `list_alerts`,
+  `get_target_metrics`, `list_compliance_scans`, `acknowledge_alert`.
+- **API-key scoped** (migr. 014, `utils::api_key`): chiavi `sk_...` per-utente revocabili con
+  scope `read`/`write`; `auth_middleware` le accetta come Bearer (impersona l'utente),
+  CSRF-esente. I tool di scrittura richiedono scope `write` (creabile solo da admin).
+- **Frontend**: sezione Settings **"MCP Keys"** (distinta dalle integration API keys) per
+  creare/revocare le chiavi.
+
+### HTTPS ✅ (codice; verifica finale sul deploy host)
+- TLS terminato al reverse-proxy come SentinelCore: `nginx/cybersheppard.conf` ha già redirect
+  80→443, HSTS, security headers, CSP con `wss:`, WS upgrade; cert via `setup-production.sh`
+  (self-signed + certbot).
+- Chiuso il gap: **frontend same-origin** (`API_BASE_URL=''`) e location nginx dedicata per il
+  WebSocket dell'agent.
+
+### i18n predisposto
+- Infrastruttura **react-i18next** (base inglese, `src/i18n/locales/en/translation.json`).
+  Traduzione effettiva verso altre lingue: step successivo.
+
+---
+
 ## 🎯 Prossimi passi consigliati
 
-1. **Ampliare la copertura test (Fase 7)**: test sulle pagine e sui servizi frontend,
-   test Django (`hardening_engine`), primi flussi E2E; ridurre i 33 warning dead-code residui.
-2. **Deploy (Fase 8)**: validare `deploy/setup-production.sh` su host pulito.
-3. **Compliance report PDF** e **InfluxDB bucket/retention**: chiudere i "da verificare".
-4. **Sicurezza**: le 73 vulnerabilità Dependabot sul default branch (31 high).
+1. **HTTPS end-to-end**: provare `deploy/setup-production.sh` su host/VM (nginx + cert) —
+   login via HTTPS, agent su `wss://`, redirect 80→443.
+2. **Ampliare la copertura test (Fase 7)**: test pagine/servizi frontend, test Django
+   (`hardening_engine`), primi flussi E2E; ridurre i 33 warning dead-code residui.
+3. **Ingest metriche**: mapping fine agent `AllMetrics` → measurement InfluxDB tipizzate
+   (oltre lo snapshot JSONB) + setup buckets/retention.
+4. **i18n**: traduzione effettiva delle stringhe (infrastruttura già pronta, base EN).
+5. **Compliance report PDF** e **delta report**: chiudere i "da verificare".
+6. **Sicurezza**: le 73 vulnerabilità Dependabot sul default branch (31 high).
 
 ---
 
@@ -113,9 +156,11 @@ deployment.
 
 ```yaml
 Backend:  Rust + Axum (API)  ·  Python + Django (hardening engine)
-Frontend: React 18 + TypeScript + Vite + Tailwind
+Frontend: React 18 + TypeScript + Vite + Tailwind + react-i18next (base EN)
 Database: PostgreSQL (sqlx, cache offline .sqlx)  ·  InfluxDB 2.x (time-series)
-Deploy:   systemd + nginx (bare-metal), non Docker
+Agent:    dog_agent (Rust) via WebSocket /api/agents/ws (zstd, API-key)
+MCP:      JSON-RPC 2.0 su POST /api/mcp · auth API-key scoped (read/write)
+Deploy:   systemd + nginx (bare-metal, TLS al proxy), non Docker
 CI:       CodeQL, cargo-deny, dependency-review, release workflow
 ```
 
