@@ -254,6 +254,14 @@ pub enum AttackStage {
     Collection,
     #[serde(rename = "exfiltration")]
     Exfiltration,
+    #[serde(rename = "defense_evasion")]
+    DefenseEvasion,
+    #[serde(rename = "discovery")]
+    Discovery,
+    #[serde(rename = "command_and_control")]
+    CommandAndControl,
+    #[serde(rename = "impact")]
+    Impact,
 }
 
 impl std::fmt::Display for AttackStage {
@@ -268,6 +276,10 @@ impl std::fmt::Display for AttackStage {
             AttackStage::LateralMovement => write!(f, "lateral_movement"),
             AttackStage::Collection => write!(f, "collection"),
             AttackStage::Exfiltration => write!(f, "exfiltration"),
+            AttackStage::DefenseEvasion => write!(f, "defense_evasion"),
+            AttackStage::Discovery => write!(f, "discovery"),
+            AttackStage::CommandAndControl => write!(f, "command_and_control"),
+            AttackStage::Impact => write!(f, "impact"),
         }
     }
 }

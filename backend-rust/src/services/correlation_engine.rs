@@ -37,7 +37,11 @@ fn d3fend_for_tactic(tactic: &str) -> Option<&'static str> {
         "privilege_escalation" => Some("D3-PA"),                  // Process Analysis
         "execution" => Some("D3-PSEP"),                           // Process Segment Exec. Prevention
         "persistence" => Some("D3-FIM"),                          // File Integrity Monitoring
-        "lateral_movement" | "exfiltration" => Some("D3-NTF"),    // Network Traffic Filtering
+        "lateral_movement" => Some("D3-NTF"),                     // Network Traffic Filtering
+        "command_and_control" | "exfiltration" => Some("D3-OTF"), // Outbound Traffic Filtering
+        "defense_evasion" => Some("D3-FIM"),                      // File Integrity Monitoring (log tamper)
+        "discovery" => Some("D3-PA"),                             // Process Analysis
+        "impact" => Some("D3-FIM"),                               // File Integrity Monitoring
         _ => None,
     }
 }
@@ -81,6 +85,15 @@ impl CorrelationEngine {
         // 5. Detect anomaly clusters (high anomaly scores)
         let anomaly_clusters = self.detect_anomaly_clusters(hours).await?;
         correlations.extend(anomaly_clusters);
+
+        // 6..N. Scuderia estesa — vedi docs/CORRELATION_RULES.md
+        correlations.extend(self.detect_suspicious_process(hours).await?); // R6
+        correlations.extend(self.detect_auid_privesc(hours).await?); // R7
+        correlations.extend(self.detect_beaconing(hours).await?); // R9
+        correlations.extend(self.detect_persistence(hours).await?); // R11
+        correlations.extend(self.detect_credential_file_access(hours).await?); // R12
+        correlations.extend(self.detect_discovery_burst(hours).await?); // R13
+        correlations.extend(self.detect_defense_evasion(hours).await?); // R14
 
         info!("Total correlations detected: {}", correlations.len());
 
@@ -588,6 +601,411 @@ impl CorrelationEngine {
         }
 
         Ok(correlations)
+    }
+
+    /// Costruttore comune di una correlazione (riduce il boilerplate dei detector).
+    #[allow(clippy::too_many_arguments)]
+    fn build_correlation(
+        ctype: CorrelationType,
+        name: &str,
+        description: String,
+        severity: Severity,
+        confidence: f64,
+        risk_score: f64,
+        first: chrono::DateTime<Utc>,
+        last: chrono::DateTime<Utc>,
+        event_count: i32,
+        users: Vec<String>,
+        hosts: Vec<String>,
+        ips: Vec<std::net::IpAddr>,
+        processes: Vec<String>,
+        data: serde_json::Value,
+        stage: AttackStage,
+    ) -> EventCorrelation {
+        EventCorrelation {
+            id: Uuid::new_v4(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            correlation_type: ctype,
+            pattern_name: Some(name.to_string()),
+            pattern_description: Some(description),
+            confidence,
+            severity,
+            risk_score: Some(risk_score),
+            first_event_time: first,
+            last_event_time: last,
+            time_window_seconds: Some((last - first).num_seconds() as i32),
+            event_count,
+            involved_users: users,
+            involved_hosts: hosts,
+            involved_ips: ips,
+            involved_processes: processes,
+            statistical_significance: None,
+            anomaly_score: Some(risk_score),
+            z_score: None,
+            baseline_deviation_percent: None,
+            correlation_data: Some(data),
+            attack_stage: Some(stage),
+            status: CorrelationStatus::Active,
+            resolved_at: None,
+            resolution_notes: None,
+            assigned_to: None,
+            assigned_at: None,
+        }
+    }
+
+    /// R6 — Esecuzione sospetta (reverse-shell/interprete). Euristica 1-hop sul
+    /// lignaggio di processo (una catena antenati completa da Laurel è TODO).
+    async fn detect_suspicious_process(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
+                   array_agg(DISTINCT process_cmdline) as cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND (
+                  process_name ~* '(^|/)(nc|ncat|socat)$'
+                  OR process_cmdline ~* '(bash|sh)[[:space:]]+-i'
+                  OR process_cmdline ~* 'python[0-9]?[[:space:]]+-c'
+                  OR process_cmdline ~* 'perl[[:space:]]+-e'
+                  OR process_cmdline ~* '/dev/tcp/'
+              )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let cmds = r.cmds.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Suspicious Process Execution",
+                format!("Esecuzione sospetta (reverse-shell/interprete) su {host} da '{user}' ({cnt} eventi)"),
+                if cnt > 2 { Severity::Critical } else { Severity::High },
+                Self::calculate_confidence(cnt, 1, 5),
+                Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                cmds.clone(),
+                json!({ "commands": cmds }),
+                AttackStage::Execution,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R7 — Privilege escalation attribuita all'utente di login reale (auid).
+    /// Un processo con uid=0 il cui auid è un utente NON root indica che qualcuno
+    /// loggato come utente normale ha ottenuto root.
+    async fn detect_auid_privesc(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, event_data->>'auid' as auid,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
+                   array_agg(DISTINCT process_cmdline) as cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND event_data->>'uid' = '0'
+              AND event_data->>'auid' IS NOT NULL
+              AND event_data->>'auid' NOT IN ('0', '4294967295', 'unset', '-1')
+            GROUP BY source_host, event_data->>'auid'
+            HAVING COUNT(*) >= 1
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let auid = r.auid.unwrap_or_else(|| "unknown".into());
+            let cmds = r.cmds.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Privilege Escalation (auid)",
+                format!("Login utente auid={auid} ha ottenuto uid=0 su {host} ({cnt} eventi)"),
+                Severity::High,
+                Self::calculate_confidence(cnt, 1, 5),
+                Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![auid],
+                vec![host],
+                vec![],
+                cmds.clone(),
+                json!({ "commands": cmds, "gained_uid": 0 }),
+                AttackStage::PrivilegeEscalation,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R9 — Beaconing C2 (euristica): molte connessioni verso lo stesso dest,
+    /// distribuite nel tempo. La periodicità vera (stddev inter-arrivo) è un TODO.
+    async fn detect_beaconing(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, host(destination_ip) as dest_ip, destination_port,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND destination_ip IS NOT NULL
+              AND event_category = 'network'
+            GROUP BY source_host, host(destination_ip), destination_port
+            HAVING COUNT(*) >= 10
+               AND (MAX(timestamp) - MIN(timestamp)) > INTERVAL '5 minutes'
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let dest = r.dest_ip.unwrap_or_default();
+            let port = r.destination_port.unwrap_or(0);
+            let ips: Vec<std::net::IpAddr> = dest.parse().ok().into_iter().collect();
+            out.push(Self::build_correlation(
+                CorrelationType::Frequency,
+                "C2 Beaconing",
+                format!("Connessioni ripetute ({cnt}) da {host} verso {dest}:{port} — possibile beaconing C2"),
+                Severity::High,
+                Self::calculate_confidence(cnt, 10, 60),
+                Self::calculate_risk_score(cnt as f64, 10.0, 60.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![],
+                vec![host],
+                ips,
+                vec![],
+                json!({ "destination": dest, "port": port, "connections": cnt }),
+                AttackStage::CommandAndControl,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R11 — Persistenza: scritture su path di autostart/persistenza.
+    async fn detect_persistence(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
+                   array_agg(DISTINCT file_path) as files
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND file_path IS NOT NULL
+              AND (file_operation IS NULL OR file_operation IN ('write', 'create'))
+              AND (
+                  file_path ~* '/etc/cron'
+                  OR file_path ~* '/etc/systemd/system'
+                  OR file_path ~* 'authorized_keys'
+                  OR file_path ~* '/etc/rc\.local'
+                  OR file_path ~* '/etc/init\.d'
+                  OR file_path ~* '\.bashrc$'
+                  OR file_path ~* '/etc/profile'
+              )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let files = r.files.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Persistence Mechanism",
+                format!("Scrittura su path di persistenza su {host} da '{user}' ({cnt} file)"),
+                Severity::High,
+                Self::calculate_confidence(cnt, 1, 5),
+                Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                vec![],
+                json!({ "files": files }),
+                AttackStage::Persistence,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R12 — Accesso a file di credenziali (shadow/sudoers).
+    async fn detect_credential_file_access(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
+                   array_agg(DISTINCT file_path) as files
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND file_path IS NOT NULL
+              AND (
+                  file_path = '/etc/shadow'
+                  OR file_path = '/etc/gshadow'
+                  OR file_path = '/etc/sudoers'
+                  OR file_path ~* '/etc/sudoers\.d'
+              )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let files = r.files.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Credential File Access",
+                format!("Accesso a file di credenziali su {host} da '{user}' ({cnt})"),
+                Severity::High,
+                Self::calculate_confidence(cnt, 1, 5),
+                Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                vec![],
+                json!({ "files": files }),
+                AttackStage::CredentialAccess,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R13 — Discovery burst: varietà di comandi di ricognizione in finestra.
+    async fn detect_discovery_burst(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(DISTINCT process_name) as variety, COUNT(*) as cnt,
+                   MIN(timestamp) as first_t, MAX(timestamp) as last_t,
+                   array_agg(DISTINCT process_name) as procs
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name ~* '(^|/)(whoami|id|uname|hostname|netstat|ss|ps|ifconfig|ip|w|last|arp|lsof)$'
+            GROUP BY source_host, user_name
+            HAVING COUNT(DISTINCT process_name) >= 4
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let variety = r.variety.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let procs = r.procs.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Frequency,
+                "Discovery Burst",
+                format!("Ricognizione ({variety} comandi distinti) su {host} da '{user}'"),
+                Severity::Medium,
+                Self::calculate_confidence(variety, 4, 10),
+                Self::calculate_risk_score(variety as f64, 4.0, 10.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                procs.clone(),
+                json!({ "recon_commands": procs }),
+                AttackStage::Discovery,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R14 — Defense evasion: tamper dei log di audit / clear della history.
+    async fn detect_defense_evasion(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
+                   array_agg(DISTINCT process_cmdline) as cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND (
+                  process_cmdline ~* 'auditctl[[:space:]]+-D'
+                  OR process_cmdline ~* 'systemctl[[:space:]]+stop[[:space:]]+auditd'
+                  OR process_cmdline ~* 'history[[:space:]]+-c'
+                  OR (process_cmdline ~* '\brm\b' AND process_cmdline ~* 'bash_history')
+                  OR (file_path ~* 'bash_history' AND file_operation = 'delete')
+                  OR (file_path ~* '/var/log/audit' AND file_operation IN ('write', 'delete'))
+              )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let cmds = r.cmds.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Defense Evasion",
+                format!("Tamper log/history su {host} da '{user}' ({cnt} eventi)"),
+                Severity::High,
+                Self::calculate_confidence(cnt, 1, 5),
+                Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                cmds.clone(),
+                json!({ "commands": cmds }),
+                AttackStage::DefenseEvasion,
+            ));
+        }
+        Ok(out)
     }
 
     /// Save correlation to database

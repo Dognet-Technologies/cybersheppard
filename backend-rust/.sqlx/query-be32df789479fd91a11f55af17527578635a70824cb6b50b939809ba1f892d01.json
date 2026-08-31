@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_host, user_name,\n                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,\n                   array_agg(DISTINCT file_path) as files\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND file_path IS NOT NULL\n              AND (file_operation IS NULL OR file_operation IN ('write', 'create'))\n              AND (\n                  file_path ~* '/etc/cron'\n                  OR file_path ~* '/etc/systemd/system'\n                  OR file_path ~* 'authorized_keys'\n                  OR file_path ~* '/etc/rc\\.local'\n                  OR file_path ~* '/etc/init\\.d'\n                  OR file_path ~* '\\.bashrc$'\n                  OR file_path ~* '/etc/profile'\n              )\n            GROUP BY source_host, user_name\n            HAVING COUNT(*) >= 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "cnt",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "files",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "be32df789479fd91a11f55af17527578635a70824cb6b50b939809ba1f892d01"
+}

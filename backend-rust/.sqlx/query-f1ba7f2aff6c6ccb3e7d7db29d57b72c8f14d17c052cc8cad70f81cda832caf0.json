@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_host, user_name,\n                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,\n                   array_agg(DISTINCT file_path) as files\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND file_path IS NOT NULL\n              AND (\n                  file_path = '/etc/shadow'\n                  OR file_path = '/etc/gshadow'\n                  OR file_path = '/etc/sudoers'\n                  OR file_path ~* '/etc/sudoers\\.d'\n              )\n            GROUP BY source_host, user_name\n            HAVING COUNT(*) >= 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "cnt",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "files",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "f1ba7f2aff6c6ccb3e7d7db29d57b72c8f14d17c052cc8cad70f81cda832caf0"
+}

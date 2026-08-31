@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_host, event_data->>'auid' as auid,\n                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,\n                   array_agg(DISTINCT process_cmdline) as cmds\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND event_data->>'uid' = '0'\n              AND event_data->>'auid' IS NOT NULL\n              AND event_data->>'auid' NOT IN ('0', '4294967295', 'unset', '-1')\n            GROUP BY source_host, event_data->>'auid'\n            HAVING COUNT(*) >= 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "auid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "cnt",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "cmds",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "88ee377b6d269e54b700e5655ac932458db3103c56f6d9ce7d173d47fbe3a379"
+}

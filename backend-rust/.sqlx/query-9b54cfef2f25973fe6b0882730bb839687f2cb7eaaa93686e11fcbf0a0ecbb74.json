@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_host, host(destination_ip) as dest_ip, destination_port,\n                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND destination_ip IS NOT NULL\n              AND event_category = 'network'\n            GROUP BY source_host, host(destination_ip), destination_port\n            HAVING COUNT(*) >= 10\n               AND (MAX(timestamp) - MIN(timestamp)) > INTERVAL '5 minutes'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "dest_ip",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "destination_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "cnt",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "first_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_t",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "9b54cfef2f25973fe6b0882730bb839687f2cb7eaaa93686e11fcbf0a0ecbb74"
+}
