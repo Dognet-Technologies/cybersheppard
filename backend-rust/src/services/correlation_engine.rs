@@ -357,8 +357,8 @@ impl CorrelationEngine {
                 COUNT(*) as escalation_count,
                 MIN(timestamp) as first_attempt,
                 MAX(timestamp) as last_attempt,
-                array_agg(DISTINCT process_name) as processes,
-                array_agg(DISTINCT process_cmdline) as commands
+                array_agg(DISTINCT process_name) FILTER (WHERE process_name IS NOT NULL) as processes,
+                array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) as commands
             FROM security_events
             WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
               AND (
@@ -686,7 +686,7 @@ impl CorrelationEngine {
             r#"
             SELECT source_host, user_name,
                    COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
-                   array_agg(DISTINCT process_cmdline) as cmds
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) as cmds
             FROM security_events
             WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
               AND (
@@ -739,7 +739,7 @@ impl CorrelationEngine {
             r#"
             SELECT source_host, event_data->>'auid' as auid,
                    COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
-                   array_agg(DISTINCT process_cmdline) as cmds
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) as cmds
             FROM security_events
             WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
               AND event_data->>'uid' = '0'
@@ -941,7 +941,7 @@ impl CorrelationEngine {
             SELECT source_host, user_name,
                    COUNT(DISTINCT process_name) as variety, COUNT(*) as cnt,
                    MIN(timestamp) as first_t, MAX(timestamp) as last_t,
-                   array_agg(DISTINCT process_name) as procs
+                   array_agg(DISTINCT process_name) FILTER (WHERE process_name IS NOT NULL) as procs
             FROM security_events
             WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
               AND process_name ~* '(^|/)(whoami|id|uname|hostname|netstat|ss|ps|ifconfig|ip|w|last|arp|lsof)$'
@@ -987,7 +987,7 @@ impl CorrelationEngine {
             r#"
             SELECT source_host, user_name,
                    COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
-                   array_agg(DISTINCT process_cmdline) as cmds
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) as cmds
             FROM security_events
             WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
               AND (

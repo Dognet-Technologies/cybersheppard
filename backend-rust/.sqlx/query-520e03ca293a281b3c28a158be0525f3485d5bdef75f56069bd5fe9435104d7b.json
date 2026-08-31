@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_host, user_name,\n                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,\n                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) as cmds\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND (\n                  process_cmdline ~* 'auditctl[[:space:]]+-D'\n                  OR process_cmdline ~* 'systemctl[[:space:]]+stop[[:space:]]+auditd'\n                  OR process_cmdline ~* 'history[[:space:]]+-c'\n                  OR (process_cmdline ~* '\\brm\\b' AND process_cmdline ~* 'bash_history')\n                  OR (file_path ~* 'bash_history' AND file_operation = 'delete')\n                  OR (file_path ~* '/var/log/audit' AND file_operation IN ('write', 'delete'))\n              )\n            GROUP BY source_host, user_name\n            HAVING COUNT(*) >= 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "cnt",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "first_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "cmds",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "520e03ca293a281b3c28a158be0525f3485d5bdef75f56069bd5fe9435104d7b"
+}

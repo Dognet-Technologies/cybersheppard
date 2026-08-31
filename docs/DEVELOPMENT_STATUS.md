@@ -152,8 +152,9 @@ Flusso: **auditd (regole) → Laurel (JSON arricchito sul target) → dog_agent 
   `deploy/audit/cybersheppard.rules` + step nel template logging-monitoring. Da finalizzare: il
   binario Laurel.
 - **Delegato a Intellidog** (modulo premium esterno): threat-intel/IOC, GeoIP/impossible-travel e
-  correlazione cross-prodotto (FireDog/SentinelCore) — **non** lacune del core. Nel core restano:
-  live-verify di R8/R9/R11/R15 e rifinitura R10. Vedi `docs/CORRELATION_RULES.md`.
+  correlazione cross-prodotto (FireDog/SentinelCore) — **non** lacune del core. Le 14 regole sono
+  verificate live; nel core resta solo la rifinitura R10 (join reverse-shell+connessione) e i dati
+  baseline (R19). Vedi `docs/CORRELATION_RULES.md`.
 
 ---
 

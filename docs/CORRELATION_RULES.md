@@ -49,18 +49,18 @@ sono la sorveglianza che eleva per **frequenza**, **sequenza**, **lignaggio di p
 |---|---|---|---|---|---|
 | R6 | **Esecuzione sospetta** (reverse-shell/interprete) | execution (T1059) | lignaggio pid/ppid (1-hop) | exec di `nc`/`bash -i`/`python -c`/`/dev/tcp/` | ✅ |
 | R7 | **Privesc attribuita via auid** | privilege_escalation (T1548) | identità (auid vs uid) | uid=0 con auid≠0 (chi ha fatto login davvero) | ✅ |
-| R8 | **Correlazione di sessione (ses)** | privilege_escalation | sessione | sessione (ses) con auth fallite E poi eventi uid=0 | 🟢 (live TODO) |
-| R9 | **Beaconing C2** | command_and_control (T1071) | rete, frequenza | ≥10 conn. verso stesso dest, >5 min | 🟢 (live TODO) |
+| R8 | **Correlazione di sessione (ses)** | privilege_escalation | sessione | sessione (ses) con auth fallite E poi eventi uid=0 | ✅ |
+| R9 | **Beaconing C2** | command_and_control (T1071) | rete, frequenza | ≥10 conn. verso stesso dest, >5 min | ✅ |
 
 ### Batch 2 — estensioni (implementabili ora)
 | # | Regola | Tattica ATT&CK | Dimensione | Metodo | Stato |
 |---|---|---|---|---|---|
 | R10 | Reverse shell | command_and_control (T1059/T1071) | processo+rete | exec `nc`/`bash -i` + connect in uscita | 🟡 (parziale via R6; manca il join con la conn.) |
-| R11 | Persistenza | persistence (T1547/T1053/T1098) | file | scritture su cron, systemd, `~/.ssh/authorized_keys`, rc.local | 🟢 (live TODO) |
+| R11 | Persistenza | persistence (T1547/T1053/T1098) | file | scritture su cron, systemd, `~/.ssh/authorized_keys`, rc.local | ✅ |
 | R12 | Accesso a file credenziali | credential_access (T1003) | file | read di `/etc/shadow`, `/etc/sudoers` | ✅ |
 | R13 | Discovery burst | discovery (T1082/T1057/T1016) | processo | ≥4 comandi recon distinti (`whoami`,`id`,`uname`,`ss`,`netstat`,`ps`…) | ✅ |
 | R14 | Defense evasion | defense_evasion (T1070) | file/processo | tamper audit log, clear `~/.bash_history`, `auditctl -D` | ✅ |
-| R15 | Impact / ransomware | impact (T1486/T1490) | file | ≥100 scritture/cancellazioni in <5 min | 🟢 (live TODO) |
+| R15 | Impact / ransomware | impact (T1486/T1490) | file | ≥100 scritture/cancellazioni in <5 min | ✅ |
 
 ### Delegato a **Intellidog** (modulo premium esterno)
 Queste correlazioni richiedono **intelligence esterna / dati cross-prodotto** e sono competenza del

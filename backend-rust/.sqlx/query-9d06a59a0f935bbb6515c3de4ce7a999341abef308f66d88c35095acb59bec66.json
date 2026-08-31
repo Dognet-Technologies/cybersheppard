@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT source_host, user_name,\n                   COUNT(DISTINCT process_name) as variety, COUNT(*) as cnt,\n                   MIN(timestamp) as first_t, MAX(timestamp) as last_t,\n                   array_agg(DISTINCT process_name) as procs\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND process_name ~* '(^|/)(whoami|id|uname|hostname|netstat|ss|ps|ifconfig|ip|w|last|arp|lsof)$'\n            GROUP BY source_host, user_name\n            HAVING COUNT(DISTINCT process_name) >= 4\n            ",
+  "query": "\n            SELECT source_host, user_name,\n                   COUNT(DISTINCT process_name) as variety, COUNT(*) as cnt,\n                   MIN(timestamp) as first_t, MAX(timestamp) as last_t,\n                   array_agg(DISTINCT process_name) FILTER (WHERE process_name IS NOT NULL) as procs\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND process_name ~* '(^|/)(whoami|id|uname|hostname|netstat|ss|ps|ifconfig|ip|w|last|arp|lsof)$'\n            GROUP BY source_host, user_name\n            HAVING COUNT(DISTINCT process_name) >= 4\n            ",
   "describe": {
     "columns": [
       {
@@ -54,5 +54,5 @@
       null
     ]
   },
-  "hash": "d50b97df7ac9d44c6a11e69ccc1921cd556f4b9cb3a8eb8259779d275abba5cf"
+  "hash": "9d06a59a0f935bbb6515c3de4ce7a999341abef308f66d88c35095acb59bec66"
 }
