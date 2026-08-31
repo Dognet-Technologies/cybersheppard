@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                id, timestamp, source_type as \"source_type: _\", source_host,\n                source_ip as \"source_ip: IpAddr\", source_port,\n                event_type, event_category as \"event_category: _\",\n                event_action, severity as \"severity: _\",\n                user_name, user_id, process_name, process_pid, process_ppid, process_cmdline,\n                file_path, file_operation,\n                destination_ip as \"destination_ip: IpAddr\", destination_port,\n                destination_host, protocol, bytes_sent, bytes_received,\n                event_data, normalized_data,\n                geo_country, geo_city, asset_criticality,\n                threat_score::float8 as \"threat_score?\",\n                correlation_id, parent_event_id, sequence_number,\n                COALESCE(ingestion_time, NOW()) as \"ingestion_time!\",\n                COALESCE(processed, false) as \"processed!\",\n                anomaly_score::float8 as \"anomaly_score?\"\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n            ORDER BY timestamp DESC\n            LIMIT $2\n            ",
+  "query": "\n            SELECT\n                id, timestamp, source_type as \"source_type: _\", source_host,\n                source_ip as \"source_ip: IpAddr\", source_port,\n                event_type, event_category as \"event_category: _\",\n                event_action, severity as \"severity: _\",\n                user_name, user_id, process_name, process_pid, process_ppid, process_cmdline,\n                file_path, file_operation,\n                destination_ip as \"destination_ip: IpAddr\", destination_port,\n                destination_host, protocol, bytes_sent, bytes_received,\n                event_data, normalized_data,\n                geo_country, geo_city, asset_criticality,\n                threat_score::float8 as \"threat_score?\",\n                mitre_tactic, mitre_technique,\n                correlation_id, parent_event_id, sequence_number,\n                COALESCE(ingestion_time, NOW()) as \"ingestion_time!\",\n                COALESCE(processed, false) as \"processed!\",\n                anomaly_score::float8 as \"anomaly_score?\"\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n            ORDER BY timestamp DESC\n            LIMIT $2\n            ",
   "describe": {
     "columns": [
       {
@@ -155,31 +155,41 @@
       },
       {
         "ordinal": 30,
+        "name": "mitre_tactic",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 31,
+        "name": "mitre_technique",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 32,
         "name": "correlation_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 31,
+        "ordinal": 33,
         "name": "parent_event_id",
         "type_info": "Int8"
       },
       {
-        "ordinal": 32,
+        "ordinal": 34,
         "name": "sequence_number",
         "type_info": "Int4"
       },
       {
-        "ordinal": 33,
+        "ordinal": 35,
         "name": "ingestion_time!",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 34,
+        "ordinal": 36,
         "name": "processed!",
         "type_info": "Bool"
       },
       {
-        "ordinal": 35,
+        "ordinal": 37,
         "name": "anomaly_score?",
         "type_info": "Float8"
       }
@@ -224,10 +234,12 @@
       true,
       true,
       true,
+      true,
+      true,
       null,
       null,
       null
     ]
   },
-  "hash": "1147f4da0368709bea97960cb1b5797e357b7c90dc124cd3811edcf8f787d1f5"
+  "hash": "045d0af75698b3ade178f01f5e0a866c6a4e10296e0bc4f4779a41cd304455eb"
 }

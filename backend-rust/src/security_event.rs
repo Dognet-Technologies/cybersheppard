@@ -56,6 +56,10 @@ pub struct SecurityEvent {
     pub asset_criticality: Option<i32>,
     pub threat_score: Option<f64>,
 
+    // MITRE ATT&CK (tattica = vocabolario attack_stage; tecnica = T1xxx)
+    pub mitre_tactic: Option<String>,
+    pub mitre_technique: Option<String>,
+
     // Correlation
     pub correlation_id: Option<Uuid>,
     pub parent_event_id: Option<i64>,

@@ -32,6 +32,41 @@ struct AssetEnrichment {
     ip: Option<IpAddr>,
 }
 
+/// Mappa un evento auditd sulla tattica/tecnica MITRE ATT&CK. Speculare al seed
+/// di `mitre_attack_map` (migr. 015). `is_failure` distingue, es., brute force
+/// (credential_access) da valid accounts (initial_access).
+/// TODO: caricare la mappa dalla tabella `mitre_attack_map`, così da estenderla
+/// (verso la copertura completa a livello di tecnica) senza ricompilare.
+fn map_mitre_attack(
+    event_type: &str,
+    event_category: &EventCategory,
+    is_failure: bool,
+) -> (Option<String>, Option<String>) {
+    let by_type: Option<(&str, &str)> = match (event_type, is_failure) {
+        ("USER_AUTH", true) | ("USER_LOGIN", true) => Some(("credential_access", "T1110")),
+        ("USER_AUTH", false) | ("USER_LOGIN", false) => Some(("initial_access", "T1078")),
+        ("CRED_ACQ", _) => Some(("credential_access", "T1003")),
+        ("USER_CMD", _) => Some(("privilege_escalation", "T1548")),
+        ("EXECVE", _) => Some(("execution", "T1059")),
+        ("SYSCALL", true) => Some(("execution", "T1059")),
+        ("PATH", _) => Some(("persistence", "T1547")),
+        ("CONNECT", _) | ("SOCKADDR", _) => Some(("lateral_movement", "T1021")),
+        _ => None,
+    };
+
+    let mapped = by_type.or_else(|| match event_category {
+        EventCategory::Network => Some(("exfiltration", "T1041")),
+        EventCategory::Authentication => Some(("credential_access", "T1110")),
+        EventCategory::Authorization => Some(("privilege_escalation", "T1548")),
+        _ => None,
+    });
+
+    match mapped {
+        Some((tactic, technique)) => (Some(tactic.to_string()), Some(technique.to_string())),
+        None => (None, None),
+    }
+}
+
 impl EventCollectorService {
     pub fn new(db: PgPool, auditd_log_path: String) -> Self {
         Self {
@@ -93,33 +128,26 @@ impl EventCollectorService {
         Ok(())
     }
 
-    /// Process a single auditd/laurel log line
+    /// Process a single auditd/laurel log line (parse JSON then delegate).
     async fn process_auditd_line(&self, line: &str) -> Result<Option<i64>> {
-        // Parse Laurel JSON format
-        let audit_event: JsonValue = serde_json::from_str(line)
-            .context("Failed to parse auditd JSON")?;
+        let audit_event: JsonValue =
+            serde_json::from_str(line).context("Failed to parse auditd JSON")?;
+        self.ingest_event(&audit_event).await
+    }
 
-        // Extract key fields
-        let event_type = audit_event["type"]
-            .as_str()
-            .unwrap_or("unknown")
-            .to_string();
+    /// Ingest one already-parsed Laurel/auditd event into `security_events`.
+    /// Public entry point for the agent-forwarded events path (`api/agents.rs`):
+    /// filtro rumore → parse (con tagging MITRE) → enrich → normalize → insert.
+    pub async fn ingest_event(&self, audit_event: &JsonValue) -> Result<Option<i64>> {
+        let event_type = audit_event["type"].as_str().unwrap_or("unknown").to_string();
 
-        // Filter out noise events
         if self.should_skip_event(&event_type) {
             return Ok(None);
         }
 
-        // Build SecurityEvent
-        let mut event = self.parse_auditd_event(&audit_event)?;
-
-        // Enrich event
+        let mut event = self.parse_auditd_event(audit_event)?;
         self.enrich_event(&mut event).await?;
-
-        // Normalize to CEF format
-        event.normalized_data = Some(self.normalize_to_cef(&event, &audit_event));
-
-        // Insert into database
+        event.normalized_data = Some(self.normalize_to_cef(&event, audit_event));
         let event_id = self.insert_event(&event).await?;
 
         Ok(Some(event_id))
@@ -140,6 +168,16 @@ impl EventCollectorService {
 
         let event_category = self.categorize_audit_event(&event_type);
         let severity = self.determine_severity(&event_type, audit_event);
+
+        // MITRE ATT&CK tagging (tattica + tecnica). is_failure distingue, es.,
+        // brute force (credential_access) da valid accounts (initial_access).
+        let result = audit_event["result"]
+            .as_str()
+            .or_else(|| audit_event["res"].as_str())
+            .unwrap_or("success");
+        let is_failure = result.contains("fail") || result.contains("denied");
+        let (mitre_tactic, mitre_technique) =
+            map_mitre_attack(&event_type, &event_category, is_failure);
 
         let source_host = audit_event["node"]
             .as_str()
@@ -225,6 +263,8 @@ impl EventCollectorService {
             geo_city: None,
             asset_criticality: None,
             threat_score: None,
+            mitre_tactic,
+            mitre_technique,
             correlation_id: None,
             parent_event_id: None,
             sequence_number: None,
@@ -401,7 +441,8 @@ impl EventCollectorService {
                 event_data, normalized_data,
                 geo_country, geo_city, asset_criticality, threat_score,
                 correlation_id, parent_event_id, sequence_number,
-                ingestion_time, processed, anomaly_score
+                ingestion_time, processed, anomaly_score,
+                mitre_tactic, mitre_technique
             ) VALUES (
                 $1, $2, $3, $4, $5,
                 $6, $7, $8, $9,
@@ -412,7 +453,8 @@ impl EventCollectorService {
                 $24, $25,
                 $26, $27, $28, $29,
                 $30, $31, $32,
-                $33, $34, $35
+                $33, $34, $35,
+                $36, $37
             )
             RETURNING id
             "#,
@@ -450,7 +492,9 @@ impl EventCollectorService {
             event.sequence_number,
             event.ingestion_time,
             event.processed,
-            event.anomaly_score.map(|v| v.to_bigdecimal())
+            event.anomaly_score.map(|v| v.to_bigdecimal()),
+            event.mitre_tactic,
+            event.mitre_technique
         )
         .fetch_one(&self.db)
         .await?;
@@ -491,6 +535,7 @@ impl EventCollectorService {
                 event_data, normalized_data,
                 geo_country, geo_city, asset_criticality,
                 threat_score::float8 as "threat_score?",
+                mitre_tactic, mitre_technique,
                 correlation_id, parent_event_id, sequence_number,
                 COALESCE(ingestion_time, NOW()) as "ingestion_time!",
                 COALESCE(processed, false) as "processed!",
@@ -529,5 +574,44 @@ impl EventCollectorService {
         }
 
         Ok(stats)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_failed_auth_to_credential_access_brute_force() {
+        let (tac, tech) = map_mitre_attack("USER_AUTH", &EventCategory::Authentication, true);
+        assert_eq!(tac.as_deref(), Some("credential_access"));
+        assert_eq!(tech.as_deref(), Some("T1110"));
+    }
+
+    #[test]
+    fn maps_successful_login_to_initial_access_valid_accounts() {
+        let (tac, tech) = map_mitre_attack("USER_LOGIN", &EventCategory::Authentication, false);
+        assert_eq!(tac.as_deref(), Some("initial_access"));
+        assert_eq!(tech.as_deref(), Some("T1078"));
+    }
+
+    #[test]
+    fn maps_sudo_cmd_to_privilege_escalation() {
+        let (tac, _) = map_mitre_attack("USER_CMD", &EventCategory::Authorization, false);
+        assert_eq!(tac.as_deref(), Some("privilege_escalation"));
+    }
+
+    #[test]
+    fn falls_back_to_category_when_type_unknown() {
+        let (tac, tech) = map_mitre_attack("WEIRD_TYPE", &EventCategory::Network, false);
+        assert_eq!(tac.as_deref(), Some("exfiltration"));
+        assert_eq!(tech.as_deref(), Some("T1041"));
+    }
+
+    #[test]
+    fn returns_none_when_unmapped() {
+        let (tac, tech) = map_mitre_attack("WEIRD_TYPE", &EventCategory::System, false);
+        assert!(tac.is_none());
+        assert!(tech.is_none());
     }
 }

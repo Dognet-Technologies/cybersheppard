@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO security_events (\n                timestamp, source_type, source_host, source_ip, source_port,\n                event_type, event_category, event_action, severity,\n                user_name, user_id, process_name, process_pid, process_ppid, process_cmdline,\n                file_path, file_operation,\n                destination_ip, destination_port, destination_host, protocol,\n                bytes_sent, bytes_received,\n                event_data, normalized_data,\n                geo_country, geo_city, asset_criticality, threat_score,\n                correlation_id, parent_event_id, sequence_number,\n                ingestion_time, processed, anomaly_score,\n                mitre_tactic, mitre_technique\n            ) VALUES (\n                $1, $2, $3, $4, $5,\n                $6, $7, $8, $9,\n                $10, $11, $12, $13, $14, $15,\n                $16, $17,\n                $18, $19, $20, $21,\n                $22, $23,\n                $24, $25,\n                $26, $27, $28, $29,\n                $30, $31, $32,\n                $33, $34, $35,\n                $36, $37\n            )\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Varchar",
+        "Varchar",
+        "Inet",
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Varchar",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text",
+        "Varchar",
+        "Inet",
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Int8",
+        "Int8",
+        "Jsonb",
+        "Jsonb",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Numeric",
+        "Uuid",
+        "Int8",
+        "Int4",
+        "Timestamptz",
+        "Bool",
+        "Numeric",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c8806a702d980a793308e96fe5f9816f3aac55a3fe55d87032ba4b1ada63b28f"
+}
