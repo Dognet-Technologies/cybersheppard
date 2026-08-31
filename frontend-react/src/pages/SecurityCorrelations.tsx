@@ -91,10 +91,40 @@ export default function SecurityCorrelations() {
             {row.pattern_name || row.correlation_type?.replace('_', ' ').toUpperCase()}
           </div>
           <div className="text-sm text-gray-500">
-            {row.attack_stage?.replace('_', ' ') || 'Unknown stage'}
+            {row.correlation_type?.replace(/_/g, ' ') || ''}
           </div>
         </div>
       ),
+    },
+    {
+      key: 'mitre',
+      label: 'MITRE',
+      render: (row: any) => {
+        const tactic: string | undefined = row.attack_stage;
+        const d3fend: string | undefined = row.correlation_data?.mitigating_d3fend;
+        return (
+          <div className="flex flex-col gap-1">
+            {tactic ? (
+              <span
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-200"
+                title="MITRE ATT&CK tactic"
+              >
+                ATT&amp;CK: {tactic.replace(/_/g, ' ')}
+              </span>
+            ) : (
+              <span className="text-xs text-gray-400">—</span>
+            )}
+            {d3fend && (
+              <span
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-200"
+                title="MITRE D3FEND — controllo difensivo mitigante"
+              >
+                D3FEND: {d3fend}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'entities',
