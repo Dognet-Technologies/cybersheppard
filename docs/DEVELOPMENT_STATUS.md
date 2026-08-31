@@ -14,11 +14,12 @@
 ## 📊 Executive Summary
 
 Lo scaffolding e l'implementazione di **tutte le fasi core (1–6)** del piano esistono e sono
-compilanti: l'ultimo commit (`b891131`) ha reso **verdi entrambi i build** (backend Rust e
-frontend React) dopo il merge di `develop/v0.0.2`.
+compilanti: **entrambi i build** (backend Rust e frontend React) sono verdi su `develop/v0.0.2`.
 
-Il lavoro residuo non è più "scrivere le feature" ma **verificarle end-to-end**, coprirle con
-test (soprattutto lato frontend, oggi a zero test) e consolidare il deployment.
+La verifica end-to-end (Fase 7) è stata eseguita: build backend+frontend verdi, migrazioni
+applicate da zero su DB pulito, e le suite di test ora **compilano ed eseguono** (41 test
+backend, 21 test frontend). Il lavoro residuo è ampliare la copertura e consolidare il
+deployment.
 
 **Completamento stimato**: **~75–85% "on paper"** — da confermare con verifica funzionale.
 
@@ -26,9 +27,9 @@ test (soprattutto lato frontend, oggi a zero test) e consolidare il deployment.
 
 | Componente        | LOC     | File | Test |
 |-------------------|---------|------|------|
-| Backend Rust      | ~19.500 | 58   | 4 file integrazione + 5 moduli `#[cfg(test)]` |
+| Backend Rust      | ~19.500 | 58   | **41 test** (4 file integrazione + 5 moduli `#[cfg(test)]`) ✅ |
 | Backend Django    | ~2.960  | 11   | — |
-| Frontend React    | ~8.300  | 37 (17 pagine) | **0** (gap) |
+| Frontend React    | ~8.300  | 37 (17 pagine) | **21 test** (Vitest + RTL: Permissions, Button, Badge) ✅ |
 | Target collectors | 9 script bash | — | — |
 | Hardening models/templates | 11 YAML | — | — |
 | Migrazioni SQL    | 12      | —    | — |
@@ -52,7 +53,8 @@ test (soprattutto lato frontend, oggi a zero test) e consolidare il deployment.
 
 ### Fase 3 — Frontend Core ✅ Implementato
 - `Login.tsx`, `Layout.tsx`, `Dashboard.tsx`, `Targets.tsx` + UI kit (`components/ui`).
-- Gap: **nessun test frontend**.
+- Test: framework **Vitest + React Testing Library** (`happy-dom`) con 21 test iniziali
+  (RBAC `Permissions`, `Button`, `Badge/SeverityBadge/StatusBadge`). Copertura da ampliare.
 
 ### Fase 4 — Hardening UI ✅ Implementato
 - `Hardening.tsx`, `HardeningTemplates.tsx`, `ApplyHardeningModal.tsx`.
@@ -66,10 +68,16 @@ test (soprattutto lato frontend, oggi a zero test) e consolidare il deployment.
 - Pagine: `ComplianceDashboard/Controls/Frameworks.tsx`, `Alerts.tsx`, `Violations.tsx`.
 - Da verificare: generazione report PDF, delta report.
 
-### Fase 7 — Testing & QA ⚠️ In corso
-- Backend Rust: 4 file di test integrazione + 5 moduli unit inline.
-- Frontend: **0 test** — priorità.
+### Fase 7 — Testing & QA ✅ Verifica eseguita (copertura da ampliare)
+- **Build**: backend Rust (bin + lib) e frontend (`tsc && vite build`) verdi.
+- **Backend test**: 41 test verdi. Nota: la suite non compilava (crate solo-binary); risolto
+  estraendo `src/lib.rs` (moduli + `AppState`), così `tests/` importa gli internals.
+- **Frontend test**: 21 test verdi (Vitest + RTL, `happy-dom`) — framework introdotto da zero.
+- **Migrazioni**: 12/12 applicate da zero su DB pulito (69 tabelle, admin seed); dev DB locale
+  ricreato per risolvere il drift dei checksum.
+- **Cleanup**: warning backend 129 → 33 (`cargo fix`); i 33 residui sono dead-code da valutare.
 - CI: CodeQL SAST, cargo-deny, dependency-review, SHA-pinning delle action.
+- Da fare: alzare la copertura (pagine, servizi), test Django, E2E.
 
 ### Fase 8 — Deploy & Docs ⚠️ Parziale (approccio cambiato)
 - **No Docker**: deploy via **systemd + nginx** (`deploy/`): `setup-production.sh`,
@@ -93,12 +101,11 @@ test (soprattutto lato frontend, oggi a zero test) e consolidare il deployment.
 
 ## 🎯 Prossimi passi consigliati
 
-1. **Verifica end-to-end (Fase 7)** — priorità:
-   - `cargo test` + `cargo build --release` con `SQLX_OFFLINE=true`.
-   - `npm run build` frontend + primi test componenti (oggi 0).
-   - Applicare le 12 migrazioni su un DB pulito e verificare lo schema.
+1. **Ampliare la copertura test (Fase 7)**: test sulle pagine e sui servizi frontend,
+   test Django (`hardening_engine`), primi flussi E2E; ridurre i 33 warning dead-code residui.
 2. **Deploy (Fase 8)**: validare `deploy/setup-production.sh` su host pulito.
 3. **Compliance report PDF** e **InfluxDB bucket/retention**: chiudere i "da verificare".
+4. **Sicurezza**: le 73 vulnerabilità Dependabot sul default branch (31 high).
 
 ---
 
