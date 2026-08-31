@@ -8,13 +8,11 @@ use serde_json::{json, Value as JsonValue};
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::path::Path;
 
 use crate::utils::ToBigDecimal;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::{debug, error, info, warn};
-use uuid::Uuid;
 
 use crate::security_event::{
     EventCategory, SecurityEvent, Severity, SourceType,

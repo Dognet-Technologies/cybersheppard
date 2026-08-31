@@ -5,7 +5,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -95,7 +95,7 @@ impl BayesianNetwork {
         // Define attack chain nodes with prior probabilities
 
         // Initial Access
-        let mut initial_access = BayesianNode::new(
+        let initial_access = BayesianNode::new(
             "initial_access".to_string(),
             "Initial Access Achieved".to_string(),
             0.05, // 5% prior probability
@@ -103,7 +103,7 @@ impl BayesianNetwork {
         network.add_node(initial_access.clone());
 
         // Reconnaissance
-        let mut reconnaissance = BayesianNode::new(
+        let reconnaissance = BayesianNode::new(
             "reconnaissance".to_string(),
             "Reconnaissance Activity".to_string(),
             0.10,

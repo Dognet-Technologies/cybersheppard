@@ -3,11 +3,10 @@
 // ============================================================================
 
 use axum::extract::ws::Message;
-use futures_util::stream::SplitSink;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{error, info};
+use tracing::info;
 
 pub type AgentSender = mpsc::UnboundedSender<Message>;
 

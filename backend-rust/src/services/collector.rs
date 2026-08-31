@@ -7,7 +7,7 @@ use ssh2::Session;
 use std::io::Read;
 use std::net::TcpStream;
 use std::path::Path;
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 use anyhow::{Result, Context, bail};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;

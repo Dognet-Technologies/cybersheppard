@@ -3,9 +3,8 @@
 // ============================================================================
 
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use sqlx::PgPool;
-use std::collections::{HashMap, HashSet};
 use tracing::{info, warn};
 
 use crate::security_event::BaselineCalculationResult;

@@ -3,16 +3,15 @@
 // ============================================================================
 
 use axum::{
-    extract::{Path, State},
+    extract::State,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use crate::AppState;
 use crate::middleware::permissions::ManagerUser;
-use crate::services::correlation_engine::CorrelationEngine;
 
 pub fn routes() -> Router<AppState> {
     Router::new()

@@ -5,7 +5,6 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::IntoResponse,
     routing::{get, patch, post},
     Json, Router,
 };
@@ -16,7 +15,7 @@ use sqlx::Row;
 use crate::middleware::auth::AuthUser;
 use crate::models::{
     CompliancePolicy, ComplianceViolation, ComplianceMacroarea, ComplianceControl,
-    TargetComplianceStatus, TargetControlStatus,
+    TargetComplianceStatus,
 };
 use crate::AppState;
 

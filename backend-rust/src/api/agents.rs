@@ -8,17 +8,14 @@ use axum::{
         State,
     },
     response::Response,
-    routing::get,
-    Json, Router,
+    routing::get, Router,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
-use tracing::{error, info, warn};
+use tokio::sync::mpsc;
+use tracing::{error, info};
 
-use crate::services::agent_registry::AgentSender;
 use crate::services::compliance_scanner::ComplianceScanResponse;
 use crate::services::hardening_executor::HardeningResponse;
 use crate::AppState;

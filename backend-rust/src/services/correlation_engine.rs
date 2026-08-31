@@ -3,19 +3,18 @@
 // ============================================================================
 
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
+use chrono::Utc;
 use ipnetwork::IpNetwork;
 use serde_json::json;
 use sqlx::PgPool;
-use std::collections::{HashMap, HashSet};
-use std::net::IpAddr;
+use std::collections::HashMap;
 
 use crate::utils::{BigDecimalExt, ToBigDecimal};
-use tracing::{debug, info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::security_event::{
-    AttackStage, CorrelationStatus, CorrelationType, EventCorrelation, SecurityEvent, Severity,
+    AttackStage, CorrelationStatus, CorrelationType, EventCorrelation, Severity,
 };
 
 /// Correlation Engine - Detects attack patterns and sequences

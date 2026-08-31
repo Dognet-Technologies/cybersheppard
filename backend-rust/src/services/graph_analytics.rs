@@ -6,7 +6,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::collections::{HashMap, HashSet, VecDeque};
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::utils::ToBigDecimal;
 
@@ -214,7 +214,7 @@ impl NetworkGraph {
     /// Find all shortest paths between two nodes (BFS)
     fn find_all_shortest_paths(&self, source: &str, target: &str) -> Vec<Vec<String>> {
         let mut queue = VecDeque::new();
-        let mut visited: HashSet<String> = HashSet::new();
+        let visited: HashSet<String> = HashSet::new();
         let mut paths = Vec::new();
         let mut shortest_length = usize::MAX;
 

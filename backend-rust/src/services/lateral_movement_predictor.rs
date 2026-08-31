@@ -3,11 +3,11 @@
 // ============================================================================
 
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use serde_json::json;
 use sqlx::PgPool;
-use std::collections::{HashMap, HashSet};
-use tracing::{debug, info, warn};
+use std::collections::HashMap;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::utils::{BigDecimalExt, ToBigDecimal};
@@ -273,7 +273,7 @@ impl LateralMovementPredictor {
         let mut risk_score = probability * 100.0;
 
         // Increase risk for critical assets
-        risk_score += (criticality as f64 * 5.0);
+        risk_score += criticality as f64 * 5.0;
 
         // Increase risk for servers
         if is_server {

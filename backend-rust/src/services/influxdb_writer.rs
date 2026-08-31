@@ -3,12 +3,12 @@
 // ============================================================================
 // Writes collected monitoring data to InfluxDB time-series database
 
-use influxdb::{InfluxDbWriteable, Timestamp};
+use influxdb::InfluxDbWriteable;
 use chrono::{DateTime, Utc};
 use crate::services::collector::*;
 use crate::db::influxdb::InfluxDbClient;
 use anyhow::Result;
-use tracing::{info, warn};
+use tracing::info;
 
 // ============================================================================
 // InfluxDB Point Structures

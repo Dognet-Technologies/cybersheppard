@@ -9,7 +9,7 @@ use axum::{
     routing::{get, post, patch},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use crate::AppState;
 use crate::services::alerting::{AlertingService, CreateAlertRequest};
 

@@ -4,7 +4,7 @@
 
 use axum::{
     middleware as axum_middleware,
-    routing::{get, post},
+    routing::get,
     Router,
 };
 use std::net::SocketAddr;

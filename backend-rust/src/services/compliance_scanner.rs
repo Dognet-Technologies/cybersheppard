@@ -2,7 +2,7 @@
 // Compliance Scanner - Scans targets for compliance control verification
 // ============================================================================
 
-use crate::models::{ComplianceControl, TargetControlStatus};
+use crate::models::ComplianceControl;
 use crate::services::agent_registry::AgentRegistry;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;

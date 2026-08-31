@@ -3,10 +3,8 @@
 // ============================================================================
 
 use crate::db::postgresql::PostgresPool;
-use crate::models::{CompliancePolicy, ComplianceViolation, MonitoringDataPayload};
-use chrono::Utc;
+use crate::models::{CompliancePolicy, MonitoringDataPayload};
 use serde_json::json;
-use std::collections::HashMap;
 use anyhow::Result;
 
 #[derive(Clone)]
