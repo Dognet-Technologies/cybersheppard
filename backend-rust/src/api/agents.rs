@@ -10,6 +10,7 @@ use axum::{
     response::Response,
     routing::get, Router,
 };
+use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -58,10 +59,23 @@ async fn handle_agent_socket(socket: WebSocket, state: AppState) {
     let target_id = match authenticate_agent(&mut ws_receiver, &state.pg_pool).await {
         Ok(id) => {
             info!("Agent authenticated: target_id={}", id);
+            // The agent waits for this AuthAck (30s timeout) before streaming
+            // metrics. Without it the agent times out and reconnects forever.
+            let ack = serde_json::json!({ "msg_type": "auth_ack", "success": true });
+            if ws_sender.send(Message::Text(ack.to_string())).await.is_err() {
+                error!("Failed to send AuthAck to agent (target_id={})", id);
+                return;
+            }
             id
         }
         Err(e) => {
             error!("Agent authentication failed: {}", e);
+            let nack = serde_json::json!({
+                "msg_type": "auth_ack",
+                "success": false,
+                "message": e.to_string(),
+            });
+            let _ = ws_sender.send(Message::Text(nack.to_string())).await;
             let _ = ws_sender.send(Message::Close(None)).await;
             return;
         }
@@ -209,6 +223,22 @@ async fn handle_agent_message(
     Ok(())
 }
 
+/// Decode a dog_agent metric payload — base64 → zstd → JSON — normalized to a
+/// list of `AllMetrics` snapshots. The agent flushes a buffered batch, so the
+/// decoded JSON is normally an array; a single object is accepted too.
+fn decode_metric_snapshots(data: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+    let compressed_bytes = base64::engine::general_purpose::STANDARD
+        .decode(data.as_bytes())
+        .map_err(|e| anyhow::anyhow!("base64 decode of metrics payload failed: {}", e))?;
+    let json_bytes = zstd::decode_all(compressed_bytes.as_slice())
+        .map_err(|e| anyhow::anyhow!("zstd decode of metrics payload failed: {}", e))?;
+    let decoded: serde_json::Value = serde_json::from_slice(&json_bytes)?;
+    Ok(match decoded {
+        serde_json::Value::Array(items) => items,
+        other => vec![other],
+    })
+}
+
 async fn process_metrics(
     payload: serde_json::Value,
     target_id: i32,
@@ -234,8 +264,39 @@ async fn process_metrics(
         compressed.compression_ratio
     );
 
-    // Decompress (in real implementation, use proper zstd decompression)
-    // For now, just acknowledge receipt
+    // Decompress base64(zstd(json)) → normalized list of AllMetrics snapshots
+    // (the agent flushes a buffered batch = a JSON array).
+    let snapshots = decode_metric_snapshots(&compressed.data)?;
+
+    // Persist each snapshot losslessly (JSONB). Full field-by-field mapping to
+    // typed InfluxDB measurements (system/network/users/files/services/auditd)
+    // is a follow-up; the snapshot guarantees no agent data is lost meanwhile.
+    for snap in &snapshots {
+        let hostname = snap.get("hostname").and_then(|v| v.as_str());
+        let collected_at = snap
+            .get("collected_at")
+            .and_then(|v| v.as_i64())
+            .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0));
+
+        sqlx::query!(
+            r#"
+            INSERT INTO agent_metric_snapshots (target_id, hostname, collected_at, metrics)
+            VALUES ($1, $2, $3, $4)
+            "#,
+            target_id,
+            hostname,
+            collected_at,
+            snap,
+        )
+        .execute(db)
+        .await?;
+    }
+
+    info!(
+        "Persisted {} agent metric snapshot(s) for target_id={}",
+        snapshots.len(),
+        target_id
+    );
 
     // Update last monitoring time
     sqlx::query!(
@@ -248,9 +309,6 @@ async fn process_metrics(
     )
     .execute(db)
     .await?;
-
-    // TODO: Parse metrics and write to InfluxDB
-    // This would replace the SSH-based collection entirely
 
     Ok(())
 }
@@ -275,4 +333,41 @@ async fn update_target_status(
     .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Mirror of dog_agent's compression: json → zstd → base64.
+    fn encode(value: &serde_json::Value) -> String {
+        let json = serde_json::to_vec(value).unwrap();
+        let compressed = zstd::encode_all(json.as_slice(), 3).unwrap();
+        base64::engine::general_purpose::STANDARD.encode(compressed)
+    }
+
+    #[test]
+    fn decodes_a_batch_array_of_snapshots() {
+        let batch = serde_json::json!([
+            {"hostname": "h1", "collected_at": 1000, "system": {"cpu": 10}},
+            {"hostname": "h2", "collected_at": 1001, "network": {"conns": 3}}
+        ]);
+        let out = decode_metric_snapshots(&encode(&batch)).unwrap();
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0]["hostname"], "h1");
+        assert_eq!(out[1]["network"]["conns"], 3);
+    }
+
+    #[test]
+    fn normalizes_a_single_object_to_one_snapshot() {
+        let one = serde_json::json!({"hostname": "solo", "collected_at": 42});
+        let out = decode_metric_snapshots(&encode(&one)).unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0]["hostname"], "solo");
+    }
+
+    #[test]
+    fn rejects_invalid_base64() {
+        assert!(decode_metric_snapshots("not-valid-base64-@@@").is_err());
+    }
 }
