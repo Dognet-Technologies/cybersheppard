@@ -101,6 +101,8 @@ export default function SecurityCorrelations() {
       label: 'MITRE',
       render: (row: any) => {
         const tactic: string | undefined = row.attack_stage;
+        const technique: string | undefined = row.correlation_data?.mitre_technique;
+        const techName: string | undefined = row.correlation_data?.mitre_technique_name;
         const d3fend: string | undefined = row.correlation_data?.mitigating_d3fend;
         return (
           <div className="flex flex-col gap-1">
@@ -113,6 +115,15 @@ export default function SecurityCorrelations() {
               </span>
             ) : (
               <span className="text-xs text-gray-400">—</span>
+            )}
+            {technique && (
+              <span
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200"
+                title={techName || 'MITRE ATT&CK technique'}
+              >
+                {technique}
+                {techName ? ` · ${techName}` : ''}
+              </span>
             )}
             {d3fend && (
               <span

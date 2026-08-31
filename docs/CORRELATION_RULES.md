@@ -86,9 +86,10 @@ implementate qui.
 > Threat-intel, GeoIP/impossible-travel e correlazione cross-prodotto **non** sono lacune del core:
 > sono delegate a **Intellidog** (vedi sopra). L'enrichment geo/IOC su `security_events` arriva da
 > lì; il core non integra feed esterni.
-- **Mappa MITRE evento→tecnica**: oggi conservativa in codice (`event_collector::map_mitre_attack`)
-  + tabella `mitre_attack_map` (seed) non ancora caricata a runtime → estensione a copertura
-  tecnica completa (T-code per-evento) è TODO.
+- **Mappa MITRE**: le **correlazioni** portano ora tattica + **tecnica** ATT&CK (T-code + nome)
+  + D3FEND (`technique_for_pattern`, tutte le 14 regole — mappatura completa a livello di
+  tecnica). Il tag **per-evento grezzo** resta volutamente conservativo (solo l'intrinseco);
+  la tabella `mitre_attack_map` è la sorgente estendibile per un eventuale caricamento a runtime.
 - **D3FEND per-controllo**: `d3fend_for_tactic` mappa tattica→D3FEND generico; il link al
   **controllo compliance specifico** (dal Master Mapping xlsx) è TODO.
 - **Process ancestry completa**: usiamo `pid/ppid` diretti; l'albero multi-livello ricostruito da

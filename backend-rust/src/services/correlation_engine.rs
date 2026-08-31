@@ -46,6 +46,29 @@ fn d3fend_for_tactic(tactic: &str) -> Option<&'static str> {
     }
 }
 
+/// Tecnica MITRE ATT&CK (T-code + nome) associata a ogni regola di correlazione.
+/// Completa la mappatura a livello di **tecnica** (oltre alla tattica
+/// `attack_stage`): ogni minaccia elevata porta la sua tecnica precisa.
+fn technique_for_pattern(pattern: &str) -> Option<(&'static str, &'static str)> {
+    match pattern {
+        "Brute Force Attack" => Some(("T1110", "Brute Force")),
+        "Lateral Movement Detected" => Some(("T1021", "Remote Services")),
+        "Privilege Escalation Attempt" | "Privilege Escalation (auid)" => {
+            Some(("T1548", "Abuse Elevation Control Mechanism"))
+        }
+        "Potential Data Exfiltration" => Some(("T1041", "Exfiltration Over C2 Channel")),
+        "Suspicious Process Execution" => Some(("T1059", "Command and Scripting Interpreter")),
+        "C2 Beaconing" => Some(("T1071", "Application Layer Protocol")),
+        "Persistence Mechanism" => Some(("T1547", "Boot or Logon Autostart Execution")),
+        "Credential File Access" => Some(("T1003", "OS Credential Dumping")),
+        "Discovery Burst" => Some(("T1082", "System Information Discovery")),
+        "Defense Evasion" => Some(("T1070", "Indicator Removal")),
+        "Suspicious Session Lifecycle" => Some(("T1078", "Valid Accounts")),
+        "Mass File Operations" => Some(("T1486", "Data Encrypted for Impact")),
+        _ => None, // es. "Anomaly Cluster": nessuna tecnica ATT&CK fissa
+    }
+}
+
 impl CorrelationEngine {
     pub fn new(db: PgPool) -> Self {
         Self {
@@ -1117,14 +1140,23 @@ impl CorrelationEngine {
                 .correlation_data
                 .clone()
                 .unwrap_or_else(|| json!({}));
-            if let (Some(stage), Some(obj)) =
-                (correlation.attack_stage.as_ref(), base.as_object_mut())
-            {
-                let tactic = stage.to_string();
-                if let Some(d3) = d3fend_for_tactic(&tactic) {
-                    obj.insert("mitigating_d3fend".to_string(), json!(d3));
+            if let Some(obj) = base.as_object_mut() {
+                if let Some(stage) = correlation.attack_stage.as_ref() {
+                    let tactic = stage.to_string();
+                    if let Some(d3) = d3fend_for_tactic(&tactic) {
+                        obj.insert("mitigating_d3fend".to_string(), json!(d3));
+                    }
+                    obj.insert("mitre_tactic".to_string(), json!(tactic));
                 }
-                obj.insert("mitre_tactic".to_string(), json!(tactic));
+                // Tecnica ATT&CK precisa della regola (mappatura completa).
+                if let Some((tid, tname)) = correlation
+                    .pattern_name
+                    .as_deref()
+                    .and_then(technique_for_pattern)
+                {
+                    obj.insert("mitre_technique".to_string(), json!(tid));
+                    obj.insert("mitre_technique_name".to_string(), json!(tname));
+                }
             }
             base
         };
