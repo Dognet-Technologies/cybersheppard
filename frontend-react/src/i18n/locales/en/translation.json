@@ -1,0 +1,32 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating...",
+    "revoke": "Revoke",
+    "close": "Close",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "mcpKeys": {
+    "title": "MCP Keys",
+    "description": "API keys that let external clients (e.g. an MCP or AI agent) access CyberSheppard over POST /api/mcp. A key impersonates your user, so your role's permissions apply. Write-scope keys can run write tools and can only be created by an administrator.",
+    "newKey": "New MCP Key",
+    "empty": "No MCP keys yet. Create one to give an MCP client access.",
+    "name": "Name",
+    "namePlaceholder": "e.g. claude-desktop",
+    "scope": "Scope",
+    "scopeRead": "Read",
+    "scopeWrite": "Write (admin only)",
+    "expiresAt": "Expires",
+    "never": "Never",
+    "created": "Created",
+    "lastUsed": "Last used",
+    "prefix": "Prefix",
+    "generatedTitle": "MCP key created",
+    "generatedWarning": "Copy this key now — it will not be shown again.",
+    "createFailed": "Failed to create the key.",
+    "revokeConfirm": "Revoke this MCP key? Clients using it will lose access immediately."
+  }
+}

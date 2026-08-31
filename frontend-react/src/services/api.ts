@@ -563,6 +563,31 @@ class ApiService {
     return response.data;
   }
 
+  // ── MCP access keys (inbound, per-user, scope read/write) ──────────────
+  // Distinte dalle integration API keys sopra: queste autenticano un client
+  // (es. un agente MCP) VERSO CyberSheppard su POST /api/mcp.
+  async getMcpKeys() {
+    const response = await this.client.get('/api/api-keys');
+    return response.data as Array<{
+      id: number;
+      name: string;
+      key_prefix: string;
+      scope: 'read' | 'write';
+      created_at: string;
+      last_used_at: string | null;
+      expires_at: string | null;
+    }>;
+  }
+
+  async createMcpKey(data: { name: string; scope?: 'read' | 'write'; expires_at?: string }) {
+    const response = await this.client.post('/api/api-keys', data);
+    return response.data as { id: number; name: string; scope: string; key_prefix: string; api_key: string };
+  }
+
+  async revokeMcpKey(id: number) {
+    await this.client.delete(`/api/api-keys/${id}`);
+  }
+
   async getHealthCheck() {
     const response = await this.client.get('/api/settings/health');
     return response.data;

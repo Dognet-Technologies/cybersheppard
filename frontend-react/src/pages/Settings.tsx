@@ -16,11 +16,13 @@ import {
   Plus,
   Copy,
   AlertCircle,
+  Terminal,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
-type TabType = 'user' | 'system' | 'themes' | 'api-keys' | 'health' | 'database';
+type TabType = 'user' | 'system' | 'themes' | 'api-keys' | 'mcp-keys' | 'health' | 'database';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<TabType>('user');
@@ -62,6 +64,12 @@ export default function Settings() {
               onClick={() => setActiveTab('api-keys')}
             />
             <TabButton
+              icon={<Terminal className="w-4 h-4" />}
+              label="MCP Keys"
+              active={activeTab === 'mcp-keys'}
+              onClick={() => setActiveTab('mcp-keys')}
+            />
+            <TabButton
               icon={<Activity className="w-4 h-4" />}
               label="Health"
               active={activeTab === 'health'}
@@ -82,6 +90,7 @@ export default function Settings() {
           {activeTab === 'system' && <SystemSettings />}
           {activeTab === 'themes' && <ThemeSettings />}
           {activeTab === 'api-keys' && <ApiKeysSettings />}
+          {activeTab === 'mcp-keys' && <McpKeysSettings />}
           {activeTab === 'health' && <HealthCheckSettings />}
           {activeTab === 'database' && <DatabaseSettings />}
         </div>
@@ -635,6 +644,170 @@ function DatabaseSettings() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── MCP access keys (inbound, per-user, scope read/write) ────────────────────
+function McpKeysSettings() {
+  const { t } = useTranslation();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
+  const [name, setName] = useState('');
+  const [scope, setScope] = useState<'read' | 'write'>('read');
+  const [generated, setGenerated] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: keys, isLoading, refetch } = useQuery({
+    queryKey: ['mcp-keys'],
+    queryFn: () => api.getMcpKeys(),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () => api.createMcpKey({ name: name.trim(), scope }),
+    onSuccess: (res) => {
+      setGenerated(res.api_key);
+      setName('');
+      setScope('read');
+      setError(null);
+      refetch();
+    },
+    onError: (e: any) =>
+      setError(e?.response?.data?.error || t('mcpKeys.createFailed')),
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (id: number) => api.revokeMcpKey(id),
+    onSuccess: () => refetch(),
+  });
+
+  if (isLoading) return <div>{t('common.loading')}</div>;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <Terminal className="w-5 h-5" /> {t('mcpKeys.title')}
+        </h3>
+        <p className="text-sm text-gray-500 mt-1 max-w-3xl">{t('mcpKeys.description')}</p>
+      </div>
+
+      {/* Create form */}
+      <div className="border border-gray-200 rounded-lg p-4 flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('mcpKeys.name')}</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('mcpKeys.namePlaceholder')}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('mcpKeys.scope')}</label>
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value as 'read' | 'write')}
+            className="border border-gray-300 rounded px-3 py-2 text-sm"
+          >
+            <option value="read">{t('mcpKeys.scopeRead')}</option>
+            <option value="write" disabled={!isAdmin}>{t('mcpKeys.scopeWrite')}</option>
+          </select>
+        </div>
+        <button
+          onClick={() => createMutation.mutate()}
+          disabled={!name.trim() || createMutation.isPending}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          {createMutation.isPending ? t('common.creating') : t('mcpKeys.newKey')}
+        </button>
+      </div>
+      {error && <div className="text-sm text-red-600">{error}</div>}
+
+      {/* List */}
+      {!keys || keys.length === 0 ? (
+        <div className="text-sm text-gray-500">{t('mcpKeys.empty')}</div>
+      ) : (
+        <div className="space-y-3">
+          {keys.map((k) => (
+            <div
+              key={k.id}
+              className="border border-gray-200 rounded-lg p-4 flex items-start justify-between"
+            >
+              <div>
+                <div className="font-semibold text-gray-900">{k.name}</div>
+                <div className="mt-1 flex items-center flex-wrap gap-3 text-xs text-gray-600">
+                  <span className="font-mono bg-gray-100 px-2 py-1 rounded">{k.key_prefix}…</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full ${
+                      k.scope === 'write' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {k.scope}
+                  </span>
+                  <span>
+                    {t('mcpKeys.created')}: {new Date(k.created_at).toLocaleDateString()}
+                  </span>
+                  <span>
+                    {t('mcpKeys.lastUsed')}:{' '}
+                    {k.last_used_at ? new Date(k.last_used_at).toLocaleString() : '—'}
+                  </span>
+                  <span>
+                    {t('mcpKeys.expiresAt')}:{' '}
+                    {k.expires_at ? new Date(k.expires_at).toLocaleDateString() : t('mcpKeys.never')}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (confirm(t('mcpKeys.revokeConfirm'))) revokeMutation.mutate(k.id);
+                }}
+                className="text-red-600 hover:text-red-700 ml-4"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Generated key modal — shown once */}
+      {generated && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('mcpKeys.generatedTitle')}</h3>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-yellow-800 mb-2">
+                <strong>{t('mcpKeys.generatedWarning')}</strong>
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={generated}
+                  className="flex-1 font-mono text-xs border border-gray-300 rounded px-2 py-1"
+                />
+                <button
+                  onClick={() => navigator.clipboard?.writeText(generated)}
+                  className="text-gray-600 hover:text-gray-900"
+                  title={t('common.copy')}
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setGenerated(null)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
+              >
+                {t('common.close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
