@@ -55,7 +55,7 @@ sono la sorveglianza che eleva per **frequenza**, **sequenza**, **lignaggio di p
 ### Batch 2 — estensioni (implementabili ora)
 | # | Regola | Tattica ATT&CK | Dimensione | Metodo | Stato |
 |---|---|---|---|---|---|
-| R10 | Reverse shell | command_and_control (T1059/T1071) | processo+rete | exec `nc`/`bash -i` + connect in uscita | 🟡 (parziale via R6; manca il join con la conn.) |
+| R10 | Reverse shell | command_and_control (T1071) | processo+rete (**join**) | exec `nc`/`bash -i`//dev/tcp + connect in uscita stesso host (~2 min) | ✅ |
 | R11 | Persistenza | persistence (T1547/T1053/T1098) | file | scritture su cron, systemd, `~/.ssh/authorized_keys`, rc.local | ✅ |
 | R12 | Accesso a file credenziali | credential_access (T1003) | file | read di `/etc/shadow`, `/etc/sudoers` | ✅ |
 | R13 | Discovery burst | discovery (T1082/T1057/T1016) | processo | ≥4 comandi recon distinti (`whoami`,`id`,`uname`,`ss`,`netstat`,`ps`…) | ✅ |
@@ -78,7 +78,7 @@ implementate qui.
 ### Rimane nel core CyberSheppard
 | # | Regola | Tattica | Stato |
 |---|---|---|---|
-| R19 | Deviazione da baseline comportamentale | anomaly | 🟡 (baseline **interni**, dati da alimentare) |
+| R19 | Deviazione da baseline comportamentale | anomaly | 🟢 code-complete: `anomaly_detection` (z-score vs baseline) + `baseline_calculator` + API `/api/events/{baselines/calculate,anomalies/detect}`. Il **popolamento** dei baseline è operativo (serve storico). |
 
 ---
 

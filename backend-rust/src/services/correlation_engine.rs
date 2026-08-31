@@ -58,6 +58,7 @@ fn technique_for_pattern(pattern: &str) -> Option<(&'static str, &'static str)> 
         }
         "Potential Data Exfiltration" => Some(("T1041", "Exfiltration Over C2 Channel")),
         "Suspicious Process Execution" => Some(("T1059", "Command and Scripting Interpreter")),
+        "Reverse Shell" => Some(("T1071", "Application Layer Protocol")),
         "C2 Beaconing" => Some(("T1071", "Application Layer Protocol")),
         "Persistence Mechanism" => Some(("T1547", "Boot or Logon Autostart Execution")),
         "Credential File Access" => Some(("T1003", "OS Credential Dumping")),
@@ -119,6 +120,7 @@ impl CorrelationEngine {
         correlations.extend(self.detect_defense_evasion(hours).await?); // R14
         correlations.extend(self.detect_suspicious_session(hours).await?); // R8
         correlations.extend(self.detect_mass_file_ops(hours).await?); // R15
+        correlations.extend(self.detect_reverse_shell(hours).await?); // R10
 
         info!("Total correlations detected: {}", correlations.len());
 
@@ -1125,6 +1127,66 @@ impl CorrelationEngine {
                 vec![],
                 json!({ "file_ops": cnt }),
                 AttackStage::Impact,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R10 — Reverse shell: un'esecuzione sospetta (nc/bash -i//dev/tcp/python -c)
+    /// **accompagnata** da una connessione di rete in uscita dallo stesso host in
+    /// ~2 minuti. Segnale forte di C2, più specifico di R6 (solo exec).
+    async fn detect_reverse_shell(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT e.source_host, e.user_name,
+                   COUNT(*) as cnt, MIN(e.timestamp) as first_t, MAX(e.timestamp) as last_t,
+                   array_agg(DISTINCT e.process_cmdline) FILTER (WHERE e.process_cmdline IS NOT NULL) as cmds,
+                   array_agg(DISTINCT host(n.destination_ip)) FILTER (WHERE n.destination_ip IS NOT NULL) as dests
+            FROM security_events e
+            JOIN security_events n
+              ON n.source_host = e.source_host
+             AND n.event_category = 'network'
+             AND n.destination_ip IS NOT NULL
+             AND n.timestamp BETWEEN e.timestamp - INTERVAL '2 minutes'
+                                 AND e.timestamp + INTERVAL '2 minutes'
+            WHERE e.timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND (
+                  e.process_name ~* '(^|/)(nc|ncat|socat)$'
+                  OR e.process_cmdline ~* '(bash|sh)[[:space:]]+-i'
+                  OR e.process_cmdline ~* '/dev/tcp/'
+                  OR e.process_cmdline ~* 'python[0-9]?[[:space:]]+-c'
+              )
+            GROUP BY e.source_host, e.user_name
+            HAVING COUNT(*) >= 1
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let cmds = r.cmds.unwrap_or_default();
+            let dests = r.dests.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Reverse Shell",
+                format!("Reverse shell su {host} da '{user}': exec sospetta + connessione in uscita"),
+                Severity::Critical,
+                Self::calculate_confidence(cnt, 1, 5),
+                Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                cmds.clone(),
+                json!({ "commands": cmds, "destinations": dests }),
+                AttackStage::CommandAndControl,
             ));
         }
         Ok(out)
