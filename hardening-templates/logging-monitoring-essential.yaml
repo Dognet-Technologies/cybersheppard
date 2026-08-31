@@ -332,6 +332,53 @@ hardening_steps:
         service: "auditd"
         state: "enabled"
 
+  # STEP 2b: Laurel - auditd event enrichment to JSON (per pipeline MITRE)
+  - name: "Install and configure Laurel (auditd JSON enrichment)"
+    control_id: "logging_laurel_install"
+    priority: "high"
+    description: >
+      Installa Laurel come plugin di auditd: arricchisce gli eventi (process
+      ancestry pid/ppid, argv, uid->nomi) e li scrive come JSON in
+      /var/log/laurel/audit.log. Il dog_agent inoltra quel file al server dove
+      alimenta security_events e la correlazione MITRE ATT&CK. STARTER: il
+      binario Laurel va finalizzato (vedi deploy/laurel/README.md).
+    frameworks: ["nis2", "nist", "iso27001", "mitre"]
+    framework_references:
+      nis2: ["Art.21(2)(f)"]
+      nist: ["AU-3", "AU-6", "SI-4"]
+      iso: ["A.8.15", "A.8.16"]
+      mitre: ["D3-PA", "D3-LAM"]
+    tasks:
+      - name: "Crea utente e directory di Laurel"
+        action: "command"
+        command: "id laurel >/dev/null 2>&1 || useradd --system --home-dir /var/log/laurel --shell /usr/sbin/nologin laurel; install -d -o laurel -g laurel -m 0750 /var/log/laurel /var/lib/laurel"
+
+      - name: "Installa la config di Laurel"
+        action: "file_copy"
+        src: "deploy/laurel/config.toml"
+        dest: "/etc/laurel/config.toml"
+        mode: "0640"
+        owner: "root:laurel"
+
+      - name: "Registra Laurel come plugin di auditd"
+        action: "file_copy"
+        src: "deploy/laurel/plugin-laurel.conf"
+        dest: "/etc/audit/plugins.d/laurel.conf"
+        mode: "0640"
+        owner: "root:root"
+
+      - name: "Installa il binario di Laurel"
+        action: "command"
+        # DA FINALIZZARE: sostituire con il download della release o la build.
+        # Vedi deploy/laurel/install-laurel.sh / README.md.
+        command: "test -x /usr/local/sbin/laurel || echo 'TODO: fornire /usr/local/sbin/laurel (release o build)'"
+        allow_failure: true
+
+      - name: "Riavvia auditd per caricare il plugin"
+        action: "command"
+        command: "systemctl restart auditd"
+        expected_exit_code: 0
+
   # STEP 3: Rsyslog Configuration for Centralized Logging
   - name: "Configure rsyslog for security event collection"
     control_id: "logging_rsyslog_config"

@@ -1,0 +1,38 @@
+# ============================================================================
+# CyberSheppard — Configurazione Laurel (starter, DA FINALIZZARE)
+# ============================================================================
+# Laurel (github.com/threathunters-io/laurel) gira come plugin di auditd sul
+# TARGET: legge lo stream degli eventi audit, li arricchisce (process ancestry,
+# risoluzione uid→nomi, argv, container) e li scrive come JSON (una riga = un
+# evento). Il dog_agent legge questo file (`laurel_log_path`) e lo inoltra al
+# server → security_events → correlazione MITRE.
+#
+# Destinazione attesa dall'agent: /var/log/laurel/audit.log
+# NB: chiavi/valori sono una base ragionevole; vanno rifinite sulla versione di
+# Laurel installata (vedi README.md di questa cartella).
+
+[auditlog]
+# File JSON prodotto da Laurel (== laurel_log_path nella config dell'agent).
+file = "/var/log/laurel/audit.log"
+# Rotazione: dimensione massima e numero di generazioni.
+size = 10000000        # ~10 MB
+generations = 10
+# Utenti autorizzati a leggere il log (l'agent gira come questo utente).
+read-users = ["root"]
+
+[state]
+# Stato persistente di Laurel (cache uid/pid per l'enrichment tra riavvii).
+file = "/var/lib/laurel/state"
+generations = 0
+
+[transform]
+# argv di execve come array JSON → process_cmdline ricco e parsabile.
+execve-argv = "array"
+
+[enrich]
+# Arricchimenti utili ai nostri detector di correlazione:
+pid = true             # ppid / catena antenati (R6, R7)
+container = true       # id container quando applicabile
+systemd = true         # unit systemd del processo
+# Variabili d'ambiente sospette da preservare (es. LD_PRELOAD → evasion).
+execve-env = ["LD_PRELOAD", "LD_LIBRARY_PATH"]

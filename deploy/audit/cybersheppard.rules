@@ -1,0 +1,74 @@
+## ============================================================================
+## CyberSheppard — Regole auditd (starter, DA FINALIZZARE)
+## ============================================================================
+## Installare come /etc/audit/rules.d/cybersheppard.rules, poi `augenrules --load`
+## (o `auditctl -R`). Set di partenza allineato ai detector di correlazione
+## (vedi docs/CORRELATION_RULES.md). Il set completo di riferimento è in
+## Esempio_modelli/etc.auditd.audit.rules; qui teniamo l'essenziale per la
+## pipeline MITRE, bilanciato per non generare troppo rumore.
+##
+## Legenda key (-k): usata anche da Laurel per etichettare gli eventi.
+
+## --- Base -------------------------------------------------------------------
+## Svuota le regole esistenti e imposta buffer/failure mode.
+-D
+-b 8192
+-f 1
+--backlog_wait_time 0
+
+## --- Tamper di audit / defense evasion (R14) --------------------------------
+-w /var/log/audit/ -k auditlog
+-w /etc/audit/ -p wa -k auditconfig
+-w /etc/audisp/ -p wa -k audispconfig
+-w /sbin/auditctl -p x -k audittools
+-w /sbin/auditd -p x -k audittools
+-w /usr/local/sbin/laurel -p x -k audittools
+
+## --- Autenticazione / credential_access (R1, R12) ---------------------------
+## Gli eventi PAM (USER_AUTH/USER_LOGIN/CRED_ACQ) sono generati da auditd/pam.
+## Qui aggiungiamo la lettura/scrittura dei file di credenziali.
+-w /etc/shadow -p rwa -k credaccess
+-w /etc/gshadow -p rwa -k credaccess
+-w /etc/passwd -p wa -k identity
+-w /etc/sudoers -p rwa -k credaccess
+-w /etc/sudoers.d/ -p rwa -k credaccess
+
+## --- Esecuzione comandi / execution + discovery (R6, R13) -------------------
+## Tutte le execve (con attribuzione all'utente di login auid). Laurel arricchisce
+## con argv e ancestry. Escludiamo auid non impostato per ridurre il rumore.
+-a always,exit -F arch=b64 -S execve -F auid>=1000 -F auid!=unset -k exec
+-a always,exit -F arch=b32 -S execve -F auid>=1000 -F auid!=unset -k exec
+
+## --- Privilege escalation (R3, R7) ------------------------------------------
+## Comando eseguito con euid=0 da un utente loggato NON root (auid>=1000).
+-a always,exit -F arch=b64 -F euid=0 -F auid>=1000 -F auid!=unset -S execve -k privesc
+-a always,exit -F arch=b32 -F euid=0 -F auid>=1000 -F auid!=unset -S execve -k privesc
+## Cambi di identità.
+-a always,exit -F arch=b64 -S setuid -S setgid -S setreuid -S setregid -k identitychange
+-a always,exit -F arch=b32 -S setuid -S setgid -S setreuid -S setregid -k identitychange
+
+## --- Persistenza (R11) ------------------------------------------------------
+-w /etc/crontab -p wa -k persistence
+-w /etc/cron.d/ -p wa -k persistence
+-w /etc/cron.daily/ -p wa -k persistence
+-w /etc/cron.hourly/ -p wa -k persistence
+-w /var/spool/cron/ -p wa -k persistence
+-w /etc/systemd/system/ -p wa -k persistence
+-w /lib/systemd/system/ -p wa -k persistence
+-w /etc/rc.local -p wa -k persistence
+-w /root/.ssh/ -p wa -k persistence
+## Nota: gli authorized_keys degli utenti (/home/*/.ssh) vanno aggiunti in modo
+## mirato in fase di finalizzazione (path per-utente).
+
+## --- Rete / beaconing-exfil (R4, R9) — ATTENZIONE: può essere rumoroso ------
+## Auditare `connect` genera molti eventi; abilitare consapevolmente. Laurel
+## arricchisce con l'indirizzo. Commentata di default: attivare in finalizzazione.
+# -a always,exit -F arch=b64 -S connect -F auid>=1000 -F auid!=unset -k network
+# -a always,exit -F arch=b32 -S connect -F auid>=1000 -F auid!=unset -k network
+
+## --- Moduli kernel (defense evasion / persistence avanzata) -----------------
+-a always,exit -F arch=b64 -S init_module -S finit_module -S delete_module -k modules
+-a always,exit -F arch=b32 -S init_module -S finit_module -S delete_module -k modules
+
+## Rendere le regole immutabili fino al reboot (opzionale, per hardening forte):
+## -e 2
