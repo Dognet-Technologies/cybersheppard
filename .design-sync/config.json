@@ -1,0 +1,31 @@
+{
+  "projectId": "957fb058-8761-40b7-96be-2aa6dd177f42",
+  "pkg": "cybersheppard-frontend",
+  "globalName": "CyberSheppardUI",
+  "shape": "package",
+  "buildCmd": "cd frontend-react && npx tailwindcss -i src/index.css -o ds-ui.generated.css && rm -rf types && npx tsc src/components/ui/index.ts --declaration --emitDeclarationOnly --outDir types --rootDir src/components/ui --jsx react-jsx --module ESNext --moduleResolution bundler --target ES2020 --esModuleInterop --skipLibCheck",
+  "srcDir": "src/components/ui",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": "ds-ui.generated.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Table": { "cardMode": "column" }
+  },
+  "componentSrcMap": {
+    "Badge": "src/components/ui/Badge.tsx",
+    "SeverityBadge": "src/components/ui/Badge.tsx",
+    "StatusBadge": "src/components/ui/Badge.tsx",
+    "Button": "src/components/ui/Button.tsx",
+    "Card": "src/components/ui/Card.tsx",
+    "CardHeader": "src/components/ui/Card.tsx",
+    "CardSection": "src/components/ui/Card.tsx",
+    "EmptyState": "src/components/ui/EmptyState.tsx",
+    "Input": "src/components/ui/Input.tsx",
+    "Modal": "src/components/ui/Modal.tsx",
+    "PageHeader": "src/components/ui/PageHeader.tsx",
+    "Select": "src/components/ui/Select.tsx",
+    "StatCard": "src/components/ui/Stats.tsx",
+    "StatsGrid": "src/components/ui/Stats.tsx",
+    "Table": "src/components/ui/Table.tsx"
+  }
+}
