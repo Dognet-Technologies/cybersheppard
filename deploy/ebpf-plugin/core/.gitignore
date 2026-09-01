@@ -1,0 +1,6 @@
+# artefatti di build (rigenerati da Makefile)
+ebpf_sensor
+*.o
+*.skel.h
+vmlinux.h
+*.btf
