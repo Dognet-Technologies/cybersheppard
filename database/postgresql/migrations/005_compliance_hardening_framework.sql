@@ -90,6 +90,14 @@ ON CONFLICT (name) DO NOTHING;
 -- ============================================================================
 -- Patch: add columns missing from migration 001 to compliance_controls
 -- ============================================================================
+-- Il modello del Master Mapping è multi-framework: un controllo mappa a ISO+NIS2+
+-- NIST+D3FEND via gli array *_references, con chiave naturale (macroarea, requisito).
+-- Le colonne single-framework di 001 (framework_id/control_id/title/severity NOT NULL)
+-- non si applicano al catalogo importato → rese nullable.
+ALTER TABLE compliance_controls ALTER COLUMN framework_id DROP NOT NULL;
+ALTER TABLE compliance_controls ALTER COLUMN control_id   DROP NOT NULL;
+ALTER TABLE compliance_controls ALTER COLUMN title        DROP NOT NULL;
+ALTER TABLE compliance_controls ALTER COLUMN severity     DROP NOT NULL;
 ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS macroarea_id INTEGER REFERENCES compliance_macroareas(id);
 ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS sub_control VARCHAR(255);
 ALTER TABLE compliance_controls ADD COLUMN IF NOT EXISTS sub_sub_control VARCHAR(255);
@@ -187,6 +195,21 @@ CREATE TABLE IF NOT EXISTS compliance_controls (
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Chiave naturale del controllo: (macroarea, requisito). Serve al loader
+-- (scripts/populate_compliance_data.py) per l'upsert idempotente ON CONFLICT.
+-- Guardata così la migrazione resta riapplicabile senza errori.
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'compliance_controls_macroarea_requirement_key'
+          AND conrelid = 'compliance_controls'::regclass
+    ) THEN
+        ALTER TABLE compliance_controls
+            ADD CONSTRAINT compliance_controls_macroarea_requirement_key
+            UNIQUE (macroarea_id, requirement);
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_controls_macroarea ON compliance_controls(macroarea_id);
 CREATE INDEX IF NOT EXISTS idx_controls_priority ON compliance_controls(priority);

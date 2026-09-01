@@ -9,7 +9,7 @@
 -- Idempotente: riapplicabile senza errori.
 -- ============================================================================
 
-BEGIN;
+-- NB: nessun BEGIN/COMMIT: sqlx::migrate! gestisce la transazione per migrazione.
 
 -- La vista user_hierarchy dipende da users.role: va rimossa prima di alterare
 -- la colonna, viene ricreata in fondo.
@@ -77,5 +77,3 @@ BEGIN
         GRANT SELECT ON user_hierarchy TO cybersheppard_app;
     END IF;
 END $$;
-
-COMMIT;
