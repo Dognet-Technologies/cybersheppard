@@ -123,7 +123,7 @@ impl MonitoringScheduler {
     /// Get all targets with monitoring enabled
     async fn get_monitoring_targets(&self) -> anyhow::Result<Vec<MonitoringTarget>> {
         let rows = sqlx::query_as::<_, (i32, String, String, i32, String, Option<i32>, i32)>(
-            "SELECT t.id, t.hostname, t.ip_address, t.ssh_port, t.ssh_username,
+            "SELECT t.id, t.hostname, t.ip_address::text, t.ssh_port, t.ssh_username,
                     t.ssh_key_id, t.monitoring_interval_seconds
              FROM targets t
              WHERE t.monitoring_enabled = true AND t.status = 'online'"
