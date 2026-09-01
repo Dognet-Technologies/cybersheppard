@@ -580,7 +580,7 @@ function ExecutionModal({
     queryFn: () => api.getTargets(),
   });
 
-  const targets = targetsData?.targets || [];
+  const targets = Array.isArray(targetsData) ? targetsData : (targetsData?.targets || []);
 
   const handleExecute = () => {
     // TODO: Implement execution API call
