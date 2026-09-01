@@ -1,0 +1,21 @@
+// CyberSheppard — sensore eBPF opt-in. Intercetta a livello kernel (LSM/kprobe)
+// eventi che auditd/Laurel non vede (open via io_uring, attività di root/daemon).
+kprobe:security_file_open
+{
+  $f = (struct file *)arg0;
+  $n = str($f->f_path.dentry->d_name.name);
+  if ($n == "shadow" || $n == "shadow-" || $n == "gshadow" ||
+      $n == "id_rsa" || $n == "id_ed25519" || $n == "id_dsa" ||
+      $n == "authorized_keys" || $n == ".pgpass" || $n == "sudoers") {
+    printf("FOPEN|%d|%d|%s|%d|%s\n", (uint64)nsecs, pid, comm, uid, $n);
+  }
+}
+// security_ptrace_access_check(child, mode): emetti SOLO per PTRACE_MODE_ATTACH (0x2),
+// così si escludono le letture legittime di /proc (PTRACE_MODE_READ=0x1).
+kprobe:security_ptrace_access_check
+{
+  if ((arg1 & 0x2) != 0) {
+    $child = (struct task_struct *)arg0;
+    printf("PTRACE|%d|%d|%s|%d|%d\n", (uint64)nsecs, pid, comm, uid, $child->pid);
+  }
+}

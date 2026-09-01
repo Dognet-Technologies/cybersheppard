@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_host, user_name, process_name, target_id,\n                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND event_type = 'EBPF_PTRACE'\n              AND COALESCE(process_name,'') !~* '(^gdb$|^strace$|^ltrace$|^lldb$|^perf$|^dpkg|^systemd)'\n            GROUP BY source_host, user_name, process_name, target_id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "process_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "target_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "cnt",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "first_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_t",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "2d2f10f161145efbaa34ee351774d6ac3e684001b00752872ddb890dab547a89"
+}
