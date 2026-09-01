@@ -298,13 +298,17 @@ impl EventCollectorService {
     async fn process_auditd_line(&self, line: &str) -> Result<Option<i64>> {
         let audit_event: JsonValue =
             serde_json::from_str(line).context("Failed to parse auditd JSON")?;
-        self.ingest_event(&audit_event).await
+        self.ingest_event(&audit_event, None).await
     }
 
     /// Ingest one already-parsed Laurel/auditd event into `security_events`.
     /// Public entry point for the agent-forwarded events path (`api/agents.rs`):
     /// filtro rumore → parse (con tagging MITRE) → enrich → normalize → insert.
-    pub async fn ingest_event(&self, audit_event: &JsonValue) -> Result<Option<i64>> {
+    pub async fn ingest_event(
+        &self,
+        audit_event: &JsonValue,
+        target_id: Option<i32>,
+    ) -> Result<Option<i64>> {
         // Gli eventi inoltrati dall'agent arrivano nel formato annidato di Laurel:
         // appiattiscili nel formato piatto che il parser e i detector si aspettano.
         // Se non è formato Laurel (es. auditd grezzo), `normalized` è None e si usa
@@ -319,6 +323,7 @@ impl EventCollectorService {
         }
 
         let mut event = self.parse_auditd_event(event)?;
+        event.target_id = target_id;
         self.enrich_event(&mut event).await?;
         event.normalized_data = Some(self.normalize_to_cef(&event, audit_event));
         let event_id = self.insert_event(&event).await?;
@@ -407,6 +412,7 @@ impl EventCollectorService {
 
         Ok(SecurityEvent {
             id: None,
+            target_id: None,
             timestamp,
             source_type: SourceType::Auditd,
             source_host,
@@ -612,7 +618,7 @@ impl EventCollectorService {
                 geo_country, geo_city, asset_criticality, threat_score,
                 correlation_id, parent_event_id, sequence_number,
                 ingestion_time, processed, anomaly_score,
-                mitre_tactic, mitre_technique
+                mitre_tactic, mitre_technique, target_id
             ) VALUES (
                 $1, $2, $3, $4, $5,
                 $6, $7, $8, $9,
@@ -624,7 +630,7 @@ impl EventCollectorService {
                 $26, $27, $28, $29,
                 $30, $31, $32,
                 $33, $34, $35,
-                $36, $37
+                $36, $37, $38
             )
             RETURNING id
             "#,
@@ -664,7 +670,8 @@ impl EventCollectorService {
             event.processed,
             event.anomaly_score.map(|v| v.to_bigdecimal()),
             event.mitre_tactic,
-            event.mitre_technique
+            event.mitre_technique,
+            event.target_id
         )
         .fetch_one(&self.db)
         .await?;
@@ -682,7 +689,7 @@ impl EventCollectorService {
             SecurityEvent,
             r#"
             SELECT
-                id, timestamp, source_type as "source_type: _", source_host,
+                id, target_id, timestamp, source_type as "source_type: _", source_host,
                 source_ip as "source_ip: IpAddr", source_port,
                 event_type, event_category as "event_category: _",
                 event_action, severity as "severity: _",

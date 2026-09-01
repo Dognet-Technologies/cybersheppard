@@ -249,7 +249,7 @@ async fn process_security_events(
 
     let mut ingested = 0usize;
     for ev in &events {
-        match event_collector.ingest_event(ev).await {
+        match event_collector.ingest_event(ev, Some(target_id)).await {
             Ok(Some(_)) => ingested += 1,
             Ok(None) => {} // evento filtrato (rumore)
             Err(e) => error!("Failed to ingest security event (target {}): {}", target_id, e),

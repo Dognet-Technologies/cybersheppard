@@ -67,6 +67,8 @@ sono la sorveglianza che eleva per **frequenza**, **sequenza**, **lignaggio di p
 |---|---|---|---|---|---|
 | R16 | **Root Asset / Credential Discovery** | discovery (T1083) / T1552 | processo (cmdline) | ≥3 ricerche `find`/`ls`/`grep` verso SUID, file di root, chiavi SSH, credenziali | ✅ (colma gap: R13 vedeva solo whoami/id/uname) |
 | R17 | **io_uring Audit Evasion** | defense_evasion (T1562) | syscall | uso di `io_uring_setup` da processo non in allowlist (richiede regola audit `-S io_uring_setup`) | ✅ |
+| R18 | **Sensor Silence** | defense_evasion (T1562) | server-side | agent connesso + metriche recenti ma `security_events` fermi da >10min (stop auditd/Laurel) | ✅ (richiede `target_id` su security_events, migr. 017) |
+| R20 | **Fileless Execution** | execution (T1620) | processo (exe) | `exe` = `/memfd:…` o `(deleted)` — loader in-memory / binario cancellato (richiede audit `execveat`) | ✅ |
 
 ### Delegato a **Intellidog** (modulo premium esterno)
 Queste correlazioni richiedono **intelligence esterna / dati cross-prodotto** e sono competenza del
@@ -136,10 +138,28 @@ CyberSheppard fallisce. Sintesi:
 | 3 | **Blind-spot auid≥1000**: execve da root (auid=0) o servizi (auid=unset) → non auditati; attaccante già-root invisibile | 🟠 ALTA | regole audit `-S execve -F euid=0 …auid<1000/unset -k rootexec` | ✅ chiuso |
 | 4 | Privesc kernel | 🟢 OK | 6.12.105 patchato, `linux-exploit-suggester` senza CVE noti | n/a |
 
+### Matrice evasione completa (Batterie A/B/C)
+Test sistematico dei vettori di evasione più noti contro auditd/Laurel:
+
+| Vettore | Risultato | Difesa |
+|---|---|---|
+| **io_uring** (read `/etc/shadow`) | 0 record — bypassa watch inode + syscall | R17 + regola `io_uring_setup` |
+| **execveat** (loader fileless) | 0 record: la regola copriva solo `execve` | ✅ aggiunto `-S execve,execveat` |
+| **memfd_create + execveat** (fileless) | ora catturato, `exe=/memfd:(deleted)` | ✅ R20 |
+| **binario cancellato** | catturato, `exe=…(deleted)` | ✅ R20 |
+| **loginuid reset** (`/proc/self/loginuid`) | EPERM — immutabile | n/a (già sicuro) |
+| **kill processo Laurel** | auditd lo **respawna** subito | resiliente; per stop reale → R18 |
+| **stop auditd / disable plugin** (root) | acceca senza lasciare record | ✅ R18 (server-side) |
+| **flood backlog audit** | `lost=0` sotto carico moderato | resiliente (backlog 8192, wait 0) |
+| **LD_PRELOAD** | **loggato** nell'env (non evade) | opportunità di detection (TODO) |
+| **detachment `setsid`/double-fork** (ppid=1) | eventi catturati ma lignaggio spezzato | evasione dell'*attribuzione* (TODO) |
+| **read via bash builtin** (file non-watchati) | nessun evento (no execve) | gap intrinseco (non chiudibile senza rumore) |
+
 **Note operative**: la cattura execve richiede sessione di **login** dell'utente (auid), non `su`
-da root (eredita auid=0). io_uring_setup non espone il filename → R17 flagga l'**uso** (raro sui
-server), non il file; per l'attribuzione del file servirebbe eBPF/LSM. TODO: rilevatore ping/port
-sweep (T1018/T1046) e raffinamento R2 lateral movement (rumorosa sui login loopback).
+da root (eredita auid=0). io_uring_setup e execveat non espongono sempre il contesto completo →
+R17/R20 flaggano l'**uso** della tecnica; per l'attribuzione fine (file letto via io_uring, iniezione)
+serve **eBPF/LSM**. TODO: rilevatore ping/port-sweep (T1018/T1046), detector LD_PRELOAD (T1574.006),
+raffinamento R2 lateral movement (rumorosa sui login loopback), gestione detachment/lignaggio.
 
 ---
 **Ultimo aggiornamento**: 2026-09-01 · branch `develop/v0.0.2`
