@@ -8,6 +8,7 @@ import Hardening from './pages/Hardening';
 import HardeningTemplates from './pages/HardeningTemplates';
 import Integrations from './pages/Integrations';
 import SecurityCorrelations from './pages/SecurityCorrelations';
+import AttackMatrix from './pages/AttackMatrix';
 import ComplianceFrameworks from './pages/ComplianceFrameworks';
 import ComplianceControls from './pages/ComplianceControls';
 import ComplianceDashboard from './pages/ComplianceDashboard';
@@ -56,6 +57,7 @@ function App() {
             <Route path="hardening-templates" element={<HardeningTemplates />} />
             <Route path="integrations" element={<Integrations />} />
             <Route path="correlations" element={<SecurityCorrelations />} />
+            <Route path="attack-matrix" element={<AttackMatrix />} />
             <Route path="compliance" element={<ComplianceFrameworks />} />
             <Route path="compliance-dashboard" element={<ComplianceDashboard />} />
             <Route path="compliance-controls" element={<ComplianceControls />} />
