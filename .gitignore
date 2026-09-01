@@ -212,6 +212,9 @@ README_PRIV.md
 Immagini/
 documentazione/IconaRidotta.png
 documentazione/*
+# Documentazione interna (detection logic, gap noti, ADR, modulo Intellidog):
+# tenuta LOCALE — Sheppard è distribuito come tool premium non-open-source.
+docs/
 .gitignore
 
 
