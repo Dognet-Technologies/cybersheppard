@@ -93,7 +93,10 @@ class ApiService {
 
   async getTargets(params?: Record<string, any>) {
     const response = await this.client.get('/api/targets', { params });
-    return response.data;
+    // L'API risponde { targets: [...], total, limit, offset }. Restituiamo sempre
+    // l'array dei target, così i chiamanti lo consumano in modo uniforme.
+    const body = response.data;
+    return Array.isArray(body) ? body : body?.targets ?? [];
   }
 
   async getTarget(id: number) {

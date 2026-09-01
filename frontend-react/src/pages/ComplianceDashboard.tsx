@@ -80,7 +80,7 @@ export default function ComplianceDashboard() {
   });
 
   const frameworkScores: FrameworkScore[] = overviewData?.frameworks || [];
-  const targets: TargetCompliance[] = targetsData?.targets || [];
+  const targets: TargetCompliance[] = Array.isArray(targetsData) ? targetsData : (targetsData?.targets || []);
   const gaps: ComplianceGap[] = gapsData?.gaps || [];
 
   const avgComplianceScore =
