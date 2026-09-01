@@ -65,6 +65,174 @@ fn map_mitre_attack(
     }
 }
 
+/// Laurel (0.8.x) produce JSON **annidato**: un oggetto con `ID` (`epoch.ms:serial`)
+/// e i record auditd come chiavi maiuscole (`SYSCALL`, `EXECVE`, `PROCTITLE`,
+/// `PATH`, `SOCKADDR`, `USER_AUTH`, `CRED_ACQ`…). Il parser `parse_auditd_event`
+/// si aspetta invece un evento auditd **piatto** (`type`, `time`, `uid`, `exe`,
+/// `pid`…). Senza normalizzazione ogni evento Laurel diventa `system/unknown`
+/// con tutti i campi NULL, e i detector di correlazione non scattano mai.
+///
+/// Questa funzione riconosce il formato Laurel e lo appiattisce nei campi che il
+/// parser **e** i detector leggono (`type`, `time`, `uid`/`auid`, `exe`/`comm`,
+/// `pid`/`ppid`, `proctitle`, `key`, `res`, `name`, `addr`/`port`, `hostname`,
+/// `ses`). Ritorna `None` se `ev` non è nel formato Laurel, così il flusso auditd
+/// piatto pre-esistente resta invariato.
+fn normalize_laurel(ev: &JsonValue) -> Option<JsonValue> {
+    let obj = ev.as_object()?;
+    // Firma del formato Laurel: presenza di `ID` e assenza del `type` piatto.
+    let id = obj.get("ID")?.as_str()?;
+    if obj.contains_key("type") {
+        return None;
+    }
+
+    let mut flat = serde_json::Map::new();
+
+    // timestamp da ID "1788220826.251:555" → RFC3339
+    if let Some(epoch) = id.split(':').next().and_then(|s| s.parse::<f64>().ok()) {
+        let secs = epoch.trunc() as i64;
+        let nsecs = (epoch.fract() * 1_000_000_000.0) as u32;
+        if let Some(dt) = chrono::DateTime::from_timestamp(secs, nsecs) {
+            flat.insert("time".into(), json!(dt.to_rfc3339()));
+        }
+    }
+
+    // Un record Laurel può essere oggetto o array (primo elemento).
+    let rec = |v: &JsonValue| -> Option<JsonValue> {
+        match v {
+            JsonValue::Object(_) => Some(v.clone()),
+            JsonValue::Array(a) => a.first().cloned(),
+            _ => None,
+        }
+    };
+
+    // 1) Eventi syscall / execve
+    if let Some(sc) = obj.get("SYSCALL").and_then(rec) {
+        if let Some(scm) = sc.as_object() {
+            let mnem = scm.get("SYSCALL").and_then(|v| v.as_str()).unwrap_or("");
+            let is_exec =
+                mnem == "execve" || mnem == "execveat" || obj.contains_key("EXECVE");
+            flat.insert(
+                "type".into(),
+                json!(if is_exec { "EXECVE" } else { "SYSCALL" }),
+            );
+            // Identità: nome tradotto (UID) per user_name; auid numerico per i detector.
+            if let Some(u) = scm.get("UID").and_then(|v| v.as_str()) {
+                flat.insert("uid".into(), json!(u));
+            }
+            if let Some(a) = scm.get("auid") {
+                flat.insert("auid".into(), a.clone());
+            }
+            if let Some(a) = scm.get("AUID") {
+                flat.insert("auid_name".into(), a.clone());
+            }
+            for k in ["pid", "ppid", "ses", "comm", "exe", "subj"] {
+                if let Some(v) = scm.get(k) {
+                    flat.insert(k.into(), v.clone());
+                }
+            }
+            flat.insert("syscall".into(), json!(mnem));
+            if let Some(k) = scm.get("key") {
+                if !k.is_null() {
+                    flat.insert("key".into(), k.clone());
+                }
+            }
+            let ok = scm
+                .get("success")
+                .and_then(|v| v.as_str())
+                .map(|s| s == "yes")
+                .unwrap_or(true);
+            flat.insert("res".into(), json!(if ok { "success" } else { "failed" }));
+        }
+    }
+
+    // 2) cmdline: da EXECVE.ARGV (argv completo) o, in fallback, da PROCTITLE.
+    if let Some(ex) = obj.get("EXECVE").and_then(rec) {
+        if let Some(argv) = ex.get("ARGV").and_then(|v| v.as_array()) {
+            let cmd = argv
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            if !cmd.is_empty() {
+                flat.insert("proctitle".into(), json!(cmd));
+            }
+        }
+    }
+    if !flat.contains_key("proctitle") {
+        if let Some(pt) = obj.get("PROCTITLE").and_then(rec) {
+            if let Some(s) = pt
+                .get("ARGV_STR")
+                .and_then(|v| v.as_str())
+                .or_else(|| pt.get("proctitle").and_then(|v| v.as_str()))
+            {
+                flat.insert("proctitle".into(), json!(s));
+            }
+        }
+    }
+
+    // 3) file: primo PATH con `name`.
+    if let Some(paths) = obj.get("PATH").and_then(|v| v.as_array()) {
+        if let Some(name) = paths
+            .iter()
+            .find_map(|p| p.get("name").and_then(|v| v.as_str()))
+        {
+            flat.insert("name".into(), json!(name));
+        }
+    }
+
+    // 4) rete: SOCKADDR.
+    if let Some(sa) = obj.get("SOCKADDR").and_then(rec) {
+        if let Some(addr) = sa.get("addr").and_then(|v| v.as_str()) {
+            flat.insert("addr".into(), json!(addr));
+        }
+        if let Some(port) = sa.get("port") {
+            flat.insert("port".into(), port.clone());
+        }
+    }
+
+    // 5) record di autenticazione/autorizzazione PAM.
+    for rt in [
+        "USER_AUTH", "USER_LOGIN", "USER_ACCT", "CRED_ACQ", "CRED_DISP", "USER_START",
+        "USER_END", "USER_CMD", "USER_ERR", "LOGIN",
+    ] {
+        if let Some(r) = obj.get(rt).and_then(rec) {
+            if let Some(ro) = r.as_object() {
+                flat.insert("type".into(), json!(rt));
+                for k in ["pid", "auid", "ses", "uid"] {
+                    if let Some(v) = ro.get(k) {
+                        flat.entry(k.to_string()).or_insert_with(|| v.clone());
+                    }
+                }
+                if let Some(u) = ro
+                    .get("UID")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| ro.get("AUID").and_then(|v| v.as_str()))
+                {
+                    flat.insert("uid".into(), json!(u));
+                }
+                if let Some(msg) = ro.get("msg").and_then(|v| v.as_object()) {
+                    for k in ["op", "acct", "hostname", "addr", "terminal", "exe", "res"] {
+                        if let Some(v) = msg.get(k) {
+                            flat.insert(k.into(), v.clone());
+                        }
+                    }
+                }
+            }
+            break; // un solo record auth per evento
+        }
+    }
+
+    // hostname/node del target (se presente).
+    if let Some(h) = obj.get("NODE").and_then(|v| v.as_str()) {
+        flat.insert("node".into(), json!(h));
+    }
+
+    // Conserva l'evento Laurel originale per riferimento/debug.
+    flat.insert("laurel_raw".into(), ev.clone());
+
+    Some(JsonValue::Object(flat))
+}
+
 impl EventCollectorService {
     pub fn new(db: PgPool, auditd_log_path: String) -> Self {
         Self {
@@ -137,13 +305,20 @@ impl EventCollectorService {
     /// Public entry point for the agent-forwarded events path (`api/agents.rs`):
     /// filtro rumore → parse (con tagging MITRE) → enrich → normalize → insert.
     pub async fn ingest_event(&self, audit_event: &JsonValue) -> Result<Option<i64>> {
-        let event_type = audit_event["type"].as_str().unwrap_or("unknown").to_string();
+        // Gli eventi inoltrati dall'agent arrivano nel formato annidato di Laurel:
+        // appiattiscili nel formato piatto che il parser e i detector si aspettano.
+        // Se non è formato Laurel (es. auditd grezzo), `normalized` è None e si usa
+        // l'evento originale invariato.
+        let normalized = normalize_laurel(audit_event);
+        let event = normalized.as_ref().unwrap_or(audit_event);
+
+        let event_type = event["type"].as_str().unwrap_or("unknown").to_string();
 
         if self.should_skip_event(&event_type) {
             return Ok(None);
         }
 
-        let mut event = self.parse_auditd_event(audit_event)?;
+        let mut event = self.parse_auditd_event(event)?;
         self.enrich_event(&mut event).await?;
         event.normalized_data = Some(self.normalize_to_cef(&event, audit_event));
         let event_id = self.insert_event(&event).await?;

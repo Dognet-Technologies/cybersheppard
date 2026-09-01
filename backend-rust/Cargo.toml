@@ -30,7 +30,7 @@ ipnetwork = { version = "0.20", features = ["serde"] }
 influxdb = { version = "0.7", features = ["derive"] }
 
 # Authentication & Security
-jsonwebtoken = "10.3"
+jsonwebtoken = { version = "10.3", default-features = false, features = ["rust_crypto"] }
 argon2 = "0.5"
 rand = "0.9.3"
 sha2 = "0.10"

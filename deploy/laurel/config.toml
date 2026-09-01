@@ -1,38 +1,53 @@
 # ============================================================================
-# CyberSheppard — Configurazione Laurel (starter, DA FINALIZZARE)
+# CyberSheppard — Configurazione Laurel (0.8.x)
 # ============================================================================
-# Laurel (github.com/threathunters-io/laurel) gira come plugin di auditd sul
-# TARGET: legge lo stream degli eventi audit, li arricchisce (process ancestry,
-# risoluzione uid→nomi, argv, container) e li scrive come JSON (una riga = un
-# evento). Il dog_agent legge questo file (`laurel_log_path`) e lo inoltra al
-# server → security_events → correlazione MITRE.
+# Laurel gira come plugin di auditd sul TARGET: legge lo stream audit da stdin,
+# arricchisce (process ancestry, argv, uid→nome) e scrive JSON (una riga = un
+# evento) in {directory}/{auditlog.file}. Il dog_agent legge quel file
+# (laurel_log_path) e lo inoltra → security_events → correlazione MITRE.
 #
-# Destinazione attesa dall'agent: /var/log/laurel/audit.log
-# NB: chiavi/valori sono una base ragionevole; vanno rifinite sulla versione di
-# Laurel installata (vedi README.md di questa cartella).
+# Output atteso dall'agent: /var/log/laurel/audit.log
+# Formato allineato alla release 0.8.2 (github.com/threathunters-io/laurel).
+
+directory = "/var/log/laurel"
+# Utente non privilegiato a cui Laurel fa drop dei privilegi (creato in install).
+user = "_laurel"
+statusreport-period = 0
+input = "stdin"
 
 [auditlog]
-# File JSON prodotto da Laurel (== laurel_log_path nella config dell'agent).
-file = "/var/log/laurel/audit.log"
-# Rotazione: dimensione massima e numero di generazioni.
-size = 10000000        # ~10 MB
+file = "audit.log"
+size = 10000000        # ~10 MB per generazione
 generations = 10
-# Utenti autorizzati a leggere il log (l'agent gira come questo utente).
+# root (che esegue il dog_agent) può leggere il log.
 read-users = ["root"]
 
 [state]
-# Stato persistente di Laurel (cache uid/pid per l'enrichment tra riavvii).
-file = "/var/lib/laurel/state"
+file = "state"
 generations = 0
+max-age = 60
 
 [transform]
 # argv di execve come array JSON → process_cmdline ricco e parsabile.
-execve-argv = "array"
+execve-argv = [ "array" ]
+
+[translate]
+# Traduce uid/gid → nomi e costanti syscall → mnemonici (utile ai detector).
+universal = true
+user-db = true
+drop-raw = false
 
 [enrich]
-# Arricchimenti utili ai nostri detector di correlazione:
 pid = true             # ppid / catena antenati (R6, R7)
-container = true       # id container quando applicabile
+spawned-by = true
+container = true
 systemd = true         # unit systemd del processo
+script = true
+user-groups = true
 # Variabili d'ambiente sospette da preservare (es. LD_PRELOAD → evasion).
 execve-env = ["LD_PRELOAD", "LD_LIBRARY_PATH"]
+
+[filter]
+# Non filtrare eventi senza key: li vogliamo tutti per la correlazione.
+filter-null-keys = false
+filter-action = "drop"
