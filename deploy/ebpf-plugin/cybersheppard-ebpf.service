@@ -1,0 +1,19 @@
+[Unit]
+Description=CyberSheppard eBPF Sensor (opt-in) — colma i blind-spot di auditd/Laurel
+After=auditd.service
+Wants=auditd.service
+
+[Service]
+Type=simple
+# bpftrace richiede privilegi: gira come root.
+ExecStart=/usr/bin/python3 /opt/cybersheppard-ebpf/collector.py
+Restart=on-failure
+RestartSec=5s
+# Il sensore scrive nello stream eventi che l'agent inoltra.
+Environment=EBPF_SINK=/var/log/laurel/audit.log
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cybersheppard-ebpf
+
+[Install]
+WantedBy=multi-user.target

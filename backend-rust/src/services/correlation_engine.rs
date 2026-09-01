@@ -68,6 +68,8 @@ fn technique_for_pattern(pattern: &str) -> Option<(&'static str, &'static str)> 
         "io_uring Audit Evasion" => Some(("T1562", "Impair Defenses")),
         "Sensor Silence" => Some(("T1562", "Impair Defenses")),
         "Fileless Execution" => Some(("T1620", "Reflective Code Loading")),
+        "eBPF Credential Access" => Some(("T1003", "OS Credential Dumping")),
+        "Process Injection (ptrace)" => Some(("T1055", "Process Injection")),
         "Suspicious Session Lifecycle" => Some(("T1078", "Valid Accounts")),
         "Mass File Operations" => Some(("T1486", "Data Encrypted for Impact")),
         _ => None, // es. "Anomaly Cluster": nessuna tecnica ATT&CK fissa
@@ -125,6 +127,8 @@ impl CorrelationEngine {
         correlations.extend(self.detect_io_uring_evasion(hours).await?); // R17
         correlations.extend(self.detect_sensor_silence(hours).await?); // R18
         correlations.extend(self.detect_fileless_execution(hours).await?); // R20
+        correlations.extend(self.detect_ebpf_credential_access(hours).await?); // R21
+        correlations.extend(self.detect_ptrace_injection(hours).await?); // R22
         correlations.extend(self.detect_defense_evasion(hours).await?); // R14
         correlations.extend(self.detect_suspicious_session(hours).await?); // R8
         correlations.extend(self.detect_mass_file_ops(hours).await?); // R15
@@ -1190,6 +1194,107 @@ impl CorrelationEngine {
                 vec![proc],
                 json!({ "note": "exe in memoria (memfd) o binario cancellato — possibile loader in-memory" }),
                 AttackStage::Execution,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R21 — **eBPF Credential Access** (T1003).
+    /// Alimentato dal sensore eBPF opt-in (hook LSM `security_file_open`): cattura
+    /// l'apertura di file credenziali (`shadow`, chiavi SSH, `.pgpass`, `sudoers`)
+    /// **a livello kernel**, quindi anche quando avviene via **io_uring** o da
+    /// **root/daemon** — i due punti ciechi di auditd/Laurel (R12/R17). Esclude i
+    /// lettori legittimi del PAM/stack di sistema per ridurre il rumore.
+    async fn detect_ebpf_credential_access(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name, process_name, target_id,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
+                   array_agg(DISTINCT file_path) FILTER (WHERE file_path IS NOT NULL) as files
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND event_type = 'EBPF_CRED_ACCESS'
+              AND COALESCE(process_name,'') !~* '(unix_chkpwd|sshd|^login$|^su$|^sudo$|passwd|systemd|pam|useradd|usermod|chpasswd|newgrp|gpasswd|vipw|cron|agetty|nscd|sssd)'
+            GROUP BY source_host, user_name, process_name, target_id
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let proc = r.process_name.unwrap_or_else(|| "unknown".into());
+            let files = r.files.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Anomaly,
+                "eBPF Credential Access",
+                format!(
+                    "Accesso a file credenziali da '{proc}' su {host} (utente '{user}') rilevato dal sensore eBPF — resistente a evasione io_uring/root"
+                ),
+                Severity::Critical,
+                0.9,
+                88.0,
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                vec![proc],
+                json!({ "sensor": "ebpf", "files": files, "note": "hook LSM security_file_open: cattura anche io_uring e processi root che auditd non vede" }),
+                AttackStage::CredentialAccess,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R22 — **Process Injection via ptrace** (T1055).
+    /// Sensore eBPF (`security_ptrace_access_check`): un processo che si aggancia a
+    /// un altro via ptrace/`process_vm_writev` è un classico di injection/masquerading
+    /// (l'attività malevola appare sotto l'identità della vittima). Esclude i debugger
+    /// noti per ridurre il rumore.
+    async fn detect_ptrace_injection(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name, process_name, target_id,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND event_type = 'EBPF_PTRACE'
+              AND COALESCE(process_name,'') !~* '(^gdb$|^strace$|^ltrace$|^lldb$|^perf$|^dpkg|^systemd)'
+            GROUP BY source_host, user_name, process_name, target_id
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let proc = r.process_name.unwrap_or_else(|| "unknown".into());
+            out.push(Self::build_correlation(
+                CorrelationType::Anomaly,
+                "Process Injection (ptrace)",
+                format!("Aggancio ptrace da '{proc}' su {host} (utente '{user}') — possibile code injection"),
+                Severity::High,
+                0.75,
+                75.0,
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                vec![proc],
+                json!({ "sensor": "ebpf", "note": "security_ptrace_access_check" }),
+                AttackStage::DefenseEvasion,
             ));
         }
         Ok(out)

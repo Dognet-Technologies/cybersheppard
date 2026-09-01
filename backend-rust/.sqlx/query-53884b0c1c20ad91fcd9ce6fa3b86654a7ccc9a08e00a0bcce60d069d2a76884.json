@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_host, user_name, process_name, target_id,\n                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,\n                   array_agg(DISTINCT file_path) FILTER (WHERE file_path IS NOT NULL) as files\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND event_type = 'EBPF_CRED_ACCESS'\n              AND COALESCE(process_name,'') !~* '(unix_chkpwd|sshd|^login$|^su$|^sudo$|passwd|systemd|pam|useradd|usermod|chpasswd|newgrp|gpasswd|vipw|cron|agetty|nscd|sssd)'\n            GROUP BY source_host, user_name, process_name, target_id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "process_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "target_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "cnt",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "first_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "files",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "53884b0c1c20ad91fcd9ce6fa3b86654a7ccc9a08e00a0bcce60d069d2a76884"
+}
