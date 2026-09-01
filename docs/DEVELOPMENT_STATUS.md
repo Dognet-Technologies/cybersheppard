@@ -155,6 +155,13 @@ Flusso: **auditd (regole) → Laurel (JSON arricchito sul target) → dog_agent 
   correlazione cross-prodotto (FireDog/SentinelCore) — **non** lacune del core. Le **15 regole**
   (incl. R10 reverse-shell con join) sono verificate live; R19 (deviazione da baseline) è
   code-complete (resta solo il popolamento operativo dei baseline). Vedi `docs/CORRELATION_RULES.md`.
+- **Verifica su lab reale (2026-09-01)**: l'intera pipeline è stata provata end-to-end su un lab
+  VirtualBox multi-VM — server CyberSheppard (deploy systemd+nginx+PostgreSQL, binari pre-buildati)
+  + 2 target con **dog-agent 1.1.1** e **Laurel 0.8.2** plugin auditd. Uno scenario d'attacco reale
+  ha prodotto `event_correlations` su **6 tattiche/tecniche ATT&CK + D3FEND** (brute force T1110,
+  privesc T1548, execution T1059, credential access T1003, discovery T1082, lateral movement T1021).
+  Il binario Laurel **non è più una lacuna** (0.8.2 glibc) e il parser server è stato reso
+  Laurel-aware (`normalize_laurel`). Vedi `docs/CORRELATION_RULES.md` §Verifica live.
 
 ---
 

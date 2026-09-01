@@ -101,5 +101,23 @@ implementate qui.
 Ogni regola va provata come R1 (brute force, ✅): iniettare eventi Laurel che formano il pattern →
 `POST /api/events/correlations/analyze` → controllare `event_correlations` (tattica + D3FEND).
 
+## Verifica live end-to-end su lab reale (2026-09-01)
+Pipeline provata su lab VirtualBox "Laboratorio SentinelSuite": server CyberSheppard
+(lab-cybersheppard, deploy systemd+nginx+PostgreSQL) + 2 target reali (lab-client1/2) con
+**dog-agent 1.1.1** e **Laurel 0.8.2** come plugin auditd. Scenario d'attacco reale (login
+attacker via ssh con auid=1001: brute force, discovery, lettura /etc/shadow, exec sospetta,
+privesc) → `event_correlations` popolata via API con **6 tattiche/tecniche ATT&CK + D3FEND**:
+R1 brute force `T1110`/D3-MFA, R7 privesc-auid `T1548`/D3-PA, R6 execution `T1059`/D3-PSEP,
+R12 credential access `T1003`/D3-MFA, R13 discovery `T1082`, R2 lateral movement `T1021`/D3-NTF.
+- **Fix abilitanti** (commit "fix(pipeline)…"): parser `normalize_laurel()` per il formato JSON
+  annidato di Laurel 0.8.x (prima ogni evento era `system/unknown` con campi NULL → nessun
+  detector scattava); `config.toml` Laurel nel formato 0.8.2; JWT `rust_crypto`; migrazione 016
+  (drift schema auth/targets).
+- **Nota tuning**: R2 lateral movement è **rumorosa** in ambiente con molti login ssh a
+  `127.0.0.1` (li accoppia come "login host A → host B"): da raffinare con esclusione loopback
+  / stesso host prima del rilascio.
+- **Cattura auid**: le regole execve filtrano `auid>=1000`; i comandi vanno eseguiti in una
+  **sessione di login** dell'utente (ssh), non via `su` da root (che eredita auid=0).
+
 ---
-**Ultimo aggiornamento**: 2026-08-31 · branch `develop/v0.0.2-events`
+**Ultimo aggiornamento**: 2026-09-01 · branch `develop/v0.0.2`
