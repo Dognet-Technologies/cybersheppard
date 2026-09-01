@@ -63,7 +63,9 @@ fn technique_for_pattern(pattern: &str) -> Option<(&'static str, &'static str)> 
         "Persistence Mechanism" => Some(("T1547", "Boot or Logon Autostart Execution")),
         "Credential File Access" => Some(("T1003", "OS Credential Dumping")),
         "Discovery Burst" => Some(("T1082", "System Information Discovery")),
+        "Root Asset Discovery" => Some(("T1083", "File and Directory Discovery")),
         "Defense Evasion" => Some(("T1070", "Indicator Removal")),
+        "io_uring Audit Evasion" => Some(("T1562", "Impair Defenses")),
         "Suspicious Session Lifecycle" => Some(("T1078", "Valid Accounts")),
         "Mass File Operations" => Some(("T1486", "Data Encrypted for Impact")),
         _ => None, // es. "Anomaly Cluster": nessuna tecnica ATT&CK fissa
@@ -117,6 +119,8 @@ impl CorrelationEngine {
         correlations.extend(self.detect_persistence(hours).await?); // R11
         correlations.extend(self.detect_credential_file_access(hours).await?); // R12
         correlations.extend(self.detect_discovery_burst(hours).await?); // R13
+        correlations.extend(self.detect_root_asset_discovery(hours).await?); // R16
+        correlations.extend(self.detect_io_uring_evasion(hours).await?); // R17
         correlations.extend(self.detect_defense_evasion(hours).await?); // R14
         correlations.extend(self.detect_suspicious_session(hours).await?); // R8
         correlations.extend(self.detect_mass_file_ops(hours).await?); // R15
@@ -978,6 +982,113 @@ impl CorrelationEngine {
                 procs.clone(),
                 json!({ "recon_commands": procs }),
                 AttackStage::Discovery,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R16 — **Root Asset / Credential Discovery** (T1083/T1552).
+    /// Colma un gap emerso dal purple-team: la ricognizione post-exploit usa
+    /// `find`/`ls`/`grep`/`locate` per cercare SUID, file di root, chiavi SSH e
+    /// credenziali. Presi singolarmente sono comandi innocui (R13 guarda solo
+    /// whoami/id/uname…), ma una raffica di queste ricerche nella stessa sessione
+    /// è un chiaro segnale di attaccante che mappa privesc/credenziali.
+    async fn detect_root_asset_discovery(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) as cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_cmdline ~* '(-perm[[:space:]]+-?[0-7]*(4000|2000|6000)|-user[[:space:]]+root|-name[[:space:]]+.*(id_rsa|id_ed25519|id_dsa|authorized_keys|\.pem|\.key|\.pgpass|shadow|\.kube|\.aws)|(^|/)(ls|find|cat|grep)[[:space:]].*(/root/|/etc/ssh/|\.ssh/|history)|grep[[:space:]].*(password|passwd|secret|token|api[_-]?key))'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 3
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let cmds = r.cmds.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Frequency,
+                "Root Asset Discovery",
+                format!(
+                    "Enumerazione di asset privilegiati/credenziali ({cnt} ricerche) su {host} da '{user}'"
+                ),
+                Severity::High,
+                Self::calculate_confidence(cnt as i64, 3, 12),
+                Self::calculate_risk_score(cnt as f64, 3.0, 12.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                vec![],
+                json!({ "discovery_commands": cmds }),
+                AttackStage::Discovery,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R17 — **io_uring Audit Evasion** (T1562, Impair Defenses).
+    /// io_uring esegue open/read/connect in contesto worker del kernel, aggirando
+    /// sia i watch auditd basati su inode sia l'auditing dei syscall: nel lab una
+    /// lettura di `/etc/shadow` via io_uring ha prodotto **zero** record. La difesa
+    /// è auditare la syscall `io_uring_setup` (regola `-k io_uring`): il suo uso da
+    /// parte di un processo non atteso è un forte indicatore di tentata evasione.
+    /// Richiede la regola audit `-S io_uring_setup` sul target (deploy/audit).
+    async fn detect_io_uring_evasion(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name, process_name,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND (event_action = 'io_uring_setup'
+                   OR event_data->>'syscall' = 'io_uring_setup'
+                   OR event_data->>'key' ILIKE '%io_uring%')
+              -- allowlist processi legittimi che usano io_uring (estendibile)
+              AND COALESCE(process_name,'') !~* '(/usr/lib/|/usr/sbin/(mariadbd|mysqld|nginx|redis-server))'
+            GROUP BY source_host, user_name, process_name
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let proc = r.process_name.unwrap_or_else(|| "unknown".into());
+            out.push(Self::build_correlation(
+                CorrelationType::Anomaly,
+                "io_uring Audit Evasion",
+                format!(
+                    "Uso di io_uring da '{proc}' su {host} (utente '{user}') — potenziale evasione del monitoraggio auditd"
+                ),
+                Severity::High,
+                0.8,
+                80.0,
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                vec![proc],
+                json!({ "note": "io_uring bypassa i watch inode e l'auditing syscall; verificare l'attività del processo" }),
+                AttackStage::DefenseEvasion,
             ));
         }
         Ok(out)

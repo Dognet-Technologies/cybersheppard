@@ -70,5 +70,25 @@
 -a always,exit -F arch=b64 -S init_module -S finit_module -S delete_module -k modules
 -a always,exit -F arch=b32 -S init_module -S finit_module -S delete_module -k modules
 
+## --- io_uring: EVASIONE auditd (R17, T1562) ---------------------------------
+## io_uring esegue open/read/connect in contesto worker del kernel, aggirando i
+## watch inode (es. -w /etc/shadow) e l'auditing dei syscall: nel purple-team una
+## lettura di /etc/shadow via io_uring ha prodotto ZERO record. Auditare la
+## creazione del ring rende visibile l'uso di io_uring (raro sui server): il
+## correlatore (R17) lo eleva se il processo non è in allowlist. NB: NON filtrato
+## per auid — deve vedere anche processi root/daemon.
+-a always,exit -F arch=b64 -S io_uring_setup -k io_uring
+-a always,exit -F arch=b32 -S io_uring_setup -k io_uring
+## Hardening alternativo/complementare (se io_uring non serve sul target):
+##   sysctl kernel.io_uring_disabled=2   (blocca io_uring per tutti i processi)
+
+## --- Esecuzioni privilegiate NON-login (blind-spot auid) --------------------
+## Le regole execve sopra filtrano auid>=1000: un attaccante GIA' root (auid=0) o
+## un servizio (auid=unset) resta invisibile. Qui auditiamo le execve con euid=0
+## a prescindere dall'auid, escludendo l'auid>=1000 già coperto sopra, per non
+## duplicare. Più rumorosa: keyata a parte così il correlatore può pesarla.
+-a always,exit -F arch=b64 -S execve -F euid=0 -F auid!=unset -F auid<1000 -k rootexec
+-a always,exit -F arch=b64 -S execve -F euid=0 -F auid=unset -k rootexec
+
 ## Rendere le regole immutabili fino al reboot (opzionale, per hardening forte):
 ## -e 2
