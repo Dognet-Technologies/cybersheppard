@@ -12,6 +12,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityEvent {
     pub id: Option<i64>,
+    /// Target (asset) da cui proviene l'evento, noto in fase di ingest agent.
+    pub target_id: Option<i32>,
     pub timestamp: DateTime<Utc>,
 
     // Source

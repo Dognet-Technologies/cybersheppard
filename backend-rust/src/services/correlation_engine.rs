@@ -66,6 +66,8 @@ fn technique_for_pattern(pattern: &str) -> Option<(&'static str, &'static str)> 
         "Root Asset Discovery" => Some(("T1083", "File and Directory Discovery")),
         "Defense Evasion" => Some(("T1070", "Indicator Removal")),
         "io_uring Audit Evasion" => Some(("T1562", "Impair Defenses")),
+        "Sensor Silence" => Some(("T1562", "Impair Defenses")),
+        "Fileless Execution" => Some(("T1620", "Reflective Code Loading")),
         "Suspicious Session Lifecycle" => Some(("T1078", "Valid Accounts")),
         "Mass File Operations" => Some(("T1486", "Data Encrypted for Impact")),
         _ => None, // es. "Anomaly Cluster": nessuna tecnica ATT&CK fissa
@@ -121,6 +123,8 @@ impl CorrelationEngine {
         correlations.extend(self.detect_discovery_burst(hours).await?); // R13
         correlations.extend(self.detect_root_asset_discovery(hours).await?); // R16
         correlations.extend(self.detect_io_uring_evasion(hours).await?); // R17
+        correlations.extend(self.detect_sensor_silence(hours).await?); // R18
+        correlations.extend(self.detect_fileless_execution(hours).await?); // R20
         correlations.extend(self.detect_defense_evasion(hours).await?); // R14
         correlations.extend(self.detect_suspicious_session(hours).await?); // R8
         correlations.extend(self.detect_mass_file_ops(hours).await?); // R15
@@ -1089,6 +1093,103 @@ impl CorrelationEngine {
                 vec![proc],
                 json!({ "note": "io_uring bypassa i watch inode e l'auditing syscall; verificare l'attività del processo" }),
                 AttackStage::DefenseEvasion,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R18 — **Sensor Silence** (T1562, Impair Defenses).
+    /// Purple-team: uccidere il processo Laurel è inefficace (auditd lo respawna),
+    /// ma un attaccante root può fermare auditd o disabilitare il plugin: nessun
+    /// record locale lo segnala ("dead men tell no tales"). Difesa **server-side**:
+    /// se un target ha l'agent connesso e vivo (metriche recenti) ma i suoi
+    /// `security_events` si sono zittiti da oltre la soglia, è un forte segnale di
+    /// manomissione del sensore. Threshold intenzionalmente conservativo per non
+    /// generare falsi positivi su host poco attivi.
+    async fn detect_sensor_silence(&self, _hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT t.hostname, MAX(se.timestamp) as last_event
+            FROM targets t
+            JOIN security_events se ON se.target_id = t.id
+            WHERE t.agent_connected = true
+              AND t.agent_last_seen > NOW() - INTERVAL '5 minutes'
+            GROUP BY t.hostname
+            HAVING MAX(se.timestamp) < NOW() - INTERVAL '10 minutes'
+            "#
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let host = r.hostname;
+            let last = r.last_event.unwrap_or_else(Utc::now);
+            out.push(Self::build_correlation(
+                CorrelationType::Anomaly,
+                "Sensor Silence",
+                format!(
+                    "Il target {host} ha l'agent vivo ma nessun evento di sicurezza da >10min — possibile stop di auditd/Laurel"
+                ),
+                Severity::Critical,
+                0.85,
+                85.0,
+                last,
+                Utc::now(),
+                1,
+                vec![],
+                vec![host],
+                vec![],
+                vec![],
+                json!({ "note": "agent connesso e metriche attive, ma pipeline eventi ferma", "last_event": last.to_rfc3339() }),
+                AttackStage::DefenseEvasion,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R20 — **Fileless Execution** (T1620, Reflective Code Loading).
+    /// Esecuzione da memoria (`memfd_create`+exec) o da binario cancellato: l'`exe`
+    /// riportato da auditd/Laurel è `/memfd:...(deleted)` o `.../(deleted)`, indizio
+    /// forte di loader in-memory / anti-forense. Richiede l'audit di `execveat`
+    /// (aggiunto in deploy/audit), altrimenti la variante memfd+execveat sfugge.
+    async fn detect_fileless_execution(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name, process_name,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND (process_name ILIKE '%memfd:%' OR process_name ILIKE '%(deleted)%')
+            GROUP BY source_host, user_name, process_name
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let proc = r.process_name.unwrap_or_else(|| "unknown".into());
+            out.push(Self::build_correlation(
+                CorrelationType::Anomaly,
+                "Fileless Execution",
+                format!("Esecuzione fileless/da binario cancellato ('{proc}') su {host} da '{user}'"),
+                Severity::High,
+                0.8,
+                78.0,
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                vec![proc],
+                json!({ "note": "exe in memoria (memfd) o binario cancellato — possibile loader in-memory" }),
+                AttackStage::Execution,
             ));
         }
         Ok(out)
