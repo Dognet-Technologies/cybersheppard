@@ -76,17 +76,26 @@ pub struct SecurityEvent {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "varchar")]
 pub enum SourceType {
+    // NB: sqlx::Type ignora #[serde(rename)] → servono anche i #[sqlx(rename)],
+    // altrimenti la decodifica si aspetta il nome variante ("Auditd") mentre in
+    // DB è memorizzato il valore minuscolo (da Display all'insert).
     #[serde(rename = "auditd")]
+    #[sqlx(rename = "auditd")]
     Auditd,
     #[serde(rename = "snmp")]
+    #[sqlx(rename = "snmp")]
     Snmp,
     #[serde(rename = "syslog")]
+    #[sqlx(rename = "syslog")]
     Syslog,
     #[serde(rename = "ids")]
+    #[sqlx(rename = "ids")]
     Ids,
     #[serde(rename = "ips")]
+    #[sqlx(rename = "ips")]
     Ips,
     #[serde(rename = "firewall")]
+    #[sqlx(rename = "firewall")]
     Firewall,
 }
 
@@ -107,14 +116,19 @@ impl std::fmt::Display for SourceType {
 #[sqlx(type_name = "varchar")]
 pub enum EventCategory {
     #[serde(rename = "authentication")]
+    #[sqlx(rename = "authentication")]
     Authentication,
     #[serde(rename = "authorization")]
+    #[sqlx(rename = "authorization")]
     Authorization,
     #[serde(rename = "data_access")]
+    #[sqlx(rename = "data_access")]
     DataAccess,
     #[serde(rename = "network")]
+    #[sqlx(rename = "network")]
     Network,
     #[serde(rename = "system")]
+    #[sqlx(rename = "system")]
     System,
 }
 
@@ -134,14 +148,19 @@ impl std::fmt::Display for EventCategory {
 #[sqlx(type_name = "varchar")]
 pub enum Severity {
     #[serde(rename = "critical")]
+    #[sqlx(rename = "critical")]
     Critical,
     #[serde(rename = "high")]
+    #[sqlx(rename = "high")]
     High,
     #[serde(rename = "medium")]
+    #[sqlx(rename = "medium")]
     Medium,
     #[serde(rename = "low")]
+    #[sqlx(rename = "low")]
     Low,
     #[serde(rename = "info")]
+    #[sqlx(rename = "info")]
     Info,
 }
 
