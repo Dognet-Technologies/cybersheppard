@@ -2,10 +2,11 @@
 // Security Correlations Page - Vulnerability and threat correlation
 // ============================================================================
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
-import { AlertTriangle, CheckCircle, Activity, Shield } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Activity, Shield, Cpu, X } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   PageHeader,
@@ -15,21 +16,57 @@ import {
   StatsGrid,
   StatCard,
   EmptyState,
+  Select,
 } from '../components/ui';
+
+// Un evento proviene dal sensore eBPF (kernel) o dal canale auditd/Laurel?
+function sensorOf(row: any): 'ebpf' | 'auditd' {
+  return row?.correlation_data?.sensor === 'ebpf' ? 'ebpf' : 'auditd';
+}
+
+const TACTIC_OPTIONS = [
+  'initial_access', 'execution', 'persistence', 'privilege_escalation',
+  'defense_evasion', 'credential_access', 'discovery', 'lateral_movement',
+  'command_and_control', 'exfiltration', 'impact',
+];
 
 export default function SecurityCorrelations() {
   const [, setSelectedCorrelation] = useState<any>(null);
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Filtri (tattica inizializzata da URL, es. click dalla matrice ATT&CK)
+  const [tactic, setTactic] = useState<string>(searchParams.get('tactic') || 'all');
+  const [severity, setSeverity] = useState<string>('all');
+  const [sensor, setSensor] = useState<string>('all');
+  const technique = searchParams.get('technique') || '';
 
   // Fetch correlations using new API
   const { data: response, isLoading } = useQuery({
     queryKey: ['security-correlations'],
-    queryFn: () => api.getSecurityCorrelations({ hours: 24, limit: 100 }),
+    queryFn: () => api.getSecurityCorrelations({ hours: 24, limit: 200 }),
     refetchInterval: 30000,
   });
 
   // Extract data from API response
-  const correlations = response?.data || [];
+  const allCorrelations = response?.data || [];
+
+  // Applica i filtri lato client
+  const correlations = useMemo(() => {
+    return allCorrelations.filter((c: any) => {
+      if (tactic !== 'all' && c.attack_stage !== tactic) return false;
+      if (severity !== 'all' && c.severity !== severity) return false;
+      if (sensor !== 'all' && sensorOf(c) !== sensor) return false;
+      if (technique && c.correlation_data?.mitre_technique !== technique) return false;
+      return true;
+    });
+  }, [allCorrelations, tactic, severity, sensor, technique]);
+
+  const clearTechnique = () => {
+    const p = new URLSearchParams(searchParams);
+    p.delete('technique');
+    setSearchParams(p, { replace: true });
+  };
 
   const acknowledgeMutation = useMutation({
     mutationFn: (id: number) => api.acknowledgeCorrelation(id),
@@ -134,6 +171,28 @@ export default function SecurityCorrelations() {
               </span>
             )}
           </div>
+        );
+      },
+    },
+    {
+      key: 'sensor',
+      label: 'Sensor',
+      render: (row: any) => {
+        const s = sensorOf(row);
+        return s === 'ebpf' ? (
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200"
+            title="Rilevato dal sensore eBPF (kernel) — resistente a evasione io_uring/auid"
+          >
+            <Cpu className="w-3 h-3" /> eBPF
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200"
+            title="Canale auditd / Laurel"
+          >
+            auditd
+          </span>
         );
       },
     },
@@ -272,6 +331,49 @@ export default function SecurityCorrelations() {
           variant="warning"
         />
       </StatsGrid>
+
+      {/* Barra filtri */}
+      <div className="flex flex-wrap items-end gap-3 mb-4 p-3 bg-white rounded-lg border border-slate-200">
+        <div className="w-52">
+          <label className="block text-xs font-medium text-slate-500 mb-1">Tattica ATT&amp;CK</label>
+          <Select value={tactic} onChange={(e: any) => setTactic(e.target.value)}>
+            <option value="all">Tutte le tattiche</option>
+            {TACTIC_OPTIONS.map((t) => (
+              <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
+            ))}
+          </Select>
+        </div>
+        <div className="w-40">
+          <label className="block text-xs font-medium text-slate-500 mb-1">Severità</label>
+          <Select value={severity} onChange={(e: any) => setSeverity(e.target.value)}>
+            <option value="all">Tutte</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </Select>
+        </div>
+        <div className="w-40">
+          <label className="block text-xs font-medium text-slate-500 mb-1">Sensore</label>
+          <Select value={sensor} onChange={(e: any) => setSensor(e.target.value)}>
+            <option value="all">Tutti</option>
+            <option value="ebpf">eBPF (kernel)</option>
+            <option value="auditd">auditd / Laurel</option>
+          </Select>
+        </div>
+        {technique && (
+          <button
+            onClick={clearTechnique}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100"
+            title="Rimuovi il filtro per tecnica"
+          >
+            Tecnica: {technique} <X className="w-3 h-3" />
+          </button>
+        )}
+        <div className="ml-auto text-sm text-slate-500 self-center">
+          {correlations.length} di {allCorrelations.length} correlazioni
+        </div>
+      </div>
 
       {/* Table or Empty State */}
       {correlations?.length === 0 && !isLoading ? (
