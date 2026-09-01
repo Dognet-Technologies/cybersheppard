@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT source_host, user_name, target_id,\n                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,\n                   array_agg(DISTINCT process_name) FILTER (WHERE process_name IS NOT NULL) as procs\n            FROM security_events\n            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1\n              AND process_name ~* '(^|/)(ping|fping|nmap|masscan|zmap|hping3?|arp-scan|ncat)$'\n            GROUP BY source_host, user_name, target_id\n            HAVING COUNT(*) >= 5 OR bool_or(process_name ~* '(nmap|masscan|zmap|hping)')\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_host",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "target_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "cnt",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "first_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_t",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "procs",
+        "type_info": "VarcharArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "af68d3caca11272475fa506789e307759e4eb242138a0912c6b84b2fa5ee997e"
+}

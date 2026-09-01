@@ -5,8 +5,9 @@ Wants=auditd.service
 
 [Service]
 Type=simple
-# bpftrace richiede privilegi: gira come root.
-ExecStart=/usr/bin/python3 /opt/cybersheppard-ebpf/collector.py
+# Richiede privilegi (root). Il chooser preferisce il binario CO-RE (produzione)
+# e ripiega sul collector bpftrace (MVP) se il binario non è installato.
+ExecStart=/opt/cybersheppard-ebpf/run-sensor.sh
 Restart=on-failure
 RestartSec=5s
 # Il sensore scrive nello stream eventi che l'agent inoltra.

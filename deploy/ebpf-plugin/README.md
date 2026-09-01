@@ -23,8 +23,21 @@ sudo ./install-ebpf.sh
 sudo systemctl enable --now cybersheppard-ebpf   # attiva quando vuoi il sensore
 ```
 
+## Due forme (ADR-0001)
+- **Path B — binario CO-RE/libbpf (produzione)**: `core/` contiene il sorttorgente. Si builda su
+  una macchina con toolchain (`clang llvm libbpf-dev bpftool libelf-dev zlib1g-dev`), libbpf
+  linkato **staticamente** → binario autonomo (solo libc/libelf/libz base-system), **niente
+  bpftrace/llvm sul target**. `run-sensor.sh` lo preferisce se presente.
+  ```bash
+  cd core && make BTF=/percorso/al/btf/del/target BPFTOOL=/usr/sbin/bpftool
+  # copiare core/ebpf_sensor accanto a install-ebpf.sh e poi ./install-ebpf.sh
+  ```
+- **Path A — collector bpftrace (MVP/fallback)**: `watch.bt` + `collector.py`; usato se il
+  binario CO-RE non è presente (richiede `bpftrace` sul target).
+
+Entrambe emettono gli stessi eventi → detector R21/R22 invariati.
+
 ## Note
-- MVP basato su bpftrace; la forma di produzione (binario CO-RE/libbpf, senza runtime pesante
-  sul target) è la naturale evoluzione (ADR-0001, Path B).
 - I lettori legittimi di `shadow` (PAM: `unix_chkpwd`, `sshd`, `su`, …) sono esclusi dai
-  detector per ridurre il rumore.
+  detector per ridurre il rumore. Gli hook LSM sono di **sola osservazione** (ritornano sempre
+  0, non bloccano mai le operazioni).

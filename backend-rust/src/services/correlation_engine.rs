@@ -70,6 +70,8 @@ fn technique_for_pattern(pattern: &str) -> Option<(&'static str, &'static str)> 
         "Fileless Execution" => Some(("T1620", "Reflective Code Loading")),
         "eBPF Credential Access" => Some(("T1003", "OS Credential Dumping")),
         "Process Injection (ptrace)" => Some(("T1055", "Process Injection")),
+        "Network Sweep" => Some(("T1046", "Network Service Discovery")),
+        "Dynamic Linker Hijack" => Some(("T1574.006", "Dynamic Linker Hijacking")),
         "Suspicious Session Lifecycle" => Some(("T1078", "Valid Accounts")),
         "Mass File Operations" => Some(("T1486", "Data Encrypted for Impact")),
         _ => None, // es. "Anomaly Cluster": nessuna tecnica ATT&CK fissa
@@ -129,6 +131,8 @@ impl CorrelationEngine {
         correlations.extend(self.detect_fileless_execution(hours).await?); // R20
         correlations.extend(self.detect_ebpf_credential_access(hours).await?); // R21
         correlations.extend(self.detect_ptrace_injection(hours).await?); // R22
+        correlations.extend(self.detect_network_sweep(hours).await?); // R23
+        correlations.extend(self.detect_ld_preload(hours).await?); // R24
         correlations.extend(self.detect_defense_evasion(hours).await?); // R14
         correlations.extend(self.detect_suspicious_session(hours).await?); // R8
         correlations.extend(self.detect_mass_file_ops(hours).await?); // R15
@@ -1294,6 +1298,100 @@ impl CorrelationEngine {
                 vec![],
                 vec![proc],
                 json!({ "sensor": "ebpf", "note": "security_ptrace_access_check" }),
+                AttackStage::DefenseEvasion,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R23 — **Network Sweep** (T1046 / T1018).
+    /// Ricognizione di rete: raffica di `ping`/`fping` (host sweep) o presenza di uno
+    /// scanner (`nmap`/`masscan`/`zmap`/`hping`). Colma il gap del purple-team dove il
+    /// ping-sweep veniva registrato ma non elevato.
+    async fn detect_network_sweep(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name, target_id,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t,
+                   array_agg(DISTINCT process_name) FILTER (WHERE process_name IS NOT NULL) as procs
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name ~* '(^|/)(ping|fping|nmap|masscan|zmap|hping3?|arp-scan|ncat)$'
+            GROUP BY source_host, user_name, target_id
+            HAVING COUNT(*) >= 5 OR bool_or(process_name ~* '(nmap|masscan|zmap|hping)')
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let procs = r.procs.unwrap_or_default();
+            out.push(Self::build_correlation(
+                CorrelationType::Frequency,
+                "Network Sweep",
+                format!("Ricognizione di rete ({cnt} sonde) su {host} da '{user}'"),
+                Severity::Medium,
+                Self::calculate_confidence(cnt, 5, 30),
+                Self::calculate_risk_score(cnt as f64, 5.0, 30.0),
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                procs,
+                json!({ "note": "ping/port sweep o scanner di rete" }),
+                AttackStage::Discovery,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R24 — **Dynamic Linker Hijack via LD_PRELOAD** (T1574.006).
+    /// Un `LD_PRELOAD` verso un percorso assoluto in un execve è un classico di
+    /// hijack del linker / persistenza / evasione. Laurel cattura la env (config
+    /// `execve-env`); qui si eleva quando LD_PRELOAD punta a un file.
+    async fn detect_ld_preload(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT source_host, user_name, process_name, target_id,
+                   COUNT(*) as cnt, MIN(timestamp) as first_t, MAX(timestamp) as last_t
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND event_data::text ~ 'LD_PRELOAD.{0,4}/'
+            GROUP BY source_host, user_name, process_name, target_id
+            "#,
+            hours as f64
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt = r.cnt.unwrap_or(0);
+            let host = r.source_host;
+            let user = r.user_name.unwrap_or_else(|| "unknown".into());
+            let proc = r.process_name.unwrap_or_else(|| "unknown".into());
+            out.push(Self::build_correlation(
+                CorrelationType::Anomaly,
+                "Dynamic Linker Hijack",
+                format!("LD_PRELOAD verso file impostato per '{proc}' su {host} (utente '{user}') — possibile hijack del linker"),
+                Severity::High,
+                0.8,
+                76.0,
+                r.first_t.unwrap(),
+                r.last_t.unwrap(),
+                cnt as i32,
+                vec![user],
+                vec![host],
+                vec![],
+                vec![proc],
+                json!({ "note": "LD_PRELOAD verso percorso file in execve (T1574.006)" }),
                 AttackStage::DefenseEvasion,
             ));
         }
