@@ -11,7 +11,8 @@
 --   (SQL treats NULLs as distinct, so it does not block multiple rows).
 -- ============================================================================
 
-BEGIN;
+-- NB: nessun BEGIN/COMMIT esplicito: sqlx::migrate! esegue ogni migrazione in una
+-- propria transazione. Un BEGIN/COMMIT interno confliggerebbe con quella gestione.
 
 ALTER TABLE refresh_tokens ALTER COLUMN token_hash DROP NOT NULL;
 ALTER TABLE refresh_tokens ALTER COLUMN created_ip DROP NOT NULL;
@@ -22,6 +23,7 @@ ALTER TABLE refresh_tokens ALTER COLUMN created_ip DROP NOT NULL;
 -- non-unique index), so token issuance failed with:
 --   "there is no unique or exclusion constraint matching the ON CONFLICT specification".
 ALTER TABLE csrf_tokens ALTER COLUMN token_hash DROP NOT NULL;
+ALTER TABLE csrf_tokens DROP CONSTRAINT IF EXISTS csrf_tokens_user_id_key;
 ALTER TABLE csrf_tokens ADD CONSTRAINT csrf_tokens_user_id_key UNIQUE (user_id);
 
 -- targets.agent_auth_token is NOT NULL but the create handler (api/targets.rs)
@@ -41,5 +43,3 @@ ALTER TABLE targets
 ALTER TABLE targets DROP CONSTRAINT IF EXISTS targets_status_check;
 ALTER TABLE targets ADD CONSTRAINT targets_status_check
     CHECK (status IN ('pending', 'active', 'online', 'offline', 'error', 'maintenance'));
-
-COMMIT;

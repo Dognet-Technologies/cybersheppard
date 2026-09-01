@@ -5,7 +5,6 @@
 -- Date: 2025-12-29
 -- ============================================================================
 
-BEGIN;
 
 -- ============================================================================
 -- 1. USERS & AUTHENTICATION
@@ -580,7 +579,10 @@ CREATE INDEX IF NOT EXISTS idx_compliance_history_target ON compliance_history(t
 CREATE INDEX IF NOT EXISTS idx_compliance_history_status ON compliance_history(compliance_status, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_compliance_history_date ON compliance_history(checked_at DESC);
 
--- Insert default compliance policies
+-- Insert default compliance policies (guardato: inserisce solo se la tabella è vuota,
+-- così la migrazione resta idempotente anche se riapplicata).
+DO $pol$ BEGIN
+IF NOT EXISTS (SELECT 1 FROM compliance_policies) THEN
 INSERT INTO compliance_policies
     (target_id, hardening_model_id, name, description, category, metric_name,
      threshold_type, threshold_value_max, time_window_minutes, severity, auto_notify, is_active)
@@ -637,6 +639,7 @@ VALUES
 
     (NULL, NULL, 'Failed Services Detected', 'Detect failed systemd services',
      'system', 'failed_services_count', 'max', 0, 5, 'high', TRUE, TRUE);
+END IF; END $pol$;
 
 -- Old compliance tables from 001 (kept for compatibility)
 CREATE TABLE IF NOT EXISTS compliance_checks (
@@ -1473,7 +1476,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMIT;
 
 -- ============================================================================
 -- END OF COMPLETE SCHEMA

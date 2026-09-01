@@ -8,11 +8,8 @@
 --   di sicurezza fermi) e in generale per query per-target affidabili.
 -- ============================================================================
 
-BEGIN;
-
+-- NB: nessun BEGIN/COMMIT: sqlx::migrate! gestisce la transazione per migrazione.
 ALTER TABLE security_events
     ADD COLUMN IF NOT EXISTS target_id INTEGER REFERENCES targets(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_security_events_target ON security_events(target_id);
-
-COMMIT;

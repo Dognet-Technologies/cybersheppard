@@ -8,7 +8,7 @@ INSERT INTO users (username, email, password_hash, role, is_active, is_verified,
 SELECT
     'admin',
     'admin@cybersheppard.local',
-    '$argon2id$v=19$m=19456,t=2,p=1$eFHSaFuoZEGtJR6loJqHAg$BvKaU9AOVgBRY1NXqJlOPVzq1VBm5lFqkVQ9k1YxAvU',
+    '$argon2id$v=19$m=19456,t=2,p=1$1HSDz1Cqvqtny2z1JzTfzQ$u54JyBBRC1wK/1KneAhg+za5n3AdnlkzHJmVwOXZaKs',
     'admin',
     true,
     true,
