@@ -1,8 +1,9 @@
 // ============================================================================
-// Dashboard - Main overview page
+// Dashboard - Main overview page (solo dati reali; 0/empty se assenti)
 // ============================================================================
 
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import api from '../services/api';
 import {
   Server,
@@ -10,11 +11,10 @@ import {
   CheckCircle,
   Activity,
   Shield,
-  TrendingUp,
+  Zap,
 } from 'lucide-react';
+import { format } from 'date-fns';
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   PieChart,
@@ -26,265 +26,207 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { PageHeader, StatsGrid, StatCard, Card, CardHeader } from '../components/ui';
+import { PageHeader, StatsGrid, StatCard, Card, CardHeader, EmptyState } from '../components/ui';
+
+// Placeholder quando un grafico non ha dati (invece di renderizzare vuoto/mock).
+function NoData({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center h-[250px] text-sm text-slate-400">
+      {label}
+    </div>
+  );
+}
 
 export default function Dashboard() {
-  const { data: targets } = useQuery({
-    queryKey: ['targets'],
-    queryFn: () => api.getTargets(),
+  const { data: targets } = useQuery({ queryKey: ['targets'], queryFn: () => api.getTargets(), refetchInterval: 30000 });
+  const { data: violations } = useQuery({ queryKey: ['violations'], queryFn: () => api.getViolations({ status: 'new' }) });
+  const { data: alerts } = useQuery({ queryKey: ['alerts', 'active'], queryFn: () => api.getActiveAlerts() });
+  const { data: correlationsResp } = useQuery({
+    queryKey: ['dash-correlations'],
+    queryFn: () => api.getSecurityCorrelations({ hours: 24, limit: 200 }),
+    refetchInterval: 30000,
+  });
+  const { data: frameworkSummary } = useQuery({
+    queryKey: ['framework-summary'],
+    queryFn: () => api.getFrameworkSummary(),
   });
 
-  const { data: violations } = useQuery({
-    queryKey: ['violations'],
-    queryFn: () => api.getViolations({ status: 'new' }),
-  });
-
-  const { data: alerts } = useQuery({
-    queryKey: ['alerts', 'active'],
-    queryFn: () => api.getActiveAlerts(),
-  });
+  const targetList: any[] = Array.isArray(targets) ? targets : [];
+  const correlations: any[] = correlationsResp?.data || [];
+  const summary: any[] = Array.isArray(frameworkSummary) ? frameworkSummary : [];
 
   const stats = {
-    total: targets?.length || 0,
-    online: targets?.filter((t: any) => t.status === 'online')?.length || 0,
-    offline: targets?.filter((t: any) => t.status === 'offline')?.length || 0,
+    total: targetList.length,
+    online: targetList.filter((t) => t.status === 'online').length,
+    offline: targetList.filter((t) => t.status === 'offline').length,
     violations: violations?.total || 0,
     critical: violations?.summary?.critical || 0,
     high: violations?.summary?.high || 0,
     medium: violations?.summary?.medium || 0,
     low: violations?.summary?.low || 0,
-    alerts: alerts?.length || 0,
+    alerts: Array.isArray(alerts) ? alerts.length : 0,
   };
 
-  // Sample trend data
-  const violationsTrend = [
-    { date: 'Mon', count: 12 },
-    { date: 'Tue', count: 19 },
-    { date: 'Wed', count: 15 },
-    { date: 'Thu', count: 25 },
-    { date: 'Fri', count: 22 },
-    { date: 'Sat', count: 18 },
-    { date: 'Sun', count: 20 },
-  ];
-
+  // Violazioni per severità (reali)
   const severityData = [
-    { name: 'Critical', value: stats.critical || 5, color: '#ef4444' },
-    { name: 'High', value: stats.high || 12, color: '#f97316' },
-    { name: 'Medium', value: stats.medium || 8, color: '#eab308' },
-    { name: 'Low', value: stats.low || 3, color: '#64748b' },
+    { name: 'Critical', value: stats.critical, color: '#ef4444' },
+    { name: 'High', value: stats.high, color: '#f97316' },
+    { name: 'Medium', value: stats.medium, color: '#eab308' },
+    { name: 'Low', value: stats.low, color: '#64748b' },
   ];
+  const severityTotal = severityData.reduce((s, d) => s + d.value, 0);
 
+  // Stato target (reale)
   const targetStatusData = [
-    { name: 'Online', value: stats.online || 15, color: '#22c55e' },
-    { name: 'Offline', value: stats.offline || 3, color: '#ef4444' },
+    { name: 'Online', value: stats.online, color: '#22c55e' },
+    { name: 'Offline', value: stats.offline, color: '#ef4444' },
   ];
 
-  const complianceData = [
-    { framework: 'CIS', score: 85 },
-    { framework: 'NIST', score: 78 },
-    { framework: 'PCI-DSS', score: 92 },
-    { framework: 'ISO 27001', score: 88 },
-  ];
+  // Correlazioni per tattica ATT&CK (reali, ultime 24h)
+  const correlationsByTactic = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of correlations) {
+      const t = (c.attack_stage || 'unknown').replace(/_/g, ' ');
+      m.set(t, (m.get(t) || 0) + 1);
+    }
+    return [...m.entries()].map(([tactic, count]) => ({ tactic, count })).sort((a, b) => b.count - a.count);
+  }, [correlations]);
+
+  // Compliance per framework (reale, dal summary; 0 se nessun assessment)
+  const complianceData = useMemo(
+    () =>
+      summary
+        .map((s: any) => ({
+          framework: s.framework_name || s.code || `#${s.framework_id}`,
+          score: Math.round(s.avg_compliance_score || 0),
+        }))
+        .filter((d: any) => d.framework)
+        .slice(0, 8),
+    [summary],
+  );
+  const complianceHasScores = complianceData.some((d: any) => d.score > 0);
+
+  // Attività recente (reale: ultime correlazioni)
+  const recentActivity = useMemo(
+    () =>
+      [...correlations]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 6),
+    [correlations],
+  );
 
   return (
     <div>
-      <PageHeader
-        title="Dashboard"
-        subtitle="Overview of your security infrastructure"
-        icon={<Activity className="w-6 h-6" />}
-      />
+      <PageHeader title="Dashboard" subtitle="Panoramica dell'infrastruttura di sicurezza" icon={<Activity className="w-6 h-6" />} />
 
-      {/* Stats Overview */}
+      {/* Stats reali */}
       <StatsGrid columns={4} className="mb-8">
-        <StatCard
-          title="Total Targets"
-          value={stats.total}
-          icon={<Server className="w-6 h-6" />}
-          variant="info"
-          trend={{ value: 12, label: 'vs last week' }}
-        />
-        <StatCard
-          title="Online Targets"
-          value={stats.online}
-          icon={<CheckCircle className="w-6 h-6" />}
-          variant="success"
-        />
-        <StatCard
-          title="Active Violations"
-          value={stats.violations}
-          icon={<AlertTriangle className="w-6 h-6" />}
-          variant={stats.violations > 10 ? 'danger' : 'warning'}
-        />
-        <StatCard
-          title="Active Alerts"
-          value={stats.alerts}
-          icon={<Shield className="w-6 h-6" />}
-          variant={stats.alerts > 5 ? 'warning' : 'default'}
-        />
+        <StatCard title="Target totali" value={stats.total} icon={<Server className="w-6 h-6" />} variant="info" />
+        <StatCard title="Target online" value={stats.online} icon={<CheckCircle className="w-6 h-6" />} variant="success" />
+        <StatCard title="Violazioni attive" value={stats.violations} icon={<AlertTriangle className="w-6 h-6" />} variant={stats.violations > 10 ? 'danger' : 'warning'} />
+        <StatCard title="Alert attivi" value={stats.alerts} icon={<Shield className="w-6 h-6" />} variant={stats.alerts > 5 ? 'warning' : 'default'} />
       </StatsGrid>
 
-      {/* Charts Row 1 */}
+      {/* Riga 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Violations Trend */}
         <Card>
-          <CardHeader
-            title="Violations Trend"
-            subtitle="Last 7 days"
-            action={
-              <select className="text-sm border-gray-300 rounded-md">
-                <option>Last 7 days</option>
-                <option>Last 30 days</option>
-                <option>Last 90 days</option>
-              </select>
-            }
-          />
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={violationsTrend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="date" stroke="#6b7280" />
-              <YAxis stroke="#6b7280" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="count"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: '#3b82f6', r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <CardHeader title="Correlazioni per tattica ATT&CK" subtitle="Ultime 24h" />
+          {correlationsByTactic.length === 0 ? (
+            <NoData label="Nessuna correlazione nelle ultime 24h" />
+          ) : (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={correlationsByTactic} layout="vertical" margin={{ left: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis type="number" stroke="#6b7280" allowDecimals={false} />
+                <YAxis type="category" dataKey="tactic" stroke="#6b7280" width={120} tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+                <Bar dataKey="count" fill="#3b82f6" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </Card>
 
-        {/* Severity Distribution */}
         <Card>
-          <CardHeader title="Violations by Severity" subtitle="Current distribution" />
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={severityData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {severityData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          <CardHeader title="Violazioni per severità" subtitle="Distribuzione attuale" />
+          {severityTotal === 0 ? (
+            <NoData label="Nessuna violazione" />
+          ) : (
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie data={severityData.filter((d) => d.value > 0)} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}`} outerRadius={80} dataKey="value">
+                  {severityData.filter((d) => d.value > 0).map((entry, i) => (<Cell key={i} fill={entry.color} />))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </Card>
       </div>
 
-      {/* Charts Row 2 */}
+      {/* Riga 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Target Status */}
         <Card>
-          <CardHeader title="Target Status" subtitle="Current availability" />
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={targetStatusData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name}: ${value}`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {targetStatusData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          <CardHeader title="Stato target" subtitle="Disponibilità attuale" />
+          {stats.total === 0 ? (
+            <NoData label="Nessun target" />
+          ) : (
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie data={targetStatusData.filter((d) => d.value > 0)} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}`} outerRadius={80} dataKey="value">
+                  {targetStatusData.filter((d) => d.value > 0).map((entry, i) => (<Cell key={i} fill={entry.color} />))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </Card>
 
-        {/* Compliance Score */}
         <Card>
-          <CardHeader title="Compliance Scores" subtitle="By framework" />
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={complianceData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="framework" stroke="#6b7280" />
-              <YAxis stroke="#6b7280" domain={[0, 100]} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                }}
-              />
-              <Bar dataKey="score" fill="#3b82f6" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <CardHeader title="Compliance per framework" subtitle="Punteggio medio (0 senza assessment)" />
+          {complianceData.length === 0 || !complianceHasScores ? (
+            <NoData label="Nessun assessment di compliance eseguito" />
+          ) : (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={complianceData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="framework" stroke="#6b7280" tick={{ fontSize: 10 }} />
+                <YAxis stroke="#6b7280" domain={[0, 100]} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+                <Bar dataKey="score" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </Card>
       </div>
 
-      {/* Recent Activity */}
+      {/* Attività recente (reale) */}
       <Card>
-        <CardHeader title="Recent Activity" subtitle="Last 24 hours" />
-        <div className="space-y-4">
-          <ActivityItem
-            icon={<AlertTriangle className="w-5 h-5 text-red-600" />}
-            title="Critical vulnerability detected"
-            description="CVE-2024-1234 on server-prod-01"
-            time="2 hours ago"
-          />
-          <ActivityItem
-            icon={<CheckCircle className="w-5 h-5 text-green-600" />}
-            title="Hardening applied successfully"
-            description="CIS Level 1 on server-dev-03"
-            time="4 hours ago"
-          />
-          <ActivityItem
-            icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
-            title="New target added"
-            description="server-prod-05 registered"
-            time="6 hours ago"
-          />
-          <ActivityItem
-            icon={<Shield className="w-5 h-5 text-yellow-600" />}
-            title="Security scan completed"
-            description="15 targets scanned, 3 issues found"
-            time="8 hours ago"
-          />
-        </div>
+        <CardHeader title="Attività recente" subtitle="Ultime correlazioni di sicurezza" />
+        {recentActivity.length === 0 ? (
+          <EmptyState icon={<CheckCircle className="w-8 h-8" />} title="Nessuna attività recente" description="Non sono state rilevate correlazioni di sicurezza di recente" />
+        ) : (
+          <div className="space-y-4">
+            {recentActivity.map((c) => (
+              <div key={c.id} className="flex items-start space-x-4 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                  <Zap className={`w-5 h-5 ${c.severity === 'critical' ? 'text-red-600' : c.severity === 'high' ? 'text-orange-600' : 'text-blue-600'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900">
+                    {c.pattern_name || c.correlation_type}
+                    {c.correlation_data?.mitre_technique && <span className="ml-2 text-xs font-mono text-orange-700">{c.correlation_data.mitre_technique}</span>}
+                  </p>
+                  <p className="text-sm text-gray-500 truncate">
+                    {(c.attack_stage || '').replace(/_/g, ' ')}
+                    {c.involved_hosts?.length ? ` · ${c.involved_hosts.slice(0, 2).join(', ')}` : ''}
+                  </p>
+                </div>
+                <span className="text-xs text-gray-400 flex-shrink-0">{c.created_at ? format(new Date(c.created_at), 'HH:mm') : ''}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
-    </div>
-  );
-}
-
-interface ActivityItemProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  time: string;
-}
-
-function ActivityItem({ icon, title, description, time }: ActivityItemProps) {
-  return (
-    <div className="flex items-start space-x-4 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
-      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900">{title}</p>
-        <p className="text-sm text-gray-500">{description}</p>
-      </div>
-      <span className="text-xs text-gray-400 flex-shrink-0">{time}</span>
     </div>
   );
 }

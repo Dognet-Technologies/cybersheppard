@@ -336,22 +336,22 @@ export default function ComplianceControls() {
                         <div className="flex flex-wrap gap-2 mt-3">
                           {control.applies_to_nis2 && (
                             <Badge variant="default" size="sm">
-                              NIS2: {control.nis2_references.join(', ')}
+                              NIS2: {(control.nis2_references || []).join(', ')}
                             </Badge>
                           )}
                           {control.applies_to_nist && (
                             <Badge variant="default" size="sm">
-                              NIST: {control.nist_references.join(', ')}
+                              NIST: {(control.nist_references || []).join(', ')}
                             </Badge>
                           )}
                           {control.applies_to_iso && (
                             <Badge variant="default" size="sm">
-                              ISO: {control.iso_references.join(', ')}
+                              ISO: {(control.iso_references || []).join(', ')}
                             </Badge>
                           )}
                           {control.applies_to_mitre && (
                             <Badge variant="default" size="sm">
-                              MITRE: {control.mitre_references.join(', ')}
+                              MITRE: {(control.mitre_references || []).join(', ')}
                             </Badge>
                           )}
                         </div>
@@ -491,7 +491,7 @@ function ControlDetailModal({
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="font-medium text-sm text-gray-900 mb-1">NIS2 Directive</div>
                   <div className="flex flex-wrap gap-1">
-                    {control.nis2_references.map((ref, idx) => (
+                    {(control.nis2_references || []).map((ref, idx) => (
                       <Badge key={idx} variant="default" size="sm">
                         {ref}
                       </Badge>
@@ -503,7 +503,7 @@ function ControlDetailModal({
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="font-medium text-sm text-gray-900 mb-1">NIST 800-53 Rev5</div>
                   <div className="flex flex-wrap gap-1">
-                    {control.nist_references.map((ref, idx) => (
+                    {(control.nist_references || []).map((ref, idx) => (
                       <Badge key={idx} variant="default" size="sm">
                         {ref}
                       </Badge>
@@ -515,7 +515,7 @@ function ControlDetailModal({
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="font-medium text-sm text-gray-900 mb-1">ISO 27001:2022</div>
                   <div className="flex flex-wrap gap-1">
-                    {control.iso_references.map((ref, idx) => (
+                    {(control.iso_references || []).map((ref, idx) => (
                       <Badge key={idx} variant="default" size="sm">
                         {ref}
                       </Badge>
@@ -527,7 +527,7 @@ function ControlDetailModal({
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="font-medium text-sm text-gray-900 mb-1">MITRE D3FEND</div>
                   <div className="flex flex-wrap gap-1">
-                    {control.mitre_references.map((ref, idx) => (
+                    {(control.mitre_references || []).map((ref, idx) => (
                       <Badge key={idx} variant="default" size="sm">
                         {ref}
                       </Badge>
