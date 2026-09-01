@@ -148,7 +148,7 @@ async fn list_targets(
     // Build dynamic query based on filters
     let mut query = String::from(
         r#"
-        SELECT id, hostname, ip_address, ssh_port, ssh_username, ssh_key_id,
+        SELECT id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
                role, environment, gruppo, tags, compliance_standard,
                status, status_message, last_seen, last_check,
                hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
@@ -183,7 +183,7 @@ async fn list_targets(
     // TODO: Use proper parameterized query with sqlx query_as!
     let targets = sqlx::query_as::<_, Target>(
         r#"
-        SELECT id, hostname, ip_address, ssh_port, ssh_username, ssh_key_id,
+        SELECT id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
                role, environment, gruppo, tags, compliance_standard,
                status, status_message, last_seen, last_check,
                hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
@@ -288,7 +288,7 @@ async fn create_target(
             monitoring_enabled, monitoring_interval_seconds
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING id, hostname, ip_address, ssh_port, ssh_username, ssh_key_id,
+        RETURNING id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
                   role, environment, gruppo, tags, compliance_standard,
                   status, status_message, last_seen, last_check,
                   hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
@@ -352,7 +352,7 @@ async fn get_target(
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let target = sqlx::query_as::<_, Target>(
         r#"
-        SELECT id, hostname, ip_address, ssh_port, ssh_username, ssh_key_id,
+        SELECT id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
                role, environment, gruppo, tags, compliance_standard,
                status, status_message, last_seen, last_check,
                hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
@@ -461,7 +461,7 @@ async fn update_target(
             monitoring_interval_seconds = COALESCE($15, monitoring_interval_seconds),
             updated_at = NOW()
         WHERE id = $1
-        RETURNING id, hostname, ip_address, ssh_port, ssh_username, ssh_key_id,
+        RETURNING id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
                   role, environment, gruppo, tags, compliance_standard,
                   status, status_message, last_seen, last_check,
                   hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
