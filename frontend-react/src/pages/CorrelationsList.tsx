@@ -19,7 +19,9 @@ import {
   StatCard,
   EmptyState,
   Select,
+  InfoTip,
 } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 // Un evento proviene dal sensore eBPF (kernel) o dal canale auditd/Laurel?
 function sensorOf(row: any): 'ebpf' | 'auditd' {
@@ -106,6 +108,7 @@ export default function CorrelationsList() {
       key: 'severity',
       label: 'Severity',
       sortable: true,
+      info: HELP.correlations.colSeverity,
       render: (row: any) => {
         const variants: Record<string, 'danger' | 'warning' | 'info' | 'default'> = {
           critical: 'danger',
@@ -124,6 +127,7 @@ export default function CorrelationsList() {
       key: 'pattern',
       label: 'Attack Pattern',
       sortable: true,
+      info: HELP.correlations.colPattern,
       render: (row: any) => (
         <div>
           <div className="font-medium text-gray-900">
@@ -138,6 +142,7 @@ export default function CorrelationsList() {
     {
       key: 'mitre',
       label: 'MITRE',
+      info: HELP.correlations.colMitre,
       render: (row: any) => {
         const rowTactic: string | undefined = row.attack_stage;
         const rowTechnique: string | undefined = row.correlation_data?.mitre_technique;
@@ -179,6 +184,7 @@ export default function CorrelationsList() {
     {
       key: 'sensor',
       label: 'Sensor',
+      info: HELP.correlations.colSensor,
       render: (row: any) => {
         const s = sensorOf(row);
         return s === 'ebpf' ? (
@@ -201,6 +207,7 @@ export default function CorrelationsList() {
     {
       key: 'entities',
       label: 'Involved Entities',
+      info: HELP.correlations.colEntities,
       render: (row: any) => (
         <div>
           <div className="font-medium text-sm text-gray-900">
@@ -218,6 +225,7 @@ export default function CorrelationsList() {
       key: 'risk',
       label: 'Risk Score',
       sortable: true,
+      info: HELP.correlations.colRisk,
       render: (row: any) => (
         <div>
           <div className="font-medium text-sm text-gray-900">
@@ -233,6 +241,7 @@ export default function CorrelationsList() {
       key: 'confidence',
       label: 'Confidence',
       sortable: true,
+      info: HELP.correlations.colConfidence,
       render: (row: any) => (
         <span className="text-sm font-mono text-gray-900">
           {(row.confidence * 100).toFixed(0)}%
@@ -243,6 +252,7 @@ export default function CorrelationsList() {
       key: 'created_at',
       label: 'Detected',
       sortable: true,
+      info: HELP.correlations.colDetected,
       render: (row: any) => (
         <div className="text-sm text-gray-600">{format(new Date(row.created_at), 'PPp')}</div>
       ),
@@ -251,6 +261,7 @@ export default function CorrelationsList() {
       key: 'status',
       label: 'Status',
       sortable: true,
+      info: HELP.correlations.colStatus,
       render: (row: any) => {
         const variants: Record<string, 'warning' | 'info' | 'success'> = {
           active: 'warning',
@@ -301,31 +312,35 @@ export default function CorrelationsList() {
           value={stats.total}
           icon={<Activity className="w-6 h-6" />}
           variant="info"
+          info={HELP.correlations.statTotal}
         />
         <StatCard
           title="Critical"
           value={stats.critical}
           icon={<AlertTriangle className="w-6 h-6" />}
           variant="danger"
+          info={HELP.correlations.statCritical}
         />
         <StatCard
           title="High Severity"
           value={stats.high}
           icon={<AlertTriangle className="w-6 h-6" />}
           variant="warning"
+          info={HELP.correlations.statHigh}
         />
         <StatCard
           title="Active"
           value={stats.active}
           icon={<CheckCircle className="w-6 h-6" />}
           variant="warning"
+          info={HELP.correlations.statActive}
         />
       </StatsGrid>
 
       {/* Barra filtri */}
       <div className="flex flex-wrap items-end gap-3 mb-4 p-3 bg-white rounded-lg border border-slate-200">
         <div className="w-52">
-          <label className="block text-xs font-medium text-slate-500 mb-1">Tattica ATT&amp;CK</label>
+          <label className="text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">Tattica ATT&amp;CK <InfoTip content={HELP.correlations.filterTactic} /></label>
           <Select value={tactic} onChange={(e: any) => setTactic(e.target.value)}>
             <option value="all">Tutte le tattiche</option>
             {TACTIC_OPTIONS.map((t) => (
@@ -334,7 +349,7 @@ export default function CorrelationsList() {
           </Select>
         </div>
         <div className="w-40">
-          <label className="block text-xs font-medium text-slate-500 mb-1">Severità</label>
+          <label className="text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">Severità <InfoTip content={HELP.correlations.filterSeverity} /></label>
           <Select value={severity} onChange={(e: any) => setSeverity(e.target.value)}>
             <option value="all">Tutte</option>
             <option value="critical">Critical</option>
@@ -344,7 +359,7 @@ export default function CorrelationsList() {
           </Select>
         </div>
         <div className="w-40">
-          <label className="block text-xs font-medium text-slate-500 mb-1">Sensore</label>
+          <label className="text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">Sensore <InfoTip content={HELP.correlations.filterSensor} /></label>
           <Select value={sensor} onChange={(e: any) => setSensor(e.target.value)}>
             <option value="all">Tutti</option>
             <option value="ebpf">eBPF (kernel)</option>

@@ -8,6 +8,7 @@ import api from '../services/api';
 import { Shield, CheckCircle, AlertCircle, Info, PlayCircle } from 'lucide-react';
 import ApplyHardeningModal from '../components/ApplyHardeningModal';
 import { PageHeader, Card, EmptyState, Button, Badge } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 export default function Hardening() {
   const [selectedModel, setSelectedModel] = useState<any>(null);
@@ -47,6 +48,7 @@ export default function Hardening() {
         title="Hardening Models"
         subtitle={`${models.length} hardening ${models.length !== 1 ? 'models' : 'model'} available`}
         icon={<Shield className="w-6 h-6" />}
+        info={HELP.page.hardening}
       />
 
       {models.length === 0 ? (

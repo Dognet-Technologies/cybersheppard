@@ -9,7 +9,8 @@
 
 import { useSearchParams } from 'react-router-dom';
 import { Crosshair, Table as TableIcon, FileSearch, Zap, Bell } from 'lucide-react';
-import { PageHeader } from '../components/ui';
+import { PageHeader, Tooltip } from '../components/ui';
+import { HELP } from '../i18n/help';
 import EventsTableView from './EventsTableView';
 import EventsExplorerView from './EventsExplorerView';
 import CorrelationsTab from './CorrelationsTab';
@@ -17,11 +18,11 @@ import AlertsView from './AlertsView';
 
 type View = 'table' | 'explore' | 'correlations' | 'alerts';
 
-const TABS: { id: View; label: string; icon: JSX.Element }[] = [
-  { id: 'table', label: 'Tabella', icon: <TableIcon className="w-4 h-4" /> },
-  { id: 'explore', label: 'Esplora', icon: <FileSearch className="w-4 h-4" /> },
-  { id: 'correlations', label: 'Correlazioni', icon: <Zap className="w-4 h-4" /> },
-  { id: 'alerts', label: 'Alert', icon: <Bell className="w-4 h-4" /> },
+const TABS: { id: View; label: string; icon: JSX.Element; info: string }[] = [
+  { id: 'table', label: 'Tabella', icon: <TableIcon className="w-4 h-4" />, info: HELP.detectionTabs.table },
+  { id: 'explore', label: 'Esplora', icon: <FileSearch className="w-4 h-4" />, info: HELP.detectionTabs.explore },
+  { id: 'correlations', label: 'Correlazioni', icon: <Zap className="w-4 h-4" />, info: HELP.detectionTabs.correlations },
+  { id: 'alerts', label: 'Alert', icon: <Bell className="w-4 h-4" />, info: HELP.detectionTabs.alerts },
 ];
 
 const isView = (v: string | null): v is View =>
@@ -45,6 +46,7 @@ export default function ThreatDetection() {
         title="Threat Detection"
         subtitle="Eventi, correlazioni, copertura MITRE ATT&CK e alert di sicurezza in un unico flusso"
         icon={<Crosshair className="w-6 h-6" />}
+        info={HELP.page.detection}
       />
 
       {/* Tab switcher */}
@@ -52,18 +54,19 @@ export default function ThreatDetection() {
         {TABS.map((t) => {
           const active = view === t.id;
           return (
-            <button
-              key={t.id}
-              onClick={() => setView(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors ${
-                active
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              {t.icon}
-              {t.label}
-            </button>
+            <Tooltip key={t.id} content={t.info} side="bottom">
+              <button
+                onClick={() => setView(t.id)}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors ${
+                  active
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            </Tooltip>
           );
         })}
       </div>

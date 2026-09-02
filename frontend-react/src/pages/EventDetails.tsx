@@ -23,6 +23,7 @@ import {
   StatusBadge,
   Button,
 } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 export default function EventDetails() {
   const { id } = useParams<{ id: string }>();
@@ -84,6 +85,7 @@ export default function EventDetails() {
         title={`Event #${event.id}`}
         subtitle={event.category || 'Security Event'}
         icon={<Shield className="w-6 h-6" />}
+        info={HELP.page.eventDetails}
       />
 
       {/* Event Summary */}

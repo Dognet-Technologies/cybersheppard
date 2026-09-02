@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { PageHeader, Card, StatsGrid, StatCard, Button, Badge, Select } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 interface FrameworkScore {
   framework_code: string;
@@ -122,6 +123,7 @@ export default function ComplianceDashboard() {
         title="Compliance Dashboard"
         subtitle="Real-time compliance tracking across NIS2, NIST, ISO 27001, and MITRE D3FEND"
         icon={<BarChart3 className="w-6 h-6" />}
+        info={HELP.page.complianceDashboard}
         actions={
           <div className="flex space-x-2">
             <Select

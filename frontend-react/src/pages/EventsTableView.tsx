@@ -16,7 +16,9 @@ import {
   Button,
   StatsGrid,
   StatCard,
+  InfoTip,
 } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 export default function EventsTableView() {
   const navigate = useNavigate();
@@ -60,12 +62,14 @@ export default function EventsTableView() {
       key: 'severity',
       label: 'Severity',
       sortable: true,
+      info: HELP.eventsTable.colSeverity,
       render: (row: any) => <SeverityBadge severity={row.severity || 'low'} />,
     },
     {
       key: 'category',
       label: 'Category',
       sortable: true,
+      info: HELP.eventsTable.colCategory,
       render: (row: any) => (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
           {row.category || 'unknown'}
@@ -76,6 +80,7 @@ export default function EventsTableView() {
       key: 'hostname',
       label: 'Host',
       sortable: true,
+      info: HELP.eventsTable.colHost,
       render: (row: any) => (
         <div>
           <div className="font-medium text-gray-900">{row.hostname}</div>
@@ -87,6 +92,7 @@ export default function EventsTableView() {
       key: 'description',
       label: 'Event',
       sortable: false,
+      info: HELP.eventsTable.colEvent,
       render: (row: any) => (
         <div className="max-w-md">
           <div className="text-sm text-gray-900 truncate">
@@ -104,6 +110,7 @@ export default function EventsTableView() {
       key: 'collected_at',
       label: 'Time',
       sortable: true,
+      info: HELP.eventsTable.colTime,
       render: (row: any) => (
         <div className="text-sm text-gray-600">
           {format(new Date(row.collected_at), 'PPp')}
@@ -114,6 +121,7 @@ export default function EventsTableView() {
       key: 'correlations',
       label: 'Correlations',
       sortable: false,
+      info: HELP.eventsTable.colCorrelations,
       render: (row: any) => (
         <div className="flex gap-1">
           {row.correlated_with_firedog && (
@@ -138,11 +146,13 @@ export default function EventsTableView() {
       key: 'status',
       label: 'Status',
       sortable: true,
+      info: HELP.eventsTable.colStatus,
       render: (row: any) => <StatusBadge status={row.status} />,
     },
     {
       key: 'actions',
       label: 'Actions',
+      info: HELP.eventsTable.colActions,
       render: (row: any) => (
         <Button
           size="sm"
@@ -165,6 +175,7 @@ export default function EventsTableView() {
           value={stats?.total_events || 0}
           icon={<Activity className="w-6 h-6" />}
           variant="info"
+          info={HELP.eventsTable.statTotal}
         />
         <StatCard
           title="Critical"
@@ -175,6 +186,7 @@ export default function EventsTableView() {
           }
           icon={<AlertTriangle className="w-6 h-6" />}
           variant="danger"
+          info={HELP.eventsTable.statCritical}
         />
         <StatCard
           title="High"
@@ -185,6 +197,7 @@ export default function EventsTableView() {
           }
           icon={<AlertTriangle className="w-6 h-6" />}
           variant="warning"
+          info={HELP.eventsTable.statHigh}
         />
         <StatCard
           title="New"
@@ -195,14 +208,15 @@ export default function EventsTableView() {
           }
           icon={<Shield className="w-6 h-6" />}
           variant="info"
+          info={HELP.eventsTable.statNew}
         />
       </StatsGrid>
 
       {/* Filters */}
       <div className="flex items-center gap-4 mb-6 flex-wrap">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Target
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            Target <InfoTip content={HELP.eventsTable.filterTarget} />
           </label>
           <select
             value={selectedTarget}
@@ -219,8 +233,8 @@ export default function EventsTableView() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Severity
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            Severity <InfoTip content={HELP.eventsTable.filterSeverity} />
           </label>
           <select
             value={selectedSeverity}
@@ -236,8 +250,8 @@ export default function EventsTableView() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Category
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            Category <InfoTip content={HELP.eventsTable.filterCategory} />
           </label>
           <select
             value={selectedCategory}
@@ -255,8 +269,8 @@ export default function EventsTableView() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Status
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            Status <InfoTip content={HELP.eventsTable.filterStatus} />
           </label>
           <select
             value={selectedStatus}

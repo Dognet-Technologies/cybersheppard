@@ -17,7 +17,9 @@ import {
   Button,
   StatsGrid,
   StatCard,
+  InfoTip,
 } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 export default function AlertsView() {
   const queryClient = useQueryClient();
@@ -62,12 +64,14 @@ export default function AlertsView() {
       key: 'severity',
       label: 'Severity',
       sortable: true,
+      info: HELP.alerts.colSeverity,
       render: (row: any) => <SeverityBadge severity={row.severity} />,
     },
     {
       key: 'title',
       label: 'Alert',
       sortable: true,
+      info: HELP.alerts.colAlert,
       render: (row: any) => (
         <div>
           <div className="font-medium text-gray-900">{row.title}</div>
@@ -79,6 +83,7 @@ export default function AlertsView() {
       key: 'alert_type',
       label: 'Type',
       sortable: true,
+      info: HELP.alerts.colType,
       render: (row: any) => (
         <span className="text-sm text-gray-600">{row.alert_type}</span>
       ),
@@ -87,6 +92,7 @@ export default function AlertsView() {
       key: 'created_at',
       label: 'Created',
       sortable: true,
+      info: HELP.alerts.colCreated,
       render: (row: any) => (
         <div className="text-sm text-gray-600">
           {format(new Date(row.created_at), 'PPp')}
@@ -97,6 +103,7 @@ export default function AlertsView() {
       key: 'status',
       label: 'Status',
       sortable: true,
+      info: HELP.alerts.colStatus,
       render: (row: any) => {
         if (row.resolved) return <StatusBadge status="resolved" />;
         if (row.acknowledged) return <StatusBadge status="acknowledged" />;
@@ -144,32 +151,36 @@ export default function AlertsView() {
           value={stats.total}
           icon={<Bell className="w-6 h-6" />}
           variant="info"
+          info={HELP.alerts.statTotal}
         />
         <StatCard
           title="New"
           value={stats.new}
           icon={<AlertTriangle className="w-6 h-6" />}
           variant="warning"
+          info={HELP.alerts.statNew}
         />
         <StatCard
           title="Acknowledged"
           value={stats.acknowledged}
           icon={<Clock className="w-6 h-6" />}
           variant="default"
+          info={HELP.alerts.statAck}
         />
         <StatCard
           title="Resolved"
           value={stats.resolved}
           icon={<CheckCircle className="w-6 h-6" />}
           variant="success"
+          info={HELP.alerts.statResolved}
         />
       </StatsGrid>
 
       {/* Filters */}
       <div className="flex items-center gap-4 mb-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Severity
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            Severity <InfoTip content={HELP.alerts.filterSeverity} />
           </label>
           <select
             value={selectedSeverity}
@@ -185,8 +196,8 @@ export default function AlertsView() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Status
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            Status <InfoTip content={HELP.alerts.filterStatus} />
           </label>
           <select
             value={selectedStatus}

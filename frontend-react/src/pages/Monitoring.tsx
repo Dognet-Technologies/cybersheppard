@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 import { Activity, Cpu, HardDrive, Network, Info, Server } from 'lucide-react';
 import { PageHeader, Card, CardHeader, StatsGrid, StatCard, Badge } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 // Placeholder al posto di un grafico privo di sorgente dati reale.
 function MetricsUnavailable() {
@@ -47,6 +48,7 @@ export default function Monitoring() {
         title="Real-time Monitoring"
         subtitle={`${onlineTargets} target${onlineTargets !== 1 ? 's' : ''} online`}
         icon={<Activity className="w-6 h-6" />}
+        info={HELP.page.monitoring}
         actions={
           <div className="flex items-center space-x-2">
             <Activity className="w-4 h-4 text-green-500 animate-pulse" />
@@ -73,24 +75,28 @@ export default function Monitoring() {
           value={total}
           icon={<Server className="w-6 h-6" />}
           variant="info"
+          info={HELP.monitoring.statTotal}
         />
         <StatCard
           title="Online"
           value={onlineTargets}
           icon={<Activity className="w-6 h-6" />}
           variant="success"
+          info={HELP.monitoring.statOnline}
         />
         <StatCard
           title="Offline"
           value={offlineTargets}
           icon={<Network className="w-6 h-6" />}
           variant={offlineTargets > 0 ? 'danger' : 'default'}
+          info={HELP.monitoring.statOffline}
         />
         <StatCard
           title="Ultimo dato"
           value={lastSeen ? new Date(lastSeen).toLocaleString() : 'Mai'}
           icon={<HardDrive className="w-6 h-6" />}
           variant="default"
+          info={HELP.monitoring.statLastData}
         />
       </StatsGrid>
 

@@ -3,6 +3,8 @@
 // ============================================================================
 
 import clsx from 'clsx';
+import { Tooltip } from './Tooltip';
+import { HELP } from '../../i18n/help';
 
 interface BadgeProps {
   children: React.ReactNode;
@@ -57,9 +59,11 @@ export function SeverityBadge({ severity, className }: SeverityBadgeProps) {
   const config = severityMap[severity] || severityMap.info;
 
   return (
-    <Badge variant={config.variant} className={className}>
-      {config.label}
-    </Badge>
+    <Tooltip content={HELP.severity[severity]}>
+      <Badge variant={config.variant} className={className}>
+        {config.label}
+      </Badge>
+    </Tooltip>
   );
 }
 
@@ -82,8 +86,10 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   const config = statusMap[status] || { variant: 'default' as const, label: status };
 
   return (
-    <Badge variant={config.variant} className={className}>
-      {config.label}
-    </Badge>
+    <Tooltip content={(HELP.status as Record<string, string>)[status]}>
+      <Badge variant={config.variant} className={className}>
+        {config.label}
+      </Badge>
+    </Tooltip>
   );
 }

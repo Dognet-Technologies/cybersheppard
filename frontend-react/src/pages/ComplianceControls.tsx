@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { PageHeader, Card, Button, Badge, Input, Select } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 interface ComplianceControl {
   id: number;
@@ -150,6 +151,7 @@ export default function ComplianceControls() {
         title="Compliance Controls"
         subtitle={`${totalControls} controls across 12 macroareas`}
         icon={<Shield className="w-6 h-6" />}
+        info={HELP.page.complianceControls}
         actions={
           <div className="flex space-x-2">
             <Button variant="outline" size="sm" onClick={expandAll}>

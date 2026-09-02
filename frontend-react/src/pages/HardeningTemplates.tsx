@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { PageHeader, Card, Button, Badge, EmptyState, Select } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 interface HardeningTemplate {
   id: number;
@@ -91,6 +92,7 @@ export default function HardeningTemplates() {
         title="Hardening Templates"
         subtitle={`${templates.length} production-ready templates covering ${totalControls} controls`}
         icon={<Shield className="w-6 h-6" />}
+        info={HELP.page.hardeningTemplates}
       />
 
       {/* Statistics */}

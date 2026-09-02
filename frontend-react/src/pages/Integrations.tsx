@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { Shield, RefreshCw, CheckCircle, XCircle, Activity, AlertCircle, Link2 } from 'lucide-react';
 import { PageHeader, Card, CardHeader, Button, Badge } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 export default function Integrations() {
   const queryClient = useQueryClient();
@@ -29,6 +30,7 @@ export default function Integrations() {
         title="Integrations"
         subtitle="External system integrations and synchronization"
         icon={<Link2 className="w-6 h-6" />}
+        info={HELP.page.integrations}
       />
 
       {isLoading ? (

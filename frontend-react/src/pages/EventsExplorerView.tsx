@@ -10,7 +10,8 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { X, Cpu, ChevronRight } from 'lucide-react';
 import api from '../services/api';
-import { Select, Badge } from '../components/ui';
+import { Select, Badge, InfoTip } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 type Facet = 'source_host' | 'user_name' | 'event_category' | 'mitre_tactic' | 'sensor' | 'event_type';
 
@@ -117,7 +118,10 @@ export default function EventsExplorerView() {
             const entries = counts ? [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8) : [];
             return (
               <div key={f.key} className="bg-white rounded-lg border border-slate-200 p-3">
-                <div className="text-xs font-semibold text-slate-700 mb-2">{f.label}</div>
+                <div className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                  {f.label}
+                  <InfoTip content={(HELP.exploreFacet as Record<string, string>)[f.key]} />
+                </div>
                 <div className="space-y-1">
                   {entries.length === 0 && <div className="text-[11px] text-slate-300">—</div>}
                   {entries.map(([v, n]) => {

@@ -3,6 +3,8 @@ import { useAuthStore } from '../stores/authStore';
 import { Shield, Home, Server, LogOut, Activity, User, Link2, FileCheck, Settings, Package, Crosshair } from 'lucide-react';
 import api from '../services/api';
 import clsx from 'clsx';
+import { Tooltip } from './ui';
+import { HELP } from '../i18n/help';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -28,15 +30,15 @@ export default function Layout() {
         </div>
 
         <nav className="p-4 space-y-1">
-          <NavLink to="/" icon={<Home />} label="Dashboard" currentPath={location.pathname} />
-          <NavLink to="/targets" icon={<Server />} label="Targets" currentPath={location.pathname} />
-          <NavLink to="/monitoring" icon={<Activity />} label="Monitoring" currentPath={location.pathname} />
-          <NavLink to="/hardening" icon={<Shield />} label="Hardening" currentPath={location.pathname} />
-          <NavLink to="/integrations" icon={<Link2 />} label="Integrations" currentPath={location.pathname} />
-          <NavLink to="/detection" icon={<Crosshair />} label="Threat Detection" currentPath={location.pathname} />
-          <NavLink to="/compliance" icon={<FileCheck />} label="Compliance" currentPath={location.pathname} />
-          <NavLink to="/settings" icon={<Settings />} label="Settings" currentPath={location.pathname} />
-          <NavLink to="/plugins" icon={<Package />} label="Plugins" currentPath={location.pathname} />
+          <NavLink to="/" icon={<Home />} label="Dashboard" info={HELP.nav.dashboard} currentPath={location.pathname} />
+          <NavLink to="/targets" icon={<Server />} label="Targets" info={HELP.nav.targets} currentPath={location.pathname} />
+          <NavLink to="/monitoring" icon={<Activity />} label="Monitoring" info={HELP.nav.monitoring} currentPath={location.pathname} />
+          <NavLink to="/hardening" icon={<Shield />} label="Hardening" info={HELP.nav.hardening} currentPath={location.pathname} />
+          <NavLink to="/integrations" icon={<Link2 />} label="Integrations" info={HELP.nav.integrations} currentPath={location.pathname} />
+          <NavLink to="/detection" icon={<Crosshair />} label="Threat Detection" info={HELP.nav.detection} currentPath={location.pathname} />
+          <NavLink to="/compliance" icon={<FileCheck />} label="Compliance" info={HELP.nav.compliance} currentPath={location.pathname} />
+          <NavLink to="/settings" icon={<Settings />} label="Settings" info={HELP.nav.settings} currentPath={location.pathname} />
+          <NavLink to="/plugins" icon={<Package />} label="Plugins" info={HELP.nav.plugins} currentPath={location.pathname} />
         </nav>
 
         <div className="absolute bottom-0 w-full p-4 border-t border-gray-800">
@@ -69,21 +71,23 @@ export default function Layout() {
   );
 }
 
-function NavLink({ to, icon, label, currentPath }: any) {
+function NavLink({ to, icon, label, currentPath, info }: any) {
   const isActive = currentPath === to || (to !== '/' && currentPath.startsWith(to));
 
   return (
-    <Link
-      to={to}
-      className={clsx(
-        'flex items-center space-x-3 px-4 py-3 rounded-lg transition-all',
-        isActive
-          ? 'bg-blue-600 text-white shadow-lg'
-          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-      )}
-    >
-      {icon}
-      <span className="font-medium">{label}</span>
-    </Link>
+    <Tooltip content={info} side="right" wrapperClassName="block w-full">
+      <Link
+        to={to}
+        className={clsx(
+          'flex items-center space-x-3 px-4 py-3 rounded-lg transition-all w-full',
+          isActive
+            ? 'bg-blue-600 text-white shadow-lg'
+            : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+        )}
+      >
+        {icon}
+        <span className="font-medium">{label}</span>
+      </Link>
+    </Tooltip>
   );
 }
