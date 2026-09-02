@@ -1,361 +1,172 @@
 // ============================================================================
-// Events — Table view. Monitoraggio eventi di sicurezza (auditd/Laurel + eBPF)
-// in tabella con filtri e statistiche. Vista "Tabella" della pagina Eventi.
+// Events — Table view. Vista tabellare dei security_events (auditd/Laurel + eBPF),
+// STESSA sorgente della vista "Esplora": tabella filtrabile con dettaglio nel
+// drawer condiviso. Vista "Tabella" dell'hub Threat Detection.
 // ============================================================================
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { Shield, AlertTriangle, Activity, Eye } from 'lucide-react';
+import { Shield, AlertTriangle, Activity, Cpu } from 'lucide-react';
 import api from '../services/api';
 import { format } from 'date-fns';
 import {
-  Table,
   SeverityBadge,
-  StatusBadge,
-  Button,
   StatsGrid,
   StatCard,
   InfoTip,
+  Select,
 } from '../components/ui';
 import { HELP } from '../i18n/help';
+import EventDrawer from '../components/EventDrawer';
+
+const sensorOf = (e: any): 'ebpf' | 'auditd' => (e?.event_data?.sensor === 'ebpf' ? 'ebpf' : 'auditd');
 
 export default function EventsTableView() {
-  const navigate = useNavigate();
-  const [selectedTarget, setSelectedTarget] = useState<string>('all');
-  const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [hours, setHours] = useState(24);
+  const [selectedSeverity, setSelectedSeverity] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedHost, setSelectedHost] = useState('all');
+  const [selected, setSelected] = useState<any>(null);
 
-  // Fetch events with real-time updates (30s refresh)
-  const { data: eventsData, isLoading } = useQuery({
-    queryKey: ['auditd-events', selectedTarget, selectedSeverity, selectedCategory, selectedStatus],
-    queryFn: () =>
-      api.getAuditdEvents({
-        target_id: selectedTarget !== 'all' ? parseInt(selectedTarget) : undefined,
-        severity: selectedSeverity !== 'all' ? selectedSeverity : undefined,
-        category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        limit: 100,
-      }),
-    refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
-  });
-
-  // Fetch stats
-  const { data: stats } = useQuery({
-    queryKey: ['auditd-stats'],
-    queryFn: () => api.getAuditdStats(),
+  const { data: response, isLoading } = useQuery({
+    queryKey: ['events-table', hours],
+    queryFn: () => api.getSecurityEvents({ hours, limit: 500 }),
     refetchInterval: 30000,
   });
 
-  // Fetch targets for filter
-  const { data: targets } = useQuery({
-    queryKey: ['targets'],
-    queryFn: () => api.getTargets(),
-  });
+  const allEvents: any[] = useMemo(() => {
+    const d: any = response;
+    return d?.data || d?.events || (Array.isArray(d) ? d : []);
+  }, [response]);
 
-  const events = eventsData?.events || [];
-  const total = eventsData?.total || 0;
+  const hosts = useMemo(
+    () => Array.from(new Set(allEvents.map((e) => e.source_host).filter(Boolean))).sort(),
+    [allEvents],
+  );
+  const categories = useMemo(
+    () => Array.from(new Set(allEvents.map((e) => e.event_category).filter(Boolean))).sort(),
+    [allEvents],
+  );
 
-  const columns = [
-    {
-      key: 'severity',
-      label: 'Severity',
-      sortable: true,
-      info: HELP.eventsTable.colSeverity,
-      render: (row: any) => <SeverityBadge severity={row.severity || 'low'} />,
-    },
-    {
-      key: 'category',
-      label: 'Category',
-      sortable: true,
-      info: HELP.eventsTable.colCategory,
-      render: (row: any) => (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-          {row.category || 'unknown'}
-        </span>
-      ),
-    },
-    {
-      key: 'hostname',
-      label: 'Host',
-      sortable: true,
-      info: HELP.eventsTable.colHost,
-      render: (row: any) => (
-        <div>
-          <div className="font-medium text-gray-900">{row.hostname}</div>
-          <div className="text-sm text-gray-500">{row.ip_address}</div>
-        </div>
-      ),
-    },
-    {
-      key: 'description',
-      label: 'Event',
-      sortable: false,
-      info: HELP.eventsTable.colEvent,
-      render: (row: any) => (
-        <div className="max-w-md">
-          <div className="text-sm text-gray-900 truncate">
-            {row.description || 'No description'}
-          </div>
-          {row.syscall && (
-            <div className="text-xs text-gray-500 mt-1">
-              Syscall: {row.syscall} {row.comm && `| ${row.comm}`}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'collected_at',
-      label: 'Time',
-      sortable: true,
-      info: HELP.eventsTable.colTime,
-      render: (row: any) => (
-        <div className="text-sm text-gray-600">
-          {format(new Date(row.collected_at), 'PPp')}
-        </div>
-      ),
-    },
-    {
-      key: 'correlations',
-      label: 'Correlations',
-      sortable: false,
-      info: HELP.eventsTable.colCorrelations,
-      render: (row: any) => (
-        <div className="flex gap-1">
-          {row.correlated_with_firedog && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-              FireDog
-            </span>
-          )}
-          {row.correlated_with_sentinel && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-              Sentinel
-            </span>
-          )}
-          {row.related_events_count > 1 && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-              +{row.related_events_count - 1}
-            </span>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      sortable: true,
-      info: HELP.eventsTable.colStatus,
-      render: (row: any) => <StatusBadge status={row.status} />,
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      info: HELP.eventsTable.colActions,
-      render: (row: any) => (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => navigate(`/detection/events/${row.id}`)}
-        >
-          <Eye className="w-4 h-4 mr-1" />
-          Details
-        </Button>
-      ),
-    },
-  ];
+  const events = useMemo(
+    () =>
+      allEvents.filter((e) => {
+        if (selectedSeverity !== 'all' && e.severity !== selectedSeverity) return false;
+        if (selectedCategory !== 'all' && e.event_category !== selectedCategory) return false;
+        if (selectedHost !== 'all' && e.source_host !== selectedHost) return false;
+        return true;
+      }),
+    [allEvents, selectedSeverity, selectedCategory, selectedHost],
+  );
+
+  const stats = useMemo(() => {
+    const by = (s: string) => allEvents.filter((e) => e.severity === s).length;
+    return { total: allEvents.length, critical: by('critical'), high: by('high'), medium: by('medium') };
+  }, [allEvents]);
 
   return (
     <div>
       {/* Stats */}
       <StatsGrid columns={4} className="mb-6">
-        <StatCard
-          title="Total Events (24h)"
-          value={stats?.total_events || 0}
-          icon={<Activity className="w-6 h-6" />}
-          variant="info"
-          info={HELP.eventsTable.statTotal}
-        />
-        <StatCard
-          title="Critical"
-          value={
-            Array.isArray(stats?.by_severity)
-              ? stats.by_severity.find((s: any) => s[0] === 'critical')?.[1] || 0
-              : 0
-          }
-          icon={<AlertTriangle className="w-6 h-6" />}
-          variant="danger"
-          info={HELP.eventsTable.statCritical}
-        />
-        <StatCard
-          title="High"
-          value={
-            Array.isArray(stats?.by_severity)
-              ? stats.by_severity.find((s: any) => s[0] === 'high')?.[1] || 0
-              : 0
-          }
-          icon={<AlertTriangle className="w-6 h-6" />}
-          variant="warning"
-          info={HELP.eventsTable.statHigh}
-        />
-        <StatCard
-          title="New"
-          value={
-            Array.isArray(stats?.by_status)
-              ? stats.by_status.find((s: any) => s[0] === 'new')?.[1] || 0
-              : 0
-          }
-          icon={<Shield className="w-6 h-6" />}
-          variant="info"
-          info={HELP.eventsTable.statNew}
-        />
+        <StatCard title="Eventi (finestra)" value={stats.total} icon={<Activity className="w-6 h-6" />} variant="info" info={HELP.eventsTable.statTotal} />
+        <StatCard title="Critical" value={stats.critical} icon={<AlertTriangle className="w-6 h-6" />} variant="danger" info={HELP.eventsTable.statCritical} />
+        <StatCard title="High" value={stats.high} icon={<AlertTriangle className="w-6 h-6" />} variant="warning" info={HELP.eventsTable.statHigh} />
+        <StatCard title="Medium" value={stats.medium} icon={<Shield className="w-6 h-6" />} variant="default" info={HELP.severity.medium} />
       </StatsGrid>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4 mb-6 flex-wrap">
-        <div>
-          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-            Target <InfoTip content={HELP.eventsTable.filterTarget} />
-          </label>
-          <select
-            value={selectedTarget}
-            onChange={(e) => setSelectedTarget(e.target.value)}
-            className="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          >
-            <option value="all">All Targets</option>
-            {targets?.map((target: any) => (
-              <option key={target.id} value={target.id}>
-                {target.hostname}
-              </option>
-            ))}
-          </select>
+      {/* Filtri */}
+      <div className="flex flex-wrap items-end gap-4 mb-6">
+        <div className="w-40">
+          <label className="text-sm font-medium text-gray-700 mb-1 block">Finestra</label>
+          <Select value={String(hours)} onChange={(e: any) => setHours(Number(e.target.value))}>
+            <option value="1">Ultima ora</option>
+            <option value="24">Ultime 24h</option>
+            <option value="168">Ultimi 7 giorni</option>
+          </Select>
         </div>
-
-        <div>
-          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-            Severity <InfoTip content={HELP.eventsTable.filterSeverity} />
-          </label>
-          <select
-            value={selectedSeverity}
-            onChange={(e) => setSelectedSeverity(e.target.value)}
-            className="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          >
-            <option value="all">All Severities</option>
+        <div className="w-44">
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">Host <InfoTip content={HELP.eventsTable.filterHost} /></label>
+          <Select value={selectedHost} onChange={(e: any) => setSelectedHost(e.target.value)}>
+            <option value="all">Tutti gli host</option>
+            {hosts.map((h) => (<option key={h} value={h}>{h}</option>))}
+          </Select>
+        </div>
+        <div className="w-44">
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">Severità <InfoTip content={HELP.eventsTable.filterSeverity} /></label>
+          <Select value={selectedSeverity} onChange={(e: any) => setSelectedSeverity(e.target.value)}>
+            <option value="all">Tutte</option>
             <option value="critical">Critical</option>
             <option value="high">High</option>
             <option value="medium">Medium</option>
             <option value="low">Low</option>
-          </select>
+          </Select>
         </div>
-
-        <div>
-          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-            Category <InfoTip content={HELP.eventsTable.filterCategory} />
-          </label>
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          >
-            <option value="all">All Categories</option>
-            <option value="reverse_shell">Reverse Shell</option>
-            <option value="webshell">Webshell</option>
-            <option value="privilege_escalation">Privilege Escalation</option>
-            <option value="sensitive_file_access">Sensitive File Access</option>
-            <option value="container_escape">Container Escape</option>
-            <option value="persistence">Persistence</option>
-          </select>
+        <div className="w-52">
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">Categoria <InfoTip content={HELP.eventsTable.filterCategory} /></label>
+          <Select value={selectedCategory} onChange={(e: any) => setSelectedCategory(e.target.value)}>
+            <option value="all">Tutte</option>
+            {categories.map((c) => (<option key={c} value={c}>{String(c).replace(/_/g, ' ')}</option>))}
+          </Select>
         </div>
-
-        <div>
-          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-            Status <InfoTip content={HELP.eventsTable.filterStatus} />
-          </label>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          >
-            <option value="all">All Status</option>
-            <option value="new">New</option>
-            <option value="investigating">Investigating</option>
-            <option value="resolved">Resolved</option>
-            <option value="false_positive">False Positive</option>
-          </select>
-        </div>
-
-        {(selectedTarget !== 'all' ||
-          selectedSeverity !== 'all' ||
-          selectedCategory !== 'all' ||
-          selectedStatus !== 'all') && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSelectedTarget('all');
-              setSelectedSeverity('all');
-              setSelectedCategory('all');
-              setSelectedStatus('all');
-            }}
-            className="mt-6"
-          >
-            Clear Filters
-          </Button>
-        )}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Events ({total})
-            </h3>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Activity className="w-4 h-4 animate-pulse text-green-500" />
-              Auto-refreshing every 30s
-            </div>
-          </div>
+      {/* Tabella */}
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 flex items-center justify-between">
+          <span>{events.length} eventi</span>
+          <span className="flex items-center gap-2"><Activity className="w-4 h-4 animate-pulse text-green-500" /> auto-refresh 30s · {HELP.eventsTable.rowHint}</span>
         </div>
-        <Table
-          data={events}
-          columns={columns}
-          loading={isLoading}
-          emptyMessage="No audit events found"
-        />
+        <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wide">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Severità</th>
+                <th className="text-left px-3 py-2 font-medium">Ora</th>
+                <th className="text-left px-3 py-2 font-medium">Host</th>
+                <th className="text-left px-3 py-2 font-medium">Categoria</th>
+                <th className="text-left px-3 py-2 font-medium">Evento</th>
+                <th className="text-left px-3 py-2 font-medium"><span className="inline-flex items-center gap-1">MITRE <InfoTip content={HELP.eventsTable.colMitre} /></span></th>
+                <th className="px-2 py-2"><span className="inline-flex items-center gap-1">Sensore <InfoTip content={HELP.eventsTable.colSensor} /></span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((e) => (
+                <tr
+                  key={e.id}
+                  onClick={() => setSelected(e)}
+                  className={`border-t border-slate-50 hover:bg-blue-50/50 cursor-pointer ${selected?.id === e.id ? 'bg-blue-50' : ''}`}
+                >
+                  <td className="px-3 py-1.5"><SeverityBadge severity={e.severity || 'low'} /></td>
+                  <td className="px-3 py-1.5 whitespace-nowrap font-mono text-[12px] text-slate-500">
+                    {e.timestamp ? format(new Date(e.timestamp), 'dd/MM HH:mm:ss') : '—'}
+                  </td>
+                  <td className="px-3 py-1.5 text-slate-600">{e.source_host || '—'}</td>
+                  <td className="px-3 py-1.5">
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] bg-purple-100 text-purple-800">{e.event_category || 'unknown'}</span>
+                  </td>
+                  <td className="px-3 py-1.5 min-w-0">
+                    <div className="font-medium text-slate-800 truncate max-w-[360px]">{e.process_cmdline || e.process_name || e.event_type}</div>
+                    {e.file_path && <div className="text-[11px] text-slate-400 truncate max-w-[360px]">📄 {e.file_path}</div>}
+                  </td>
+                  <td className="px-3 py-1.5">
+                    {e.mitre_technique
+                      ? <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-700 border border-orange-200 font-mono">{e.mitre_technique}</span>
+                      : <span className="text-slate-300 text-xs">—</span>}
+                  </td>
+                  <td className="px-2">
+                    {sensorOf(e) === 'ebpf' && <Cpu className="w-3.5 h-3.5 text-violet-500" aria-label="eBPF" />}
+                  </td>
+                </tr>
+              ))}
+              {events.length === 0 && !isLoading && (
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">Nessun evento</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Recent Critical Events */}
-      {stats?.recent_critical && stats.recent_critical.length > 0 && (
-        <div className="mt-6 bg-red-50 rounded-lg p-6 border border-red-200">
-          <h3 className="text-lg font-semibold text-red-900 mb-4 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5" />
-            Recent Critical Events
-          </h3>
-          <div className="space-y-2">
-            {stats.recent_critical.slice(0, 5).map((event: any) => (
-              <div
-                key={event.id}
-                className="flex items-center justify-between bg-white rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => navigate(`/detection/events/${event.id}`)}
-              >
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">
-                    {event.hostname} - {event.category}
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    {event.description}
-                  </div>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {format(new Date(event.collected_at), 'p')}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {selected && <EventDrawer event={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }

@@ -11,7 +11,6 @@ import ThreatDetection from './pages/ThreatDetection';
 import ComplianceFrameworks from './pages/ComplianceFrameworks';
 import ComplianceControls from './pages/ComplianceControls';
 import ComplianceDashboard from './pages/ComplianceDashboard';
-import EventDetails from './pages/EventDetails';
 import Settings from './pages/Settings';
 import Plugins from './pages/Plugins';
 import Login from './pages/Login';
@@ -53,9 +52,9 @@ function App() {
             <Route path="hardening-templates" element={<HardeningTemplates />} />
             <Route path="integrations" element={<Integrations />} />
 
-            {/* Hub Threat Detection (eventi + correlazioni + ATT&CK + alert) */}
+            {/* Hub Threat Detection (eventi + correlazioni + ATT&CK + alert).
+                Il dettaglio evento è un drawer nelle viste Tabella/Esplora. */}
             <Route path="detection" element={<ThreatDetection />} />
-            <Route path="detection/events/:id" element={<EventDetails />} />
 
             {/* Hub Compliance (frameworks + detail pages) */}
             <Route path="compliance" element={<ComplianceFrameworks />} />
