@@ -8,6 +8,7 @@ import api from '../services/api';
 import { Server, CheckCircle, XCircle, Trash2, Edit, Activity, Plus } from 'lucide-react';
 import AddTargetModal from '../components/AddTargetModal';
 import { PageHeader, Button, Card, EmptyState, StatusBadge, Badge } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 export default function Targets() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -53,6 +54,7 @@ export default function Targets() {
         title="Targets"
         subtitle={`${targets?.length || 0} target${(targets?.length || 0) !== 1 ? 's' : ''} monitored`}
         icon={<Server className="w-6 h-6" />}
+        info={HELP.page.targets}
         actions={
           <Button onClick={() => setIsAddModalOpen(true)} icon={<Plus className="w-4 h-4" />}>
             Add Target

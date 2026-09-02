@@ -4,6 +4,7 @@
 
 import { ReactNode } from 'react';
 import clsx from 'clsx';
+import { InfoTip } from './Tooltip';
 
 interface PageHeaderProps {
   title: string;
@@ -12,6 +13,8 @@ interface PageHeaderProps {
   actions?: ReactNode;
   breadcrumbs?: { label: string; href?: string }[];
   className?: string;
+  /** Spiegazione approfondita mostrata dall’icona “?” accanto al titolo. */
+  info?: ReactNode;
 }
 
 export function PageHeader({
@@ -21,6 +24,7 @@ export function PageHeader({
   actions,
   breadcrumbs,
   className,
+  info,
 }: PageHeaderProps) {
   return (
     <div className={clsx('mb-8', className)}>
@@ -51,7 +55,10 @@ export function PageHeader({
             </div>
           )}
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+              {title}
+              {info && <InfoTip content={info} side="bottom" className="mt-1" />}
+            </h1>
             {subtitle && <p className="mt-1 text-gray-500">{subtitle}</p>}
           </div>
         </div>

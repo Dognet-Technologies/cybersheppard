@@ -23,6 +23,10 @@ pub struct EventCollectorService {
     db: PgPool,
     auditd_log_path: String,
     enrichment_cache: HashMap<String, AssetEnrichment>,
+    // Cache target_id -> hostname per risolvere source_host quando l'agent non
+    // lo fornisce (arriva "unknown"). Interior mutability: il servizio è
+    // condiviso come Arc (insert_event ha &self) e va riempita in modo lazy.
+    target_names: std::sync::Mutex<HashMap<i32, String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -239,6 +243,7 @@ impl EventCollectorService {
             db,
             auditd_log_path,
             enrichment_cache: HashMap::new(),
+            target_names: std::sync::Mutex::new(HashMap::new()),
         }
     }
 
@@ -603,8 +608,52 @@ impl EventCollectorService {
         Ok(())
     }
 
+    /// Risolve l'hostname di un target dal suo id, con cache lazy (Mutex).
+    /// Usato quando l'agent non fornisce source_host (arriva "unknown").
+    async fn resolve_target_host(&self, target_id: i32) -> Option<String> {
+        // 1) hit in cache
+        if let Ok(cache) = self.target_names.lock() {
+            if let Some(h) = cache.get(&target_id) {
+                return Some(h.clone());
+            }
+        }
+        // 2) miss: query singola (niente cache sqlx: runtime API)
+        let hostname: Option<String> =
+            sqlx::query_scalar("SELECT hostname FROM targets WHERE id = $1")
+                .bind(target_id)
+                .fetch_optional(&self.db)
+                .await
+                .ok()
+                .flatten();
+        if let Some(ref h) = hostname {
+            if !h.is_empty() {
+                if let Ok(mut cache) = self.target_names.lock() {
+                    cache.insert(target_id, h.clone());
+                }
+            }
+        }
+        hostname.filter(|h| !h.is_empty())
+    }
+
     /// Insert event into database
     async fn insert_event(&self, event: &SecurityEvent) -> Result<i64> {
+        // Se l'agent non ha fornito l'host (arriva "unknown"/vuoto), lo risolviamo
+        // dal target_id. Cambia solo il VALORE bindato, non il testo SQL: la
+        // cache sqlx offline resta valida.
+        let effective_source_host = if event.source_host.is_empty()
+            || event.source_host == "unknown"
+        {
+            match event.target_id {
+                Some(tid) => self
+                    .resolve_target_host(tid)
+                    .await
+                    .unwrap_or_else(|| event.source_host.clone()),
+                None => event.source_host.clone(),
+            }
+        } else {
+            event.source_host.clone()
+        };
+
         let event_id = sqlx::query_scalar!(
             r#"
             INSERT INTO security_events (
@@ -636,7 +685,7 @@ impl EventCollectorService {
             "#,
             event.timestamp,
             event.source_type.to_string(),
-            event.source_host,
+            effective_source_host,
             event.source_ip as Option<IpAddr>,
             event.source_port,
             event.event_type,

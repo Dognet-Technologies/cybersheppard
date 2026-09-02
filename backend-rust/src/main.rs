@@ -130,6 +130,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     tracing::info!("✅ Alert monitor service started (WebSocket broadcasting)");
 
+    // Correlazione AUTOMATICA: ogni 60s analizza gli eventi dell'ultima ora e
+    // salva le correlazioni. Il guard "firma-occorrenza" in save_correlation
+    // evita di ri-registrare lo stesso burst ad ogni giro, ma le ri-occorrenze
+    // reali (eventi nuovi) restano come history. Niente più analisi manuale.
+    let corr_pool = pg_pool.clone();
+    tokio::spawn(async move {
+        let engine = services::correlation_engine::CorrelationEngine::new(corr_pool);
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(15));
+        loop {
+            ticker.tick().await;
+            match engine.analyze_correlations(1).await {
+                Ok(c) => tracing::debug!("🔗 Correlazione automatica: {} valutate", c.len()),
+                Err(e) => tracing::warn!("Errore correlazione automatica: {}", e),
+            }
+        }
+    });
+    tracing::info!("✅ Correlation engine started (automatico, ogni 15s)");
+
     // Build application router
     let app = build_router(state);
 

@@ -5,6 +5,7 @@
 import { ReactNode } from 'react';
 import clsx from 'clsx';
 import { ChevronUp, ChevronDown } from 'lucide-react';
+import { InfoTip } from './Tooltip';
 
 interface Column<T> {
   key: string;
@@ -12,6 +13,8 @@ interface Column<T> {
   sortable?: boolean;
   render?: (row: T) => ReactNode;
   className?: string;
+  /** Spiegazione della colonna mostrata dall’icona “?” nell’intestazione. */
+  info?: ReactNode;
 }
 
 interface TableProps<T> {
@@ -80,6 +83,9 @@ export function Table<T extends Record<string, any>>({
                 >
                   <div className="flex items-center space-x-1">
                     <span>{column.label}</span>
+                    {column.info && (
+                      <InfoTip content={column.info} label={`Info: ${column.label}`} />
+                    )}
                     {column.sortable && sortKey === column.key && (
                       <span className="text-blue-600">
                         {sortOrder === 'asc' ? (

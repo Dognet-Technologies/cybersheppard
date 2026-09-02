@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   Shield,
   Search,
@@ -16,9 +17,11 @@ import {
   FileText,
   Server,
   Info,
+  ArrowLeft,
 } from 'lucide-react';
 import api from '../services/api';
 import { PageHeader, Card, Button, Badge, Input, Select } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 interface ComplianceControl {
   id: number;
@@ -137,10 +140,18 @@ export default function ComplianceControls() {
 
   return (
     <div>
+      <Link
+        to="/compliance"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-3"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Torna a Compliance
+      </Link>
       <PageHeader
         title="Compliance Controls"
         subtitle={`${totalControls} controls across 12 macroareas`}
         icon={<Shield className="w-6 h-6" />}
+        info={HELP.page.complianceControls}
         actions={
           <div className="flex space-x-2">
             <Button variant="outline" size="sm" onClick={expandAll}>

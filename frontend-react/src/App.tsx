@@ -7,15 +7,10 @@ import Monitoring from './pages/Monitoring';
 import Hardening from './pages/Hardening';
 import HardeningTemplates from './pages/HardeningTemplates';
 import Integrations from './pages/Integrations';
-import SecurityCorrelations from './pages/SecurityCorrelations';
-import AttackMatrix from './pages/AttackMatrix';
-import EventExplorer from './pages/EventExplorer';
+import ThreatDetection from './pages/ThreatDetection';
 import ComplianceFrameworks from './pages/ComplianceFrameworks';
 import ComplianceControls from './pages/ComplianceControls';
 import ComplianceDashboard from './pages/ComplianceDashboard';
-import Alerts from './pages/Alerts';
-import AuditEvents from './pages/AuditEvents';
-import EventDetails from './pages/EventDetails';
 import Settings from './pages/Settings';
 import Plugins from './pages/Plugins';
 import Login from './pages/Login';
@@ -52,20 +47,21 @@ function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="targets" element={<Targets />} />
-            <Route path="violations" element={<Violations />} />
             <Route path="monitoring" element={<Monitoring />} />
             <Route path="hardening" element={<Hardening />} />
             <Route path="hardening-templates" element={<HardeningTemplates />} />
             <Route path="integrations" element={<Integrations />} />
-            <Route path="correlations" element={<SecurityCorrelations />} />
-            <Route path="attack-matrix" element={<AttackMatrix />} />
-            <Route path="events-explorer" element={<EventExplorer />} />
+
+            {/* Hub Threat Detection (eventi + correlazioni + ATT&CK + alert).
+                Il dettaglio evento è un drawer nelle viste Tabella/Esplora. */}
+            <Route path="detection" element={<ThreatDetection />} />
+
+            {/* Hub Compliance (frameworks + detail pages) */}
             <Route path="compliance" element={<ComplianceFrameworks />} />
-            <Route path="compliance-dashboard" element={<ComplianceDashboard />} />
-            <Route path="compliance-controls" element={<ComplianceControls />} />
-            <Route path="alerts" element={<Alerts />} />
-            <Route path="audit-events" element={<AuditEvents />} />
-            <Route path="audit-events/:id" element={<EventDetails />} />
+            <Route path="compliance/dashboard" element={<ComplianceDashboard />} />
+            <Route path="compliance/controls" element={<ComplianceControls />} />
+            <Route path="compliance/violations" element={<Violations />} />
+
             <Route path="plugins" element={<Plugins />} />
             <Route path="settings" element={<Settings />} />
           </Route>

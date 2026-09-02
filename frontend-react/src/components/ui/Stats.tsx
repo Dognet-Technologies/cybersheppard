@@ -5,6 +5,7 @@
 import { ReactNode } from 'react';
 import clsx from 'clsx';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { InfoTip } from './Tooltip';
 
 interface StatCardProps {
   title: string;
@@ -17,6 +18,8 @@ interface StatCardProps {
   };
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info';
   className?: string;
+  /** Spiegazione della metrica mostrata dall’icona “?” accanto al titolo. */
+  info?: ReactNode;
 }
 
 export function StatCard({
@@ -27,6 +30,7 @@ export function StatCard({
   trend,
   variant = 'default',
   className,
+  info,
 }: StatCardProps) {
   const variants = {
     default: 'bg-white border-gray-200',
@@ -54,7 +58,10 @@ export function StatCard({
     >
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+          <p className="text-sm font-medium text-gray-600 mb-1 flex items-center gap-1.5">
+            {title}
+            {info && <InfoTip content={info} />}
+          </p>
           <p className="text-3xl font-bold text-gray-900">{value}</p>
 
           {subtitle && (

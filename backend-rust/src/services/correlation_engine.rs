@@ -1609,6 +1609,37 @@ impl CorrelationEngine {
 
     /// Save correlation to database
     async fn save_correlation(&self, correlation: &EventCorrelation) -> Result<()> {
+        // Guard "firma-occorrenza": le correlazioni sono una HISTORY degli
+        // accadimenti (non idempotenti), ma l'analisi automatica ri-scansiona
+        // periodicamente la stessa finestra. Per non ri-registrare lo STESSO
+        // burst ad ogni giro, saltiamo l'inserimento se esiste già una
+        // correlazione identica con lo stesso last_event_time (stessa tattica,
+        // pattern, host e utenti). Un'occorrenza NUOVA ha eventi più recenti →
+        // last_event_time diverso → nuova riga. Nessuna cache sqlx: query runtime.
+        let already: Option<i32> = sqlx::query_scalar(
+            r#"
+            SELECT 1 FROM event_correlations
+            WHERE correlation_type = $1
+              AND coalesce(attack_stage::text, '') = coalesce($2::text, '')
+              AND coalesce(pattern_name::text, '') = coalesce($3::text, '')
+              AND last_event_time = $4
+              AND involved_hosts = $5
+              AND involved_users = $6
+            LIMIT 1
+            "#,
+        )
+        .bind(correlation.correlation_type.to_string())
+        .bind(correlation.attack_stage.as_ref().map(|s| s.to_string()))
+        .bind(&correlation.pattern_name)
+        .bind(correlation.last_event_time)
+        .bind(&correlation.involved_hosts)
+        .bind(&correlation.involved_users)
+        .fetch_optional(&self.db)
+        .await?;
+        if already.is_some() {
+            return Ok(()); // stessa occorrenza già registrata: non duplicare
+        }
+
         // Arricchisce correlation_data con la tattica ATT&CK e la tecnica
         // difensiva D3FEND che avrebbe mitigato la minaccia (cross-link con la
         // mappatura compliance della suite). Nessuna migrazione: sta nel JSONB.

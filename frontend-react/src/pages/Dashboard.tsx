@@ -27,6 +27,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { PageHeader, StatsGrid, StatCard, Card, CardHeader, EmptyState } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 // Placeholder quando un grafico non ha dati (invece di renderizzare vuoto/mock).
 function NoData({ label }: { label: string }) {
@@ -117,14 +118,14 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Panoramica dell'infrastruttura di sicurezza" icon={<Activity className="w-6 h-6" />} />
+      <PageHeader title="Dashboard" subtitle="Panoramica dell'infrastruttura di sicurezza" icon={<Activity className="w-6 h-6" />} info={HELP.page.dashboard} />
 
       {/* Stats reali */}
       <StatsGrid columns={4} className="mb-8">
-        <StatCard title="Target totali" value={stats.total} icon={<Server className="w-6 h-6" />} variant="info" />
-        <StatCard title="Target online" value={stats.online} icon={<CheckCircle className="w-6 h-6" />} variant="success" />
-        <StatCard title="Violazioni attive" value={stats.violations} icon={<AlertTriangle className="w-6 h-6" />} variant={stats.violations > 10 ? 'danger' : 'warning'} />
-        <StatCard title="Alert attivi" value={stats.alerts} icon={<Shield className="w-6 h-6" />} variant={stats.alerts > 5 ? 'warning' : 'default'} />
+        <StatCard title="Target totali" value={stats.total} icon={<Server className="w-6 h-6" />} variant="info" info={HELP.dashboard.statTotal} />
+        <StatCard title="Target online" value={stats.online} icon={<CheckCircle className="w-6 h-6" />} variant="success" info={HELP.dashboard.statOnline} />
+        <StatCard title="Violazioni attive" value={stats.violations} icon={<AlertTriangle className="w-6 h-6" />} variant={stats.violations > 10 ? 'danger' : 'warning'} info={HELP.dashboard.statViolations} />
+        <StatCard title="Alert attivi" value={stats.alerts} icon={<Shield className="w-6 h-6" />} variant={stats.alerts > 5 ? 'warning' : 'default'} info={HELP.dashboard.statAlerts} />
       </StatsGrid>
 
       {/* Riga 1 */}

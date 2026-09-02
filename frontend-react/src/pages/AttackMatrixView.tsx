@@ -1,16 +1,17 @@
 // ============================================================================
-// ATT&CK Coverage Matrix — copertura detection sulla kill-chain MITRE ATT&CK.
-// Aggrega le correlazioni (attack_stage + tecnica) e le proietta sul catalogo
-// dei detector ("scuderia" R1–R24): mostra cosa è rilevato di recente, la
-// severità e i buchi di copertura.
+// ATT&CK Matrix — vista "Matrice". Copertura detection sulla kill-chain MITRE
+// ATT&CK: aggrega le correlazioni (attack_stage + tecnica) e le proietta sul
+// catalogo dei detector ("scuderia" R1–R24). Sotto-vista "Matrice" della scheda
+// Correlazioni dell'hub Threat Detection. Click su una cella → passa a "Lista"
+// filtrata per quella tecnica.
 // ============================================================================
 
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Crosshair, Activity, ShieldCheck, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
-import { PageHeader, StatsGrid, StatCard, Select } from '../components/ui';
+import { StatsGrid, StatCard, Select } from '../components/ui';
 
 type Sev = 'critical' | 'high' | 'medium' | 'low';
 
@@ -71,8 +72,8 @@ const SEV_CELL: Record<Sev, string> = {
 const IDLE_CELL =
   'bg-slate-50 text-slate-400 border-dashed border-slate-300 hover:border-slate-400';
 
-export default function AttackMatrix() {
-  const navigate = useNavigate();
+export default function AttackMatrixView() {
+  const [, setSearchParams] = useSearchParams();
   const [hours, setHours] = useState(24);
 
   const { data: response, isLoading } = useQuery({
@@ -82,6 +83,14 @@ export default function AttackMatrix() {
   });
 
   const correlations: any[] = response?.data || [];
+
+  // Click su una cella → scheda Correlazioni in modalità Lista, filtrata per tecnica/tattica.
+  const drillDown = (technique: string, tactic: string) => {
+    setSearchParams(
+      { view: 'correlations', mode: 'list', technique, tactic },
+      { replace: false },
+    );
+  };
 
   // Aggrega per tecnica: { count, maxSev, tactic }
   const byTechnique = useMemo(() => {
@@ -121,23 +130,16 @@ export default function AttackMatrix() {
 
   return (
     <div>
-      <PageHeader
-        title="MITRE ATT&CK — Copertura Detection"
-        subtitle="La kill-chain proiettata sulla scuderia dei detector: cosa è rilevato, con quale severità, e dove restano i buchi"
-        icon={<Crosshair className="w-6 h-6" />}
-        actions={
-          <div className="w-40">
-            <Select
-              value={String(hours)}
-              onChange={(e: any) => setHours(Number(e.target.value))}
-            >
-              <option value="1">Ultima ora</option>
-              <option value="24">Ultime 24h</option>
-              <option value="168">Ultimi 7 giorni</option>
-            </Select>
-          </div>
-        }
-      />
+      {/* Intervallo temporale */}
+      <div className="flex justify-end mb-4">
+        <div className="w-40">
+          <Select value={String(hours)} onChange={(e: any) => setHours(Number(e.target.value))}>
+            <option value="1">Ultima ora</option>
+            <option value="24">Ultime 24h</option>
+            <option value="168">Ultimi 7 giorni</option>
+          </Select>
+        </div>
+      </div>
 
       <StatsGrid columns={4} className="mb-6">
         <StatCard title="Tattiche coperte" value={`${stats.tacticsCovered}/${TACTICS.length}`} icon={<ShieldCheck className="w-6 h-6" />} variant="info" />
@@ -190,11 +192,7 @@ export default function AttackMatrix() {
                     return (
                       <button
                         key={cap.t}
-                        onClick={() =>
-                          navigate(
-                            `/correlations?technique=${encodeURIComponent(cap.t)}&tactic=${tactic.id}`,
-                          )
-                        }
+                        onClick={() => drillDown(cap.t, tactic.id)}
                         className={`w-full text-left rounded-lg border px-3 py-2 transition-all hover:-translate-y-0.5 hover:shadow-md ${cls}`}
                         title={
                           hit

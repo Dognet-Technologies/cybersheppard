@@ -3,11 +3,13 @@
 // ============================================================================
 
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
-import { AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { PageHeader, Table, SeverityBadge, StatusBadge, Button, StatsGrid, StatCard } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 export default function Violations() {
   const [statusFilter, setStatusFilter] = useState('all');
@@ -38,12 +40,14 @@ export default function Violations() {
       key: 'severity',
       label: 'Severity',
       sortable: true,
+      info: HELP.violations.colSeverity,
       render: (row: any) => <SeverityBadge severity={row.severity} />,
     },
     {
       key: 'metric_name',
       label: 'Metric',
       sortable: true,
+      info: HELP.violations.colMetric,
       render: (row: any) => (
         <div>
           <div className="font-medium text-gray-900">{row.metric_name}</div>
@@ -57,6 +61,7 @@ export default function Violations() {
       key: 'target_id',
       label: 'Target',
       sortable: true,
+      info: HELP.violations.colTarget,
       render: (row: any) => (
         <div className="text-sm">
           <div className="font-medium text-gray-900">Target #{row.target_id}</div>
@@ -121,10 +126,18 @@ export default function Violations() {
 
   return (
     <div>
+      <Link
+        to="/compliance"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-3"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Torna a Compliance
+      </Link>
       <PageHeader
         title="Compliance Violations"
         subtitle="Monitor and manage policy violations"
         icon={<AlertTriangle className="w-6 h-6" />}
+        info={HELP.page.violations}
       />
 
       {/* Stats Cards */}

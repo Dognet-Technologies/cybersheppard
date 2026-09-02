@@ -3,9 +3,11 @@
 // ============================================================================
 
 import { useQuery } from '@tanstack/react-query';
-import { Shield, CheckCircle, AlertTriangle, TrendingUp, FileText } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Shield, CheckCircle, AlertTriangle, TrendingUp, FileText, BarChart3, ListChecks } from 'lucide-react';
 import api from '../services/api';
 import { PageHeader, Card, StatsGrid, StatCard, Button, Badge, EmptyState } from '../components/ui';
+import { HELP } from '../i18n/help';
 
 interface ComplianceFramework {
   id: number;
@@ -39,6 +41,7 @@ interface FrameworkSummary {
 }
 
 export default function ComplianceFrameworks() {
+  const navigate = useNavigate();
   const { data: frameworks, isLoading: frameworksLoading } = useQuery({
     queryKey: ['compliance-frameworks'],
     queryFn: () => api.getComplianceFrameworks(),
@@ -76,8 +79,32 @@ export default function ComplianceFrameworks() {
         title="Compliance Frameworks"
         subtitle="Monitor compliance across multiple security frameworks"
         icon={<Shield className="w-6 h-6" />}
+        info={HELP.page.compliance}
         actions={
-          <Button icon={<FileText className="w-4 h-4" />}>Generate Report</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              icon={<BarChart3 className="w-4 h-4" />}
+              onClick={() => navigate('/compliance/dashboard')}
+            >
+              Scoring &amp; Gap Analysis
+            </Button>
+            <Button
+              variant="outline"
+              icon={<ListChecks className="w-4 h-4" />}
+              onClick={() => navigate('/compliance/controls')}
+            >
+              Controls Browser
+            </Button>
+            <Button
+              variant="outline"
+              icon={<AlertTriangle className="w-4 h-4" />}
+              onClick={() => navigate('/compliance/violations')}
+            >
+              Violazioni
+            </Button>
+            <Button icon={<FileText className="w-4 h-4" />}>Generate Report</Button>
+          </div>
         }
       />
 
@@ -88,10 +115,12 @@ export default function ComplianceFrameworks() {
           title="Active Frameworks"
           value={frameworks?.filter((f: ComplianceFramework) => f.enabled).length || 0}
           variant="info"
+          info={HELP.compliance.statActiveFrameworks}
         />
         <StatCard
           icon={<CheckCircle className="w-6 h-6" />}
           title="Avg Compliance Score"
+          info={HELP.compliance.statAvgScore}
           value={`${Math.round(
             summary?.reduce(
               (acc: number, s: FrameworkSummary) => acc + (s.avg_compliance_score || 0),
@@ -105,10 +134,12 @@ export default function ComplianceFrameworks() {
           title="Targets Assessed"
           value={overview?.length || 0}
           variant="info"
+          info={HELP.compliance.statTargetsAssessed}
         />
         <StatCard
           icon={<AlertTriangle className="w-6 h-6" />}
           title="Total Violations"
+          info={HELP.compliance.statViolations}
           value={
             overview?.reduce(
               (acc: number, o: ComplianceOverview) =>
