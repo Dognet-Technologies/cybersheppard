@@ -289,4 +289,42 @@ export const HELP = {
     statOffline: t({ it: 'Target senza contatto recente.', en: 'Targets with no recent contact.' }),
     statLastData: t({ it: 'Timestamp del dato di monitoraggio più recente ricevuto.', en: 'Timestamp of the most recent monitoring data received.' }),
   },
+
+  // --- Remediation (per tattica) — CyberSheppard è monitoraggio: l'azione è
+  // creare regole sugli altri tool della suite, non "risolvere" qui. ---------
+  remediation: tmap({
+    initial_access: { it: 'Rivedi l’esposizione dei servizi e le regole in ingresso su FireDog (iptables).', en: 'Review service exposure and inbound FireDog (iptables) rules.' },
+    execution: { it: 'Esecuzione sospetta: valuta una regola FireDog per bloccare binario/porta e applica un template di hardening al target.', en: 'Suspicious execution: consider a FireDog rule to block the binary/port and apply a hardening template to the target.' },
+    persistence: { it: 'Rimuovi il meccanismo di persistenza (cron/unit/autostart) sull’host e verificane l’integrità.', en: 'Remove the persistence mechanism (cron/unit/autostart) on the host and verify its integrity.' },
+    privilege_escalation: { it: 'Verifica binari SUID e policy sudo; applica un template di hardening al target.', en: 'Check SUID binaries and sudo policy; apply a hardening template to the target.' },
+    defense_evasion: { it: 'Verifica integrità di audit/Laurel e dei sensori sull’host (possibile tentativo di evasione).', en: 'Verify audit/Laurel and sensor integrity on the host (possible evasion attempt).' },
+    credential_access: { it: 'Ruota le credenziali potenzialmente esposte e irrigidisci i permessi dei file sensibili.', en: 'Rotate potentially exposed credentials and tighten sensitive-file permissions.' },
+    discovery: { it: 'Attività ricognitiva: monitora l’host. Connessioni da/verso asset non presenti nell’inventario SentinelCore sono sospette.', en: 'Recon activity: monitor the host. Connections to/from assets not in the SentinelCore inventory are suspicious.' },
+    lateral_movement: { it: 'Restringi gli accessi tra host con regole FireDog; verifica che gli asset coinvolti siano nell’inventario SentinelCore.', en: 'Restrict host-to-host access with FireDog rules; check the involved assets are in the SentinelCore inventory.' },
+    command_and_control: { it: 'Blocca l’IP/destinazione C2 con una regola FireDog (iptables) sull’host.', en: 'Block the C2 IP/destination with a FireDog (iptables) rule on the host.' },
+    exfiltration: { it: 'Blocca la destinazione con una regola FireDog e verifica i volumi di traffico in uscita.', en: 'Block the destination with a FireDog rule and check outbound traffic volumes.' },
+    impact: { it: 'Isola l’host (regola FireDog) e verifica backup e integrità dei dati.', en: 'Isolate the host (FireDog rule) and verify backups and data integrity.' },
+  }),
+
+  // --- Etichette UI raggruppamento / colonne dinamiche ---------------------
+  ui: {
+    colRemediation: t({ it: 'Rimedio', en: 'Remediation' }),
+    colRemediationInfo: t({
+      it: 'Azione consigliata sugli altri tool della suite (es. FireDog/iptables, hardening, inventario SentinelCore). CyberSheppard monitora e segnala: la mitigazione avviene lì.',
+      en: 'Suggested action on the other suite tools (e.g. FireDog/iptables, hardening, SentinelCore inventory). CyberSheppard monitors and reports: mitigation happens there.',
+    }),
+    occurrences: t({ it: 'occorrenze', en: 'occurrences' }),
+    firstSeen: t({ it: 'prima vista', en: 'first seen' }),
+    lastSeen: t({ it: 'ultima vista', en: 'last seen' }),
+    showOccurrences: t({ it: 'Mostra le occorrenze', en: 'Show occurrences' }),
+    hideOccurrences: t({ it: 'Nascondi le occorrenze', en: 'Hide occurrences' }),
+    groupWindowLabel: t({ it: 'Raggruppa correlazioni ripetute', en: 'Group repeated correlations' }),
+    groupWindowHelp: t({
+      it: 'Raccoglie le occorrenze ripetute della stessa correlazione entro la finestra scelta, mostrando un contatore ×N e lo storico nel dettaglio. “Off” = elenco piatto di ogni singola occorrenza.',
+      en: 'Collapses repeated occurrences of the same correlation within the chosen window, showing an ×N counter and the history in the detail. “Off” = flat list of every single occurrence.',
+    }),
+    groupOff: t({ it: 'Off — storico piatto', en: 'Off — flat history' }),
+    countLabel: t({ it: 'occorrenze raggruppate entro la finestra scelta', en: 'occurrences grouped within the chosen window' }),
+    remediationDefault: t({ it: 'Valuta una regola di blocco/hardening sugli strumenti della suite (FireDog, SentinelCore).', en: 'Consider a block/hardening rule on the suite tools (FireDog, SentinelCore).' }),
+  },
 };

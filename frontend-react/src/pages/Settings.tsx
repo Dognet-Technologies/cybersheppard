@@ -21,6 +21,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { InfoTip } from '../components/ui';
+import { HELP } from '../i18n/help';
+import { getGroupWindowMin, setGroupWindowMin, GROUP_WINDOW_OPTIONS } from '../utils/prefs';
 
 type TabType = 'user' | 'system' | 'themes' | 'api-keys' | 'mcp-keys' | 'health' | 'database';
 
@@ -357,6 +360,7 @@ function SettingRow({ setting, onUpdate }: any) {
 
 function ThemeSettings() {
   const [selectedTheme, setSelectedTheme] = useState('dark');
+  const [groupWin, setGroupWin] = useState<number>(getGroupWindowMin());
 
   const themes = [
     { id: 'dark', name: 'Professional Dark', bg: 'bg-gray-800', description: 'Dark theme with blue accents' },
@@ -388,6 +392,35 @@ function ThemeSettings() {
         <Save className="w-4 h-4" />
         <span>Apply Theme</span>
       </button>
+
+      {/* Preferenze di monitoraggio */}
+      <div className="pt-6 border-t border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+          Preferenze di monitoraggio
+        </h3>
+        <div className="max-w-md mt-3">
+          <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            {HELP.ui.groupWindowLabel}
+            <InfoTip content={HELP.ui.groupWindowHelp} />
+          </label>
+          <select
+            value={groupWin}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              setGroupWin(v);
+              setGroupWindowMin(v);
+            }}
+            className="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 w-full"
+          >
+            {GROUP_WINDOW_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt === 0 ? HELP.ui.groupOff : `${opt} minuti`}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">{HELP.ui.groupWindowHelp}</p>
+        </div>
+      </div>
     </div>
   );
 }
