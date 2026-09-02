@@ -3,7 +3,8 @@
 // ============================================================================
 
 import { useQuery } from '@tanstack/react-query';
-import { Shield, CheckCircle, AlertTriangle, TrendingUp, FileText } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Shield, CheckCircle, AlertTriangle, TrendingUp, FileText, BarChart3, ListChecks } from 'lucide-react';
 import api from '../services/api';
 import { PageHeader, Card, StatsGrid, StatCard, Button, Badge, EmptyState } from '../components/ui';
 
@@ -39,6 +40,7 @@ interface FrameworkSummary {
 }
 
 export default function ComplianceFrameworks() {
+  const navigate = useNavigate();
   const { data: frameworks, isLoading: frameworksLoading } = useQuery({
     queryKey: ['compliance-frameworks'],
     queryFn: () => api.getComplianceFrameworks(),
@@ -77,7 +79,30 @@ export default function ComplianceFrameworks() {
         subtitle="Monitor compliance across multiple security frameworks"
         icon={<Shield className="w-6 h-6" />}
         actions={
-          <Button icon={<FileText className="w-4 h-4" />}>Generate Report</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              icon={<BarChart3 className="w-4 h-4" />}
+              onClick={() => navigate('/compliance/dashboard')}
+            >
+              Scoring &amp; Gap Analysis
+            </Button>
+            <Button
+              variant="outline"
+              icon={<ListChecks className="w-4 h-4" />}
+              onClick={() => navigate('/compliance/controls')}
+            >
+              Controls Browser
+            </Button>
+            <Button
+              variant="outline"
+              icon={<AlertTriangle className="w-4 h-4" />}
+              onClick={() => navigate('/compliance/violations')}
+            >
+              Violazioni
+            </Button>
+            <Button icon={<FileText className="w-4 h-4" />}>Generate Report</Button>
+          </div>
         }
       />
 

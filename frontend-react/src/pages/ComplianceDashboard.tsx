@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   Shield,
   AlertTriangle,
@@ -11,6 +12,7 @@ import {
   BarChart3,
   FileText,
   Target,
+  ArrowLeft,
 } from 'lucide-react';
 import api from '../services/api';
 import { PageHeader, Card, StatsGrid, StatCard, Button, Badge, Select } from '../components/ui';
@@ -109,6 +111,13 @@ export default function ComplianceDashboard() {
 
   return (
     <div>
+      <Link
+        to="/compliance"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-3"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Torna a Compliance
+      </Link>
       <PageHeader
         title="Compliance Dashboard"
         subtitle="Real-time compliance tracking across NIS2, NIST, ISO 27001, and MITRE D3FEND"
