@@ -1,16 +1,16 @@
 // ============================================================================
-// Event Explorer — esploratore log a faccette + drawer di dettaglio.
-// Stile data-explorer: pannelli di faccette (host/utente/categoria/tattica/
-// sensore/tipo) a sinistra, tabella eventi al centro, drawer col dettaglio
-// arricchito (processo, identità, file/rete, ancestry, JSON grezzo) a destra.
+// Events — Explorer view. Esploratore log a faccette + drawer di dettaglio.
+// Pannelli di faccette (host/utente/categoria/tattica/sensore/tipo) a sinistra,
+// tabella eventi al centro, drawer col dettaglio arricchito (processo, identità,
+// file/rete, ancestry, JSON grezzo) a destra. Vista "Esplora" della pagina Eventi.
 // ============================================================================
 
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { FileSearch, X, Cpu, ChevronRight } from 'lucide-react';
+import { X, Cpu, ChevronRight } from 'lucide-react';
 import api from '../services/api';
-import { PageHeader, Select, Badge } from '../components/ui';
+import { Select, Badge } from '../components/ui';
 
 type Facet = 'source_host' | 'user_name' | 'event_category' | 'mitre_tactic' | 'sensor' | 'event_type';
 
@@ -31,7 +31,7 @@ const sevColor: Record<string, string> = {
   critical: 'bg-red-500', high: 'bg-orange-500', medium: 'bg-amber-400', low: 'bg-sky-400',
 };
 
-export default function EventExplorer() {
+export default function EventsExplorerView() {
   const [hours, setHours] = useState(24);
   const [filters, setFilters] = useState<Partial<Record<Facet, string>>>({});
   const [search, setSearch] = useState('');
@@ -87,20 +87,16 @@ export default function EventExplorer() {
 
   return (
     <div>
-      <PageHeader
-        title="Event Explorer"
-        subtitle="Esplora i log arricchiti (auditd/Laurel + eBPF) per faccette; apri un evento per l'analisi completa"
-        icon={<FileSearch className="w-6 h-6" />}
-        actions={
-          <div className="w-40">
-            <Select value={String(hours)} onChange={(e: any) => setHours(Number(e.target.value))}>
-              <option value="1">Ultima ora</option>
-              <option value="24">Ultime 24h</option>
-              <option value="168">Ultimi 7 giorni</option>
-            </Select>
-          </div>
-        }
-      />
+      {/* Intervallo temporale */}
+      <div className="flex justify-end mb-4">
+        <div className="w-40">
+          <Select value={String(hours)} onChange={(e: any) => setHours(Number(e.target.value))}>
+            <option value="1">Ultima ora</option>
+            <option value="24">Ultime 24h</option>
+            <option value="168">Ultimi 7 giorni</option>
+          </Select>
+        </div>
+      </div>
 
       <div className="flex gap-4">
         {/* Faccette */}

@@ -73,7 +73,7 @@ export default function EventDetails() {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => navigate('/audit-events')}
+        onClick={() => navigate('/detection')}
         className="mb-4"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />

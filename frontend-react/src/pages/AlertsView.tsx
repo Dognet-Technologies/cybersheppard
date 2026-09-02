@@ -1,5 +1,7 @@
 // ============================================================================
-// Alerts Page - Security alerts management
+// Alert — scheda dell'hub Threat Detection. Gestione degli alert di sicurezza
+// (triage: acknowledge/resolve). Vista senza PageHeader: l'intestazione la
+// fornisce l'hub ThreatDetection.
 // ============================================================================
 
 import { useState } from 'react';
@@ -9,7 +11,6 @@ import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { format } from 'date-fns';
 import {
-  PageHeader,
   Table,
   SeverityBadge,
   StatusBadge,
@@ -18,7 +19,7 @@ import {
   StatCard,
 } from '../components/ui';
 
-export default function Alerts() {
+export default function AlertsView() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
@@ -136,12 +137,6 @@ export default function Alerts() {
 
   return (
     <div>
-      <PageHeader
-        title="Security Alerts"
-        subtitle="Monitor and manage security alerts"
-        icon={<Bell className="w-6 h-6" />}
-      />
-
       {/* Stats */}
       <StatsGrid columns={4} className="mb-6">
         <StatCard

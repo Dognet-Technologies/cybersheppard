@@ -1,5 +1,6 @@
 // ============================================================================
-// Audit Events Page - Real-time security event monitoring
+// Events — Table view. Monitoraggio eventi di sicurezza (auditd/Laurel + eBPF)
+// in tabella con filtri e statistiche. Vista "Tabella" della pagina Eventi.
 // ============================================================================
 
 import { useState } from 'react';
@@ -9,7 +10,6 @@ import { Shield, AlertTriangle, Activity, Eye } from 'lucide-react';
 import api from '../services/api';
 import { format } from 'date-fns';
 import {
-  PageHeader,
   Table,
   SeverityBadge,
   StatusBadge,
@@ -18,7 +18,7 @@ import {
   StatCard,
 } from '../components/ui';
 
-export default function AuditEvents() {
+export default function EventsTableView() {
   const navigate = useNavigate();
   const [selectedTarget, setSelectedTarget] = useState<string>('all');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
@@ -147,7 +147,7 @@ export default function AuditEvents() {
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => navigate(`/audit-events/${row.id}`)}
+          onClick={() => navigate(`/detection/events/${row.id}`)}
         >
           <Eye className="w-4 h-4 mr-1" />
           Details
@@ -158,12 +158,6 @@ export default function AuditEvents() {
 
   return (
     <div>
-      <PageHeader
-        title="Audit Events"
-        subtitle="Real-time security event monitoring from all hosts"
-        icon={<Shield className="w-6 h-6" />}
-      />
-
       {/* Stats */}
       <StatsGrid columns={4} className="mb-6">
         <StatCard
@@ -330,7 +324,7 @@ export default function AuditEvents() {
               <div
                 key={event.id}
                 className="flex items-center justify-between bg-white rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => navigate(`/audit-events/${event.id}`)}
+                onClick={() => navigate(`/detection/events/${event.id}`)}
               >
                 <div className="flex-1">
                   <div className="font-medium text-gray-900">

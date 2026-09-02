@@ -1,15 +1,17 @@
 // ============================================================================
-// Security Correlations Page - Vulnerability and threat correlation
+// Correlazioni — vista "Lista". Rilevamento pattern d'attacco e correlazione
+// eventi con mappatura MITRE ATT&CK/D3FEND. Sotto-vista "Lista" della scheda
+// Correlazioni dell'hub Threat Detection (il toggle Lista/Matrice sta in
+// CorrelationsTab).
 // ============================================================================
 
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
-import { AlertTriangle, CheckCircle, Activity, Shield, Cpu, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Activity, Cpu, X } from 'lucide-react';
 import { format } from 'date-fns';
 import {
-  PageHeader,
   Table,
   Button,
   Badge,
@@ -30,7 +32,7 @@ const TACTIC_OPTIONS = [
   'command_and_control', 'exfiltration', 'impact',
 ];
 
-export default function SecurityCorrelations() {
+export default function CorrelationsList() {
   const [, setSelectedCorrelation] = useState<any>(null);
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -137,28 +139,28 @@ export default function SecurityCorrelations() {
       key: 'mitre',
       label: 'MITRE',
       render: (row: any) => {
-        const tactic: string | undefined = row.attack_stage;
-        const technique: string | undefined = row.correlation_data?.mitre_technique;
+        const rowTactic: string | undefined = row.attack_stage;
+        const rowTechnique: string | undefined = row.correlation_data?.mitre_technique;
         const techName: string | undefined = row.correlation_data?.mitre_technique_name;
         const d3fend: string | undefined = row.correlation_data?.mitigating_d3fend;
         return (
           <div className="flex flex-col gap-1">
-            {tactic ? (
+            {rowTactic ? (
               <span
                 className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-200"
                 title="MITRE ATT&CK tactic"
               >
-                ATT&amp;CK: {tactic.replace(/_/g, ' ')}
+                ATT&amp;CK: {rowTactic.replace(/_/g, ' ')}
               </span>
             ) : (
               <span className="text-xs text-gray-400">—</span>
             )}
-            {technique && (
+            {rowTechnique && (
               <span
                 className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200"
                 title={techName || 'MITRE ATT&CK technique'}
               >
-                {technique}
+                {rowTechnique}
                 {techName ? ` · ${techName}` : ''}
               </span>
             )}
@@ -292,18 +294,6 @@ export default function SecurityCorrelations() {
 
   return (
     <div>
-      <PageHeader
-        title="Security Event Correlations"
-        subtitle="Advanced AI-powered attack pattern detection and threat correlation"
-        icon={<Shield className="w-6 h-6" />}
-        actions={
-          <div className="flex items-center space-x-2">
-            <Activity className="w-4 h-4 text-green-500 animate-pulse" />
-            <Badge variant="success">Live Monitoring</Badge>
-          </div>
-        }
-      />
-
       {/* Stats */}
       <StatsGrid columns={4} className="mb-6">
         <StatCard
