@@ -1,6 +1,6 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { Shield, Home, AlertTriangle, Server, LogOut, Activity, User, Zap, Link2, Bell, FileCheck, FileText, Settings, Package, Crosshair, Search } from 'lucide-react';
+import { Shield, Home, Server, LogOut, Activity, User, Link2, FileCheck, Settings, Package, Crosshair } from 'lucide-react';
 import api from '../services/api';
 import clsx from 'clsx';
 
@@ -30,16 +30,11 @@ export default function Layout() {
         <nav className="p-4 space-y-1">
           <NavLink to="/" icon={<Home />} label="Dashboard" currentPath={location.pathname} />
           <NavLink to="/targets" icon={<Server />} label="Targets" currentPath={location.pathname} />
-          <NavLink to="/violations" icon={<AlertTriangle />} label="Violations" currentPath={location.pathname} />
           <NavLink to="/monitoring" icon={<Activity />} label="Monitoring" currentPath={location.pathname} />
           <NavLink to="/hardening" icon={<Shield />} label="Hardening" currentPath={location.pathname} />
           <NavLink to="/integrations" icon={<Link2 />} label="Integrations" currentPath={location.pathname} />
-          <NavLink to="/correlations" icon={<Zap />} label="Correlations" currentPath={location.pathname} />
-          <NavLink to="/attack-matrix" icon={<Crosshair />} label="ATT&amp;CK Matrix" currentPath={location.pathname} />
+          <NavLink to="/detection" icon={<Crosshair />} label="Threat Detection" currentPath={location.pathname} />
           <NavLink to="/compliance" icon={<FileCheck />} label="Compliance" currentPath={location.pathname} />
-          <NavLink to="/alerts" icon={<Bell />} label="Alerts" currentPath={location.pathname} />
-          <NavLink to="/audit-events" icon={<FileText />} label="Audit Events" currentPath={location.pathname} />
-          <NavLink to="/events-explorer" icon={<Search />} label="Event Explorer" currentPath={location.pathname} />
           <NavLink to="/settings" icon={<Settings />} label="Settings" currentPath={location.pathname} />
           <NavLink to="/plugins" icon={<Package />} label="Plugins" currentPath={location.pathname} />
         </nav>
