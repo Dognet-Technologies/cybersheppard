@@ -35,10 +35,19 @@ const CAPABILITY: Record<string, { t: string; name: string }[]> = {
   initial_access: [{ t: 'T1078', name: 'Valid Accounts' }],
   execution: [
     { t: 'T1059', name: 'Command & Scripting Interpreter' },
+    { t: 'T1059.004', name: 'Unix Shell' },
     { t: 'T1620', name: 'Reflective Code Loading' },
   ],
-  persistence: [{ t: 'T1547', name: 'Boot/Logon Autostart' }],
-  privilege_escalation: [{ t: 'T1548', name: 'Abuse Elevation Control' }],
+  persistence: [
+    { t: 'T1547', name: 'Boot/Logon Autostart' },
+    { t: 'T1098', name: 'Account Manipulation' },
+    { t: 'T1098.004', name: 'SSH Authorized Keys' },
+    { t: 'T1136', name: 'Create Account' },
+  ],
+  privilege_escalation: [
+    { t: 'T1548', name: 'Abuse Elevation Control' },
+    { t: 'T1548.001', name: 'Setuid and Setgid' },
+  ],
   defense_evasion: [
     { t: 'T1070', name: 'Indicator Removal' },
     { t: 'T1562', name: 'Impair Defenses' },
