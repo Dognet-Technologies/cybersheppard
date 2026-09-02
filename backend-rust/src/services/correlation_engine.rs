@@ -7,6 +7,7 @@ use chrono::Utc;
 use ipnetwork::IpNetwork;
 use serde_json::json;
 use sqlx::PgPool;
+use sqlx::Row;
 use std::collections::HashMap;
 
 use crate::utils::{BigDecimalExt, ToBigDecimal};
@@ -74,6 +75,17 @@ fn technique_for_pattern(pattern: &str) -> Option<(&'static str, &'static str)> 
         "Dynamic Linker Hijack" => Some(("T1574.006", "Dynamic Linker Hijacking")),
         "Suspicious Session Lifecycle" => Some(("T1078", "Valid Accounts")),
         "Mass File Operations" => Some(("T1486", "Data Encrypted for Impact")),
+        // R25–R34 (detection host-local aggiuntive)
+        "Off-Hours Login" => Some(("T1078", "Valid Accounts")),
+        "SSH Authorized Keys Tampering" => Some(("T1098.004", "SSH Authorized Keys")),
+        "System Config Tampering" => Some(("T1098", "Account Manipulation")),
+        "Account Management" => Some(("T1136", "Create Account")),
+        "SUID/SGID Backdoor" => Some(("T1548.001", "Setuid and Setgid")),
+        "Execution From World-Writable Path" => Some(("T1059.004", "Unix Shell")),
+        "Anomalous Root Execution" => Some(("T1059", "Command and Scripting Interpreter")),
+        "First-Seen User On Host" => Some(("T1078", "Valid Accounts")),
+        "New Login Source" => Some(("T1078", "Valid Accounts")),
+        "Service Account Shell" => Some(("T1059.004", "Unix Shell")),
         _ => None, // es. "Anomaly Cluster": nessuna tecnica ATT&CK fissa
     }
 }
@@ -137,6 +149,18 @@ impl CorrelationEngine {
         correlations.extend(self.detect_suspicious_session(hours).await?); // R8
         correlations.extend(self.detect_mass_file_ops(hours).await?); // R15
         correlations.extend(self.detect_reverse_shell(hours).await?); // R10
+
+        // R25–R34 — detection host-local aggiuntive (nessuna integrazione)
+        correlations.extend(self.detect_off_hours_login(hours).await?); // R25
+        correlations.extend(self.detect_authorized_keys_tampering(hours).await?); // R26
+        correlations.extend(self.detect_system_config_tampering(hours).await?); // R27
+        correlations.extend(self.detect_account_management(hours).await?); // R28
+        correlations.extend(self.detect_suid_backdoor(hours).await?); // R29
+        correlations.extend(self.detect_world_writable_exec(hours).await?); // R30
+        correlations.extend(self.detect_anomalous_root_exec(hours).await?); // R31
+        correlations.extend(self.detect_first_seen_user_host(hours).await?); // R32
+        correlations.extend(self.detect_new_login_source(hours).await?); // R33
+        correlations.extend(self.detect_service_shell(hours).await?); // R34
 
         info!("Total correlations detected: {}", correlations.len());
 
@@ -695,6 +719,458 @@ impl CorrelationEngine {
             assigned_to: None,
             assigned_at: None,
         }
+    }
+
+    // ========================================================================
+    // Detection host-local aggiuntive (R25–R34) — nessuna integrazione cross-tool.
+    // Scritte con l'API sqlx runtime (niente macro) per non toccare la cache .sqlx.
+    // ========================================================================
+
+    /// Legge un intero da system_settings (fallback su default se assente/errore).
+    async fn setting_int(&self, key: &str, default: i32) -> i32 {
+        let v: Option<String> = sqlx::query_scalar(
+            "SELECT setting_value FROM system_settings WHERE setting_key = $1",
+        )
+        .bind(key)
+        .fetch_optional(&self.db)
+        .await
+        .ok()
+        .flatten();
+        v.and_then(|s| s.trim().parse::<i32>().ok()).unwrap_or(default)
+    }
+
+    /// R25 — Login/attività fuori orario lavorativo (finestra configurabile in
+    /// system_settings: business_hours_start/end, default 08–20; weekend sempre).
+    async fn detect_off_hours_login(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let start = self.setting_int("business_hours_start", 8).await;
+        let end = self.setting_int("business_hours_end", 20).await;
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND event_type ILIKE '%login%'
+              AND ( EXTRACT(DOW FROM timestamp) IN (0, 6)
+                    OR EXTRACT(HOUR FROM timestamp) < $2
+                    OR EXTRACT(HOUR FROM timestamp) >= $3 )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .bind(start as f64)
+        .bind(end as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Off-Hours Login",
+                format!("Login/attività fuori orario ({start:02}:00–{end:02}:00, o weekend) di '{user}' su {host} ({cnt} eventi)"),
+                Severity::Medium,
+                Self::calculate_confidence(cnt, 1, 5),
+                Self::calculate_risk_score(cnt as f64, 1.0, 8.0),
+                first, last, cnt as i32,
+                vec![user], vec![host], vec![], vec![],
+                json!({ "business_hours": format!("{start}-{end}"), "reason": "off_hours" }),
+                AttackStage::InitialAccess,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R26 — Backdoor SSH: scrittura su ~/.ssh/authorized_keys.
+    async fn detect_authorized_keys_tampering(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT file_path) FILTER (WHERE file_path IS NOT NULL) AS files
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND file_path ILIKE '%/.ssh/authorized_keys%'
+              AND (file_operation IS NULL OR file_operation NOT ILIKE '%read%')
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let files: Vec<String> = r.try_get("files").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "SSH Authorized Keys Tampering",
+                format!("Modifica di authorized_keys su {host} da '{user}' — possibile backdoor SSH ({cnt} eventi)"),
+                Severity::High,
+                Self::calculate_confidence(cnt, 1, 3),
+                Self::calculate_risk_score(cnt as f64, 1.0, 3.0),
+                first, last, cnt as i32,
+                vec![user], vec![host], vec![], files.clone(),
+                json!({ "files": files }),
+                AttackStage::Persistence,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R27 — Modifica di file di configurazione di sistema (scrittura, ≠ lettura
+    /// credenziali di R12): passwd, sudoers, sshd_config, PAM, hosts, resolv.conf.
+    async fn detect_system_config_tampering(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT file_path) FILTER (WHERE file_path IS NOT NULL) AS files
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND (file_operation IS NULL OR file_operation NOT ILIKE '%read%')
+              AND (
+                    file_path IN ('/etc/passwd','/etc/sudoers','/etc/ssh/sshd_config','/etc/hosts','/etc/resolv.conf')
+                    OR file_path ILIKE '/etc/sudoers.d/%'
+                    OR file_path ILIKE '/etc/pam.d/%'
+                  )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let files: Vec<String> = r.try_get("files").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "System Config Tampering",
+                format!("Modifica config di sistema su {host} da '{user}': {} ({cnt} eventi)", files.join(", ")),
+                Severity::High,
+                Self::calculate_confidence(cnt, 1, 3),
+                Self::calculate_risk_score(cnt as f64, 1.0, 4.0),
+                first, last, cnt as i32,
+                vec![user], vec![host], vec![], files.clone(),
+                json!({ "files": files }),
+                AttackStage::Persistence,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R28 — Gestione account/gruppi (useradd/usermod/passwd/gpasswd…).
+    async fn detect_account_management(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name ~* '(^|/)(useradd|usermod|userdel|adduser|deluser|groupadd|groupdel|gpasswd|chpasswd|passwd|chage)$'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Account Management",
+                format!("Gestione account/gruppi su {host} da '{user}' ({cnt} eventi)"),
+                Severity::Medium,
+                Self::calculate_confidence(cnt, 1, 3),
+                Self::calculate_risk_score(cnt as f64, 1.0, 4.0),
+                first, last, cnt as i32,
+                vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }),
+                AttackStage::Persistence,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R29 — Nuovo binario SUID/SGID (chmod +s / mode 4xxx-2xxx): backdoor privesc.
+    async fn detect_suid_backdoor(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_cmdline ~* 'chmod'
+              AND process_cmdline ~* '(\+s|u\+s|g\+s|[0-7]?[2467][0-7]{3})'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "SUID/SGID Backdoor",
+                format!("Creazione binario SUID/SGID su {host} da '{user}' — possibile backdoor privesc ({cnt} eventi)"),
+                Severity::Critical,
+                Self::calculate_confidence(cnt, 1, 2),
+                Self::calculate_risk_score(cnt as f64, 1.0, 2.0),
+                first, last, cnt as i32,
+                vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }),
+                AttackStage::PrivilegeEscalation,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R30 — Esecuzione da path world-writable (/tmp, /dev/shm, /var/tmp).
+    async fn detect_world_writable_exec(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND ( process_name ~* '^/(tmp|var/tmp|dev/shm|run/user/[0-9]+)/'
+                    OR process_cmdline ~* '^/(tmp|var/tmp|dev/shm)/' )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Execution From World-Writable Path",
+                format!("Esecuzione da path world-writable su {host} da '{user}' ({cnt} eventi)"),
+                Severity::High,
+                Self::calculate_confidence(cnt, 1, 4),
+                Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                first, last, cnt as i32,
+                vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }),
+                AttackStage::Execution,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R31 — Root exec anomalo: shell/tool di rete eseguiti come root da un
+    /// contesto di servizio (auid non di login).
+    async fn detect_anomalous_root_exec(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND event_data->>'uid' = '0'
+              AND event_data->>'auid' IN ('unset', '-1', '4294967295')
+              AND process_name ~* '(^|/)(bash|sh|dash|zsh|nc|ncat|socat|python[0-9]?|perl|curl|wget)$'
+            GROUP BY source_host
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Anomalous Root Execution",
+                format!("Shell/tool di rete eseguiti come root da contesto di servizio su {host} ({cnt} eventi)"),
+                Severity::High,
+                Self::calculate_confidence(cnt, 1, 4),
+                Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                first, last, cnt as i32,
+                vec!["root".into()], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }),
+                AttackStage::PrivilegeEscalation,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R32 — Primo accesso mai visto di un utente su un host (baseline).
+    async fn detect_first_seen_user_host(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t
+            FROM security_events
+            WHERE event_type ILIKE '%login%' AND user_name IS NOT NULL
+            GROUP BY source_host, user_name
+            HAVING MIN(timestamp) > NOW() - INTERVAL '1 hour' * $1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "First-Seen User On Host",
+                format!("Primo accesso mai osservato di '{user}' su {host}"),
+                Severity::Medium,
+                0.6,
+                45.0,
+                first, last, cnt as i32,
+                vec![user], vec![host], vec![], vec![],
+                json!({ "reason": "first_seen_user_host" }),
+                AttackStage::InitialAccess,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R33 — Sorgente SSH inedita per un utente (baseline).
+    async fn detect_new_login_source(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT user_name, host(source_ip) AS ip,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT source_host) FILTER (WHERE source_host IS NOT NULL) AS hosts
+            FROM security_events
+            WHERE event_type ILIKE '%login%' AND source_ip IS NOT NULL AND user_name IS NOT NULL
+            GROUP BY user_name, host(source_ip)
+            HAVING MIN(timestamp) > NOW() - INTERVAL '1 hour' * $1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let ip: String = r.try_get::<Option<String>, _>("ip").ok().flatten().unwrap_or_default();
+            let hosts: Vec<String> = r.try_get("hosts").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "New Login Source",
+                format!("Nuova sorgente di login {ip} per l'utente '{user}'"),
+                Severity::Medium,
+                0.6,
+                45.0,
+                first, last, cnt as i32,
+                vec![user], hosts, vec![], vec![],
+                json!({ "source_ip": ip, "reason": "new_login_source" }),
+                AttackStage::InitialAccess,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R34 — Shell avviata da account di servizio (webshell/RCE: es. www-data→bash).
+    async fn detect_service_shell(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name ~* '(^|/)(bash|sh|dash|zsh)$'
+              AND user_name IN ('www-data','nginx','apache','apache2','httpd','postgres','mysql','mariadb','redis','tomcat','node','mongodb')
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence,
+                "Service Account Shell",
+                format!("Shell avviata dall'account di servizio '{user}' su {host} — possibile webshell/RCE ({cnt} eventi)"),
+                Severity::Critical,
+                Self::calculate_confidence(cnt, 1, 3),
+                Self::calculate_risk_score(cnt as f64, 1.0, 3.0),
+                first, last, cnt as i32,
+                vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }),
+                AttackStage::Execution,
+            ));
+        }
+        Ok(out)
     }
 
     /// R6 — Esecuzione sospetta (reverse-shell/interprete). Euristica 1-hop sul
