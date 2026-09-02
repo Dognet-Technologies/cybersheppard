@@ -1,48 +1,45 @@
 // ============================================================================
-// Monitoring Page - Real-time metrics and performance monitoring
+// Monitoring Page - Stato dei target in tempo reale.
+// NOTA: le serie temporali (CPU/RAM/rete) richiedono la raccolta metriche via
+// InfluxDB, non ancora attiva lato backend (/api/monitoring/metrics è uno stub).
+// Finché non c'è una sorgente reale NON mostriamo grafici mock: solo dati reali
+// (stato target) e placeholder espliciti al posto dei grafici.
 // ============================================================================
 
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
-import { Activity, Cpu, HardDrive, Network } from 'lucide-react';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Activity, Cpu, HardDrive, Network, Info, Server } from 'lucide-react';
 import { PageHeader, Card, CardHeader, StatsGrid, StatCard, Badge } from '../components/ui';
+
+// Placeholder al posto di un grafico privo di sorgente dati reale.
+function MetricsUnavailable() {
+  return (
+    <div className="flex flex-col items-center justify-center h-[250px] text-center px-6">
+      <Cpu className="w-8 h-8 text-slate-300 mb-2" />
+      <p className="text-sm font-medium text-slate-500">Metriche non disponibili</p>
+      <p className="text-xs text-slate-400 mt-1">
+        La raccolta serie temporali (InfluxDB) non è ancora attiva.
+      </p>
+    </div>
+  );
+}
 
 export default function Monitoring() {
   const { data: targets } = useQuery({
     queryKey: ['targets'],
     queryFn: () => api.getTargets(),
+    refetchInterval: 30000,
   });
 
-  // Sample metrics data (in real app, this would come from InfluxDB via API)
-  const cpuData = [
-    { time: '00:00', usage: 45 },
-    { time: '04:00', usage: 32 },
-    { time: '08:00', usage: 68 },
-    { time: '12:00', usage: 72 },
-    { time: '16:00', usage: 85 },
-    { time: '20:00', usage: 55 },
-  ];
-
-  const memoryData = [
-    { time: '00:00', used: 4.2, available: 11.8 },
-    { time: '04:00', used: 4.5, available: 11.5 },
-    { time: '08:00', used: 6.8, available: 9.2 },
-    { time: '12:00', used: 7.2, available: 8.8 },
-    { time: '16:00', used: 8.1, available: 7.9 },
-    { time: '20:00', used: 6.5, available: 9.5 },
-  ];
-
-  const networkData = [
-    { time: '00:00', in: 125, out: 89 },
-    { time: '04:00', in: 98, out: 67 },
-    { time: '08:00', in: 256, out: 178 },
-    { time: '12:00', in: 312, out: 245 },
-    { time: '16:00', in: 289, out: 198 },
-    { time: '20:00', in: 167, out: 123 },
-  ];
-
-  const onlineTargets = targets?.filter((t: any) => t.status === 'online').length || 0;
+  const targetList: any[] = Array.isArray(targets) ? targets : [];
+  const total = targetList.length;
+  const onlineTargets = targetList.filter((t) => t.status === 'online').length;
+  const offlineTargets = total - onlineTargets;
+  const lastSeen = targetList
+    .map((t) => t.last_monitoring_at || t.last_seen)
+    .filter(Boolean)
+    .sort()
+    .pop();
 
   return (
     <div>
@@ -58,157 +55,89 @@ export default function Monitoring() {
         }
       />
 
-      {/* Quick Stats */}
+      {/* Avviso: metriche time-series non ancora disponibili */}
+      <div className="flex items-start gap-3 mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+        <Info className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+        <div className="text-sm text-amber-800">
+          <span className="font-medium">Metriche di sistema in arrivo.</span>{' '}
+          La raccolta di CPU, memoria e traffico di rete richiede l'integrazione InfluxDB
+          lato backend (endpoint <code className="font-mono text-xs">/api/monitoring/metrics</code> ancora
+          non implementato). Fino ad allora i grafici restano vuoti: nessun dato simulato.
+        </div>
+      </div>
+
+      {/* Stat reali derivate dai target */}
       <StatsGrid columns={4} className="mb-6">
         <StatCard
-          title="Avg CPU Usage"
-          value="68%"
-          icon={<Cpu className="w-6 h-6" />}
+          title="Target totali"
+          value={total}
+          icon={<Server className="w-6 h-6" />}
           variant="info"
-          trend={{ value: 5, label: 'from last hour' }}
         />
         <StatCard
-          title="Avg Memory"
-          value="7.2 GB"
-          icon={<HardDrive className="w-6 h-6" />}
+          title="Online"
+          value={onlineTargets}
+          icon={<Activity className="w-6 h-6" />}
           variant="success"
         />
         <StatCard
-          title="Network Traffic"
-          value="289 MB/s"
+          title="Offline"
+          value={offlineTargets}
           icon={<Network className="w-6 h-6" />}
-          variant="info"
-          trend={{ value: -12, label: 'from peak' }}
+          variant={offlineTargets > 0 ? 'danger' : 'default'}
         />
         <StatCard
-          title="Active Connections"
-          value="1,247"
-          icon={<Activity className="w-6 h-6" />}
+          title="Ultimo dato"
+          value={lastSeen ? new Date(lastSeen).toLocaleString() : 'Mai'}
+          icon={<HardDrive className="w-6 h-6" />}
           variant="default"
         />
       </StatsGrid>
 
-      {/* Charts */}
+      {/* Charts (placeholder finché non c'è una sorgente reale) + stato target */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* CPU Usage */}
         <Card>
-          <CardHeader
-            title="CPU Usage (Last 24h)"
-            subtitle="Average processor utilization"
-          />
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={cpuData}>
-              <defs>
-                <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Area
-                type="monotone"
-                dataKey="usage"
-                stroke="#3b82f6"
-                fillOpacity={1}
-                fill="url(#colorCpu)"
-                name="CPU %"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <CardHeader title="CPU Usage" subtitle="Utilizzo processore (serie temporale)" />
+          <MetricsUnavailable />
         </Card>
 
-        {/* Memory Usage */}
         <Card>
-          <CardHeader
-            title="Memory Usage (Last 24h)"
-            subtitle="RAM utilization over time"
-          />
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={memoryData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="used"
-                stroke="#22c55e"
-                strokeWidth={2}
-                name="Used (GB)"
-              />
-              <Line
-                type="monotone"
-                dataKey="available"
-                stroke="#94a3b8"
-                strokeWidth={2}
-                name="Available (GB)"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <CardHeader title="Memory Usage" subtitle="Utilizzo RAM (serie temporale)" />
+          <MetricsUnavailable />
         </Card>
 
-        {/* Network Traffic */}
         <Card>
-          <CardHeader
-            title="Network Traffic (Last 24h)"
-            subtitle="Inbound and outbound data flow"
-          />
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={networkData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Area
-                type="monotone"
-                dataKey="in"
-                stackId="1"
-                stroke="#a855f7"
-                fill="#a855f7"
-                name="Inbound (MB/s)"
-              />
-              <Area
-                type="monotone"
-                dataKey="out"
-                stackId="2"
-                stroke="#ec4899"
-                fill="#ec4899"
-                name="Outbound (MB/s)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <CardHeader title="Network Traffic" subtitle="Traffico in/out (serie temporale)" />
+          <MetricsUnavailable />
         </Card>
 
-        {/* Target Status List */}
+        {/* Target Status List — dati reali */}
         <Card>
-          <CardHeader title="Target Status" subtitle="Current monitoring status" />
+          <CardHeader title="Target Status" subtitle="Stato di monitoraggio corrente" />
           <div className="space-y-3 max-h-[250px] overflow-y-auto">
-            {targets?.slice(0, 8).map((target: any) => (
-              <div
-                key={target.id}
-                className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0"
-              >
-                <div>
-                  <p className="font-medium text-sm text-gray-900">{target.hostname}</p>
-                  <p className="text-xs text-gray-500">{target.ip_address}</p>
+            {targetList.length > 0 ? (
+              targetList.slice(0, 8).map((target: any) => (
+                <div
+                  key={target.id}
+                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0"
+                >
+                  <div>
+                    <p className="font-medium text-sm text-gray-900">{target.hostname}</p>
+                    <p className="text-xs text-gray-500">{target.ip_address}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        target.status === 'online' ? 'bg-green-500' : 'bg-red-500'
+                      }`}
+                    ></span>
+                    <Badge variant={target.status === 'online' ? 'success' : 'danger'}>
+                      {target.status}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      target.status === 'online' ? 'bg-green-500' : 'bg-red-500'
-                    }`}
-                  ></span>
-                  <Badge variant={target.status === 'online' ? 'success' : 'danger'}>
-                    {target.status}
-                  </Badge>
-                </div>
-              </div>
-            )) || (
+              ))
+            ) : (
               <p className="text-gray-500 text-center py-8">No targets available</p>
             )}
           </div>
