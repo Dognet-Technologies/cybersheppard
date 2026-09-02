@@ -137,7 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let corr_pool = pg_pool.clone();
     tokio::spawn(async move {
         let engine = services::correlation_engine::CorrelationEngine::new(corr_pool);
-        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(60));
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(15));
         loop {
             ticker.tick().await;
             match engine.analyze_correlations(1).await {
@@ -146,7 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     });
-    tracing::info!("✅ Correlation engine started (automatico, ogni 60s)");
+    tracing::info!("✅ Correlation engine started (automatico, ogni 15s)");
 
     // Build application router
     let app = build_router(state);
