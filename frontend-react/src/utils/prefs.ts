@@ -30,3 +30,44 @@ export function setGroupWindowMin(min: number): void {
     // ignora: preferenza non persistita
   }
 }
+
+// --- Sidebar: larghezza (px) e stato collassato --------------------------
+const SIDEBAR_WIDTH_KEY = 'cs.sidebar.width';
+const SIDEBAR_COLLAPSED_KEY = 'cs.sidebar.collapsed';
+export const SIDEBAR_MIN = 180;
+export const SIDEBAR_MAX = 420;
+export const SIDEBAR_DEFAULT = 256;
+
+export function getSidebarWidth(): number {
+  try {
+    const v = parseInt(localStorage.getItem(SIDEBAR_WIDTH_KEY) ?? '', 10);
+    if (!Number.isNaN(v)) return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, v));
+  } catch {
+    /* default */
+  }
+  return SIDEBAR_DEFAULT;
+}
+
+export function setSidebarWidth(w: number): void {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round(w)));
+  } catch {
+    /* ignora */
+  }
+}
+
+export function getSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setSidebarCollapsed(v: boolean): void {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, v ? '1' : '0');
+  } catch {
+    /* ignora */
+  }
+}
