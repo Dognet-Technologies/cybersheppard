@@ -1,0 +1,18 @@
+## ============================================================================
+## CyberSheppard — Regole auditd: BASE (parte 1/2)
+## ============================================================================
+## Installare come /etc/audit/rules.d/10-cybersheppard-base.rules.
+## Questo è l'UNICO file che contiene `-D` (flush) e i settaggi globali, e DEVE
+## caricare per primo (il prefisso numerico "10-" lo garantisce con augenrules).
+##
+## REGOLA D'ORO PER LA COESISTENZA: `-D` deve stare in UN SOLO file, il primo.
+## Non mettere MAI un secondo `-D` in altri file (nemmeno nel default
+## /etc/audit/rules.d/audit.rules): `-D` cancella TUTTE le regole caricate
+## prima di sé, quindi un `-D` che carica dopo azzera CyberSheppard (o le tue
+## regole). Vedi deploy/audit/README.md per come aggiungere regole proprie.
+
+## Svuota le regole esistenti e imposta buffer / failure mode.
+-D
+-b 8192
+-f 1
+--backlog_wait_time 0

@@ -6,6 +6,10 @@ This directory contains all files needed for production deployment of CyberShepp
 
 ```
 deploy/
+├── audit/
+│   ├── 10-cybersheppard-base.rules   # auditd: BASE (unico -D + settaggi globali)
+│   ├── 50-cybersheppard-detect.rules # auditd: watch/regole di detection
+│   └── README.md                     # come installare e PERSONALIZZARE le regole
 ├── nginx/
 │   └── cybersheppard.conf          # Nginx reverse proxy configuration
 ├── systemd/
@@ -15,6 +19,11 @@ deploy/
 ├── setup-production.sh              # Automated setup script
 └── README.md                        # This file
 ```
+
+> **Regole auditd e regole proprie del cliente:** la raccolta eventi passa da
+> auditd → Laurel → agent. Per installare le regole e soprattutto per **aggiungere
+> le proprie in sicurezza** (ordine di caricamento, il tranello del `-D`, cosa non
+> sopprimere), vedi **[`audit/README.md`](audit/README.md)**.
 
 ## 🚀 Quick Start (Automated)
 
