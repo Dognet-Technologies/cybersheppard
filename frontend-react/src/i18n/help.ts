@@ -292,6 +292,17 @@ export const HELP = {
     statOnline: t({ it: 'Target che comunicano regolarmente col server.', en: 'Targets communicating regularly with the server.' }),
     statOffline: t({ it: 'Target senza contatto recente.', en: 'Targets with no recent contact.' }),
     statLastData: t({ it: 'Timestamp del dato di monitoraggio più recente ricevuto.', en: 'Timestamp of the most recent monitoring data received.' }),
+    sensorInfo: t({
+      it: 'Stato del sensore di sicurezza (auditd/Laurel) su ogni target, dedotto dalla telemetria: se l’agente è vivo ma non arrivano più eventi, il sensore è probabilmente fermo. Sola lettura: il riavvio va fatto sull’host (nessun comando remoto via agent, per sicurezza).',
+      en: 'Security sensor (auditd/Laurel) status per target, inferred from telemetry: if the agent is alive but no events arrive, the sensor is likely stopped. Read-only: restart it on the host (no remote command via the agent, for safety).',
+    }),
+    sensorRestart: t({
+      it: 'Se il sensore è fermo, riavvialo sull’host: sudo systemctl restart auditd (Laurel è un plugin di auditd e riparte con esso).',
+      en: 'If the sensor is stopped, restart it on the host: sudo systemctl restart auditd (Laurel is an auditd plugin and restarts with it).',
+    }),
+    sensorHealthy: t({ it: 'Sensore attivo: eventi in arrivo di recente.', en: 'Sensor active: events arriving recently.' }),
+    sensorStale: t({ it: 'Sensore fermo: agente vivo ma nessun evento recente — verifica auditd/Laurel sull’host.', en: 'Sensor stopped: agent alive but no recent events — check auditd/Laurel on the host.' }),
+    sensorAgentOffline: t({ it: 'Agente offline: nessun contatto recente dal target.', en: 'Agent offline: no recent contact from the target.' }),
   },
 
   // --- Remediation (per tattica) — CyberSheppard è monitoraggio: l'azione è

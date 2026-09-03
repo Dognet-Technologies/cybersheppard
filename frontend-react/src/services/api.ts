@@ -253,6 +253,12 @@ class ApiService {
     return response.data;
   }
 
+  // Stato del sensore (auditd/Laurel) per target — derivato dalla telemetria.
+  async getSensorStatus() {
+    const response = await this.client.get('/api/monitoring/sensors');
+    return response.data;
+  }
+
   // ========================================================================
   // INTEGRATIONS
   // ========================================================================
