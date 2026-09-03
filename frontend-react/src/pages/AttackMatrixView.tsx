@@ -21,10 +21,12 @@ const TACTICS: { id: string; name: string }[] = [
   { id: 'execution', name: 'Execution' },
   { id: 'persistence', name: 'Persistence' },
   { id: 'privilege_escalation', name: 'Privilege Escalation' },
-  { id: 'defense_evasion', name: 'Defense Evasion' },
+  { id: 'stealth', name: 'Stealth' },
+  { id: 'defense_impairment', name: 'Defense Impairment' },
   { id: 'credential_access', name: 'Credential Access' },
   { id: 'discovery', name: 'Discovery' },
   { id: 'lateral_movement', name: 'Lateral Movement' },
+  { id: 'collection', name: 'Collection' },
   { id: 'command_and_control', name: 'Command & Control' },
   { id: 'exfiltration', name: 'Exfiltration' },
   { id: 'impact', name: 'Impact' },
@@ -36,27 +38,39 @@ const CAPABILITY: Record<string, { t: string; name: string }[]> = {
   execution: [
     { t: 'T1059', name: 'Command & Scripting Interpreter' },
     { t: 'T1059.004', name: 'Unix Shell' },
-    { t: 'T1620', name: 'Reflective Code Loading' },
   ],
   persistence: [
     { t: 'T1547', name: 'Boot/Logon Autostart' },
     { t: 'T1098', name: 'Account Manipulation' },
     { t: 'T1098.004', name: 'SSH Authorized Keys' },
     { t: 'T1136', name: 'Create Account' },
+    { t: 'T1053.003', name: 'Scheduled Task: Cron' },
+    { t: 'T1053.002', name: 'Scheduled Task: At' },
+    { t: 'T1543.002', name: 'Systemd Service' },
   ],
   privilege_escalation: [
     { t: 'T1548', name: 'Abuse Elevation Control' },
     { t: 'T1548.001', name: 'Setuid and Setgid' },
+    { t: 'T1611', name: 'Escape to Host' },
   ],
-  defense_evasion: [
+  // MITRE v19: ex-Defense Evasion divisa in Stealth + Defense Impairment.
+  stealth: [
     { t: 'T1070', name: 'Indicator Removal' },
-    { t: 'T1562', name: 'Impair Defenses' },
+    { t: 'T1070.003', name: 'Clear Command History' },
+    { t: 'T1070.006', name: 'Timestomp' },
     { t: 'T1055', name: 'Process Injection' },
     { t: 'T1574.006', name: 'Dynamic Linker Hijack' },
+    { t: 'T1620', name: 'Reflective Code Loading' },
+    { t: 'T1027', name: 'Obfuscated Files/Information' },
+    { t: 'T1036', name: 'Masquerading' },
+  ],
+  defense_impairment: [
+    { t: 'T1685.004', name: 'Disable/Modify Linux Audit System Log' },
   ],
   credential_access: [
     { t: 'T1110', name: 'Brute Force' },
     { t: 'T1003', name: 'OS Credential Dumping' },
+    { t: 'T1552.001', name: 'Credentials In Files' },
   ],
   discovery: [
     { t: 'T1082', name: 'System Information Discovery' },
@@ -64,7 +78,11 @@ const CAPABILITY: Record<string, { t: string; name: string }[]> = {
     { t: 'T1046', name: 'Network Service Discovery' },
   ],
   lateral_movement: [{ t: 'T1021', name: 'Remote Services' }],
-  command_and_control: [{ t: 'T1071', name: 'Application Layer Protocol' }],
+  collection: [{ t: 'T1074', name: 'Data Staged' }],
+  command_and_control: [
+    { t: 'T1071', name: 'Application Layer Protocol' },
+    { t: 'T1105', name: 'Ingress Tool Transfer' },
+  ],
   exfiltration: [{ t: 'T1041', name: 'Exfiltration Over C2' }],
   impact: [{ t: 'T1486', name: 'Data Encrypted for Impact' }],
 };
