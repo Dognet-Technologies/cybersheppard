@@ -25,8 +25,8 @@ function sensorOf(row: any): 'ebpf' | 'auditd' {
 
 const TACTIC_OPTIONS = [
   'initial_access', 'execution', 'persistence', 'privilege_escalation',
-  'defense_evasion', 'credential_access', 'discovery', 'lateral_movement',
-  'command_and_control', 'exfiltration', 'impact',
+  'stealth', 'defense_impairment', 'credential_access', 'discovery',
+  'lateral_movement', 'collection', 'command_and_control', 'exfiltration', 'impact',
 ];
 
 const SEV_VARIANT: Record<string, 'danger' | 'warning' | 'info' | 'default'> = {

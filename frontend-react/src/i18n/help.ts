@@ -292,6 +292,17 @@ export const HELP = {
     statOnline: t({ it: 'Target che comunicano regolarmente col server.', en: 'Targets communicating regularly with the server.' }),
     statOffline: t({ it: 'Target senza contatto recente.', en: 'Targets with no recent contact.' }),
     statLastData: t({ it: 'Timestamp del dato di monitoraggio più recente ricevuto.', en: 'Timestamp of the most recent monitoring data received.' }),
+    sensorInfo: t({
+      it: 'Stato del sensore di sicurezza (auditd/Laurel) su ogni target, dedotto dalla telemetria: se l’agente è vivo ma non arrivano più eventi, il sensore è probabilmente fermo. Sola lettura: il riavvio va fatto sull’host (nessun comando remoto via agent, per sicurezza).',
+      en: 'Security sensor (auditd/Laurel) status per target, inferred from telemetry: if the agent is alive but no events arrive, the sensor is likely stopped. Read-only: restart it on the host (no remote command via the agent, for safety).',
+    }),
+    sensorRestart: t({
+      it: 'Se il sensore è fermo, riavvialo sull’host: sudo systemctl restart auditd (Laurel è un plugin di auditd e riparte con esso).',
+      en: 'If the sensor is stopped, restart it on the host: sudo systemctl restart auditd (Laurel is an auditd plugin and restarts with it).',
+    }),
+    sensorHealthy: t({ it: 'Sensore attivo: eventi in arrivo di recente.', en: 'Sensor active: events arriving recently.' }),
+    sensorStale: t({ it: 'Sensore fermo: agente vivo ma nessun evento recente — verifica auditd/Laurel sull’host.', en: 'Sensor stopped: agent alive but no recent events — check auditd/Laurel on the host.' }),
+    sensorAgentOffline: t({ it: 'Agente offline: nessun contatto recente dal target.', en: 'Agent offline: no recent contact from the target.' }),
   },
 
   // --- Remediation (per tattica) — CyberSheppard è monitoraggio: l'azione è
@@ -301,10 +312,12 @@ export const HELP = {
     execution: { it: 'Esecuzione sospetta: valuta una regola FireDog per bloccare binario/porta e applica un template di hardening al target.', en: 'Suspicious execution: consider a FireDog rule to block the binary/port and apply a hardening template to the target.' },
     persistence: { it: 'Rimuovi il meccanismo di persistenza (cron/unit/autostart) sull’host e verificane l’integrità.', en: 'Remove the persistence mechanism (cron/unit/autostart) on the host and verify its integrity.' },
     privilege_escalation: { it: 'Verifica binari SUID e policy sudo; applica un template di hardening al target.', en: 'Check SUID binaries and sudo policy; apply a hardening template to the target.' },
-    defense_evasion: { it: 'Verifica integrità di audit/Laurel e dei sensori sull’host (possibile tentativo di evasione).', en: 'Verify audit/Laurel and sensor integrity on the host (possible evasion attempt).' },
+    stealth: { it: 'Verifica se il processo/file sta mascherando la sua vera natura o attività (masquerading, offuscamento, LOLBins).', en: 'Check whether the process/file is masking its true nature or activity (masquerading, obfuscation, LOLBins).' },
+    defense_impairment: { it: 'Verifica integrità di audit/Laurel e dei sensori sull’host — possibile tentativo di disattivazione dei controlli di sicurezza.', en: 'Verify audit/Laurel and sensor integrity on the host — possible attempt to disable security controls.' },
     credential_access: { it: 'Ruota le credenziali potenzialmente esposte e irrigidisci i permessi dei file sensibili.', en: 'Rotate potentially exposed credentials and tighten sensitive-file permissions.' },
     discovery: { it: 'Attività ricognitiva: monitora l’host. Connessioni da/verso asset non presenti nell’inventario SentinelCore sono sospette.', en: 'Recon activity: monitor the host. Connections to/from assets not in the SentinelCore inventory are suspicious.' },
     lateral_movement: { it: 'Restringi gli accessi tra host con regole FireDog; verifica che gli asset coinvolti siano nell’inventario SentinelCore.', en: 'Restrict host-to-host access with FireDog rules; check the involved assets are in the SentinelCore inventory.' },
+    collection: { it: 'Dati in fase di raccolta/staging: verifica cosa viene archiviato e dove; correla con accessi a file sensibili.', en: 'Data being collected/staged: check what is being archived and where; correlate with sensitive-file access.' },
     command_and_control: { it: 'Blocca l’IP/destinazione C2 con una regola FireDog (iptables) sull’host.', en: 'Block the C2 IP/destination with a FireDog (iptables) rule on the host.' },
     exfiltration: { it: 'Blocca la destinazione con una regola FireDog e verifica i volumi di traffico in uscita.', en: 'Block the destination with a FireDog rule and check outbound traffic volumes.' },
     impact: { it: 'Isola l’host (regola FireDog) e verifica backup e integrità dei dati.', en: 'Isolate the host (FireDog rule) and verify backups and data integrity.' },

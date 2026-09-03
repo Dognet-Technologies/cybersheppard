@@ -11,6 +11,7 @@ use axum::{
 };
 use chrono::Utc;
 use serde_json::json;
+use sqlx::Row;
 
 use crate::models::MonitoringDataPayload;
 use crate::services::compliance::ComplianceEngine;
@@ -22,6 +23,77 @@ pub fn routes() -> Router<crate::AppState> {
         .route("/metrics", get(get_metrics))
         .route("/events", get(get_events))
         .route("/logs", get(get_logs))
+        .route("/sensors", get(get_sensors))
+}
+
+/// GET /api/monitoring/sensors — stato del sensore (auditd/Laurel) per target.
+/// Derivato dalla telemetria: agente vivo (last_seen) + eventi che arrivano
+/// (ultimo security_event). Sola lettura: nessun controllo remoto del servizio.
+async fn get_sensors(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let rows = sqlx::query(
+        r#"
+        SELECT t.id, t.hostname, t.ip_address::text AS ip,
+               GREATEST(t.last_seen, t.last_monitoring_at) AS agent_last_seen,
+               (SELECT MAX(se.timestamp) FROM security_events se WHERE se.target_id = t.id) AS last_event_at,
+               (SELECT COUNT(*) FROM security_events se
+                  WHERE se.target_id = t.id AND se.timestamp > NOW() - INTERVAL '5 minutes') AS events_5m
+        FROM targets t
+        ORDER BY t.id
+        "#,
+    )
+    .fetch_all(&state.pg_pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_sensors query error: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Internal server error"})))
+    })?;
+
+    // Soglie (minuti): oltre queste, l'entità è considerata non sana.
+    const AGENT_STALE_MIN: i64 = 5;
+    const SENSOR_STALE_MIN: i64 = 10;
+    let now = Utc::now();
+
+    let sensors: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            let id: i32 = r.try_get("id").unwrap_or(0);
+            let hostname: String = r.try_get("hostname").unwrap_or_default();
+            let ip: Option<String> = r.try_get::<Option<String>, _>("ip").ok().flatten();
+            let agent_seen: Option<chrono::DateTime<Utc>> =
+                r.try_get::<Option<chrono::DateTime<Utc>>, _>("agent_last_seen").ok().flatten();
+            let last_event: Option<chrono::DateTime<Utc>> =
+                r.try_get::<Option<chrono::DateTime<Utc>>, _>("last_event_at").ok().flatten();
+            let events_5m: i64 = r.try_get("events_5m").unwrap_or(0);
+
+            let agent_min = agent_seen.map(|t| (now - t).num_minutes());
+            let event_min = last_event.map(|t| (now - t).num_minutes());
+
+            // Stato derivato: agente offline > sensore fermo > sano.
+            let status = if agent_min.map(|m| m > AGENT_STALE_MIN).unwrap_or(true) {
+                "agent_offline"
+            } else if event_min.map(|m| m > SENSOR_STALE_MIN).unwrap_or(true) {
+                "sensor_stale"
+            } else {
+                "healthy"
+            };
+
+            json!({
+                "target_id": id,
+                "hostname": hostname,
+                "ip": ip,
+                "agent_last_seen": agent_seen,
+                "agent_minutes_ago": agent_min,
+                "last_event_at": last_event,
+                "event_minutes_ago": event_min,
+                "events_5m": events_5m,
+                "status": status,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({ "success": true, "data": sensors })))
 }
 
 /// Receive monitoring data from target collectors

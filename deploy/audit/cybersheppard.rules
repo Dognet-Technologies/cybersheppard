@@ -62,6 +62,29 @@
 ## Nota: gli authorized_keys degli utenti (/home/*/.ssh) vanno aggiunti in modo
 ## mirato in fase di finalizzazione (path per-utente).
 
+## --- Config di sistema aggiuntive (R27 System Config Tampering) -------------
+-w /etc/ssh/sshd_config -p wa -k sysconfig
+-w /etc/pam.d/ -p wa -k sysconfig
+-w /etc/hosts -p wa -k sysconfig
+-w /etc/resolv.conf -p wa -k sysconfig
+-w /etc/nsswitch.conf -p wa -k sysconfig
+## Shell rc / profile (persistenza via ambiente) — R11/R27
+-w /etc/profile -p wa -k persistence
+-w /etc/profile.d/ -p wa -k persistence
+-w /etc/bash.bashrc -p wa -k persistence
+-w /root/.bashrc -p wa -k persistence
+-w /root/.profile -p wa -k persistence
+## authorized_keys utenti (R26): /root/.ssh già coperto sopra; per gli utenti in
+## /home aggiungere in finalizzazione watch mirate (es. -w /home/<u>/.ssh -p wa).
+
+## --- Anti-forensics / log tamper (R14 Defense Evasion) ----------------------
+-w /var/log/wtmp -p wa -k logtamper
+-w /var/log/btmp -p wa -k logtamper
+-w /var/log/lastlog -p wa -k logtamper
+## Timestomp: alterazione dei timestamp dei file per depistare l'analisi.
+-a always,exit -F arch=b64 -S utimensat -S utimes -S futimesat -F auid>=1000 -F auid!=unset -k timestomp
+-a always,exit -F arch=b32 -S utimensat -S utimes -S futimesat -F auid>=1000 -F auid!=unset -k timestomp
+
 ## --- Rete / beaconing-exfil (R4, R9) — ATTENZIONE: può essere rumoroso ------
 ## Auditare `connect` genera molti eventi; abilitare consapevolmente. Laurel
 ## arricchisce con l'indirizzo. Commentata di default: attivare in finalizzazione.
