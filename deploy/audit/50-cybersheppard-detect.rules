@@ -1,22 +1,14 @@
 ## ============================================================================
-## CyberSheppard — Regole auditd (starter, DA FINALIZZARE)
+## CyberSheppard — Regole auditd: DETECTION (parte 2/2)
 ## ============================================================================
-## Installare come /etc/audit/rules.d/cybersheppard.rules, poi `augenrules --load`
-## (o `auditctl -R`). Set di partenza allineato ai detector di correlazione
-## (vedi docs/CORRELATION_RULES.md). Il set completo di riferimento è in
-## Esempio_modelli/etc.auditd.audit.rules; qui teniamo l'essenziale per la
-## pipeline MITRE, bilanciato per non generare troppo rumore.
-##
-## Legenda key (-k): usata anche da Laurel per etichettare gli eventi.
+## Installare come /etc/audit/rules.d/50-cybersheppard-detect.rules.
+## Solo watch/regole di detection allineate ai detector di correlazione — NB:
+## NESSUN `-D` e NESSUN settaggio globale qui (stanno in 10-cybersheppard-base).
+## Append-only: caricando dopo la base, queste regole si aggiungono senza
+## azzerare nulla. Legenda key (-k): usata anche da Laurel per etichettare.
+## Il set completo di riferimento è in Esempio_modelli/etc.auditd.audit.rules.
 
-## --- Base -------------------------------------------------------------------
-## Svuota le regole esistenti e imposta buffer/failure mode.
--D
--b 8192
--f 1
---backlog_wait_time 0
-
-## --- Tamper di audit / defense evasion (R14) --------------------------------
+## --- Tamper di audit / defense impairment (R14/R41) -------------------------
 -w /var/log/audit/ -k auditlog
 -w /etc/audit/ -p wa -k auditconfig
 -w /etc/audisp/ -p wa -k audispconfig
@@ -33,7 +25,7 @@
 -w /etc/sudoers -p rwa -k credaccess
 -w /etc/sudoers.d/ -p rwa -k credaccess
 
-## --- Esecuzione comandi / execution + discovery (R6, R13) -------------------
+## --- Esecuzione comandi / execution + discovery (R6, R13, R30, R43, R44) -----
 ## Tutte le execve E execveat (con attribuzione all'utente di login auid). Laurel
 ## arricchisce con argv e ancestry. Escludiamo auid non impostato per ridurre il
 ## rumore. NB: `execveat` è essenziale — i loader fileless (memfd_create+execveat)
@@ -41,7 +33,7 @@
 -a always,exit -F arch=b64 -S execve -S execveat -F auid>=1000 -F auid!=unset -k exec
 -a always,exit -F arch=b32 -S execve -S execveat -F auid>=1000 -F auid!=unset -k exec
 
-## --- Privilege escalation (R3, R7) ------------------------------------------
+## --- Privilege escalation (R3, R7, R29) -------------------------------------
 ## Comando eseguito con euid=0 da un utente loggato NON root (auid>=1000).
 -a always,exit -F arch=b64 -F euid=0 -F auid>=1000 -F auid!=unset -S execve -S execveat -k privesc
 -a always,exit -F arch=b32 -F euid=0 -F auid>=1000 -F auid!=unset -S execve -S execveat -k privesc
@@ -49,7 +41,7 @@
 -a always,exit -F arch=b64 -S setuid -S setgid -S setreuid -S setregid -k identitychange
 -a always,exit -F arch=b32 -S setuid -S setgid -S setreuid -S setregid -k identitychange
 
-## --- Persistenza (R11) ------------------------------------------------------
+## --- Persistenza (R11, R26, R35, R36) ---------------------------------------
 -w /etc/crontab -p wa -k persistence
 -w /etc/cron.d/ -p wa -k persistence
 -w /etc/cron.daily/ -p wa -k persistence
@@ -77,7 +69,7 @@
 ## authorized_keys utenti (R26): /root/.ssh già coperto sopra; per gli utenti in
 ## /home aggiungere in finalizzazione watch mirate (es. -w /home/<u>/.ssh -p wa).
 
-## --- Anti-forensics / log tamper (R14 Defense Evasion) ----------------------
+## --- Anti-forensics / log tamper + timestomp (R14 Stealth, R45b) ------------
 -w /var/log/wtmp -p wa -k logtamper
 -w /var/log/btmp -p wa -k logtamper
 -w /var/log/lastlog -p wa -k logtamper
@@ -91,11 +83,11 @@
 # -a always,exit -F arch=b64 -S connect -F auid>=1000 -F auid!=unset -k network
 # -a always,exit -F arch=b32 -S connect -F auid>=1000 -F auid!=unset -k network
 
-## --- Moduli kernel (defense evasion / persistence avanzata) -----------------
+## --- Moduli kernel (stealth / persistence avanzata) -------------------------
 -a always,exit -F arch=b64 -S init_module -S finit_module -S delete_module -k modules
 -a always,exit -F arch=b32 -S init_module -S finit_module -S delete_module -k modules
 
-## --- io_uring: EVASIONE auditd (R17, T1562) ---------------------------------
+## --- io_uring: EVASIONE auditd (R17, T1685.004 defense_impairment) -----------
 ## io_uring esegue open/read/connect in contesto worker del kernel, aggirando i
 ## watch inode (es. -w /etc/shadow) e l'auditing dei syscall: nel purple-team una
 ## lettura di /etc/shadow via io_uring ha prodotto ZERO record. Auditare la
@@ -107,7 +99,7 @@
 ## Hardening alternativo/complementare (se io_uring non serve sul target):
 ##   sysctl kernel.io_uring_disabled=2   (blocca io_uring per tutti i processi)
 
-## --- Esecuzioni privilegiate NON-login (blind-spot auid) --------------------
+## --- Esecuzioni privilegiate NON-login (blind-spot auid) — R31 --------------
 ## Le regole execve sopra filtrano auid>=1000: un attaccante GIA' root (auid=0) o
 ## un servizio (auid=unset) resta invisibile. Qui auditiamo le execve con euid=0
 ## a prescindere dall'auid, escludendo l'auid>=1000 già coperto sopra, per non
@@ -115,5 +107,6 @@
 -a always,exit -F arch=b64 -S execve -S execveat -F euid=0 -F auid!=unset -F auid<1000 -k rootexec
 -a always,exit -F arch=b64 -S execve -S execveat -F euid=0 -F auid=unset -k rootexec
 
-## Rendere le regole immutabili fino al reboot (opzionale, per hardening forte):
-## -e 2
+## Rendere le regole immutabili fino al reboot (opzionale, hardening forte):
+## metterlo SOLO in un file che carica per ULTIMO (es. 99-*.rules), altrimenti
+## blocca il caricamento delle regole successive.  ->  -e 2

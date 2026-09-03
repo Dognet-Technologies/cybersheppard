@@ -14,7 +14,7 @@ import { Select, InfoTip } from '../components/ui';
 import { HELP } from '../i18n/help';
 import EventDrawer from '../components/EventDrawer';
 
-type Facet = 'source_host' | 'user_name' | 'event_category' | 'mitre_tactic' | 'sensor' | 'event_type';
+type Facet = 'source_host' | 'user_name' | 'event_category' | 'mitre_tactic' | 'sensor' | 'event_type' | 'audit_key';
 
 const FACETS: { key: Facet; label: string }[] = [
   { key: 'source_host', label: 'Host' },
@@ -23,11 +23,17 @@ const FACETS: { key: Facet; label: string }[] = [
   { key: 'user_name', label: 'Utente' },
   { key: 'mitre_tactic', label: 'Tattica ATT&CK' },
   { key: 'sensor', label: 'Sensore' },
+  // Regola auditd che ha raccolto l'evento (chiave -k propagata da Laurel).
+  { key: 'audit_key', label: 'Regola (key)' },
 ];
 
 const sensorOf = (e: any): string => (e?.event_data?.sensor === 'ebpf' ? 'ebpf' : 'auditd');
 const facetValue = (e: any, f: Facet): string =>
-  f === 'sensor' ? sensorOf(e) : (e?.[f] ?? '—');
+  f === 'sensor'
+    ? sensorOf(e)
+    : f === 'audit_key'
+    ? (e?.event_data?.key ?? '—')
+    : (e?.[f] ?? '—');
 
 const sevColor: Record<string, string> = {
   critical: 'bg-red-500', high: 'bg-orange-500', medium: 'bg-amber-400', low: 'bg-sky-400',

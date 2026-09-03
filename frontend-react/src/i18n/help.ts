@@ -276,6 +276,7 @@ export const HELP = {
     user_name: { it: 'Filtra per utente che ha generato l’evento.', en: 'Filter by the user that generated the event.' },
     mitre_tactic: { it: 'Filtra per tattica MITRE ATT&CK associata.', en: 'Filter by the associated MITRE ATT&CK tactic.' },
     sensor: { it: 'Filtra per sorgente: sensore eBPF (kernel) o auditd/Laurel.', en: 'Filter by source: eBPF sensor (kernel) or auditd/Laurel.' },
+    audit_key: { it: 'Filtra per regola auditd che ha raccolto l’evento (chiave -k, es. rootexec, credaccess, persistence). Utile per verificare quali regole — incluse le tue — stanno producendo dati.', en: 'Filter by the auditd rule that collected the event (its -k key, e.g. rootexec, credaccess, persistence). Useful to check which rules — including your own — are producing data.' },
   }),
 
   // --- Dashboard -----------------------------------------------------------
