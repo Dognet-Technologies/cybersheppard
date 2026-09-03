@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { tzAbbr } from '../utils/datetime';
 import { Cpu } from 'lucide-react';
 import api from '../services/api';
 import { Select, InfoTip } from '../components/ui';
@@ -162,7 +163,7 @@ export default function EventsExplorerView() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wide">
                   <tr>
-                    <th className="text-left px-3 py-2 font-medium">Ora</th>
+                    <th className="text-left px-3 py-2 font-medium">Ora ({tzAbbr()})</th>
                     <th className="text-left px-3 py-2 font-medium">Host</th>
                     <th className="text-left px-3 py-2 font-medium">Utente</th>
                     <th className="text-left px-3 py-2 font-medium">Processo</th>

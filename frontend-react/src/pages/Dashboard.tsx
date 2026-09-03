@@ -13,7 +13,7 @@ import {
   Shield,
   Zap,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { fmtTs } from '../utils/datetime';
 import {
   BarChart,
   Bar,
@@ -222,7 +222,7 @@ export default function Dashboard() {
                     {c.involved_hosts?.length ? ` · ${c.involved_hosts.slice(0, 2).join(', ')}` : ''}
                   </p>
                 </div>
-                <span className="text-xs text-gray-400 flex-shrink-0">{c.created_at ? format(new Date(c.created_at), 'HH:mm') : ''}</span>
+                <span className="text-xs text-gray-400 flex-shrink-0">{c.created_at ? fmtTs(c.created_at, 'HH:mm') : ''}</span>
               </div>
             ))}
           </div>

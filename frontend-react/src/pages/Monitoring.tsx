@@ -11,6 +11,7 @@ import api from '../services/api';
 import { Activity, Cpu, HardDrive, Network, Info, Server, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react';
 import { PageHeader, Card, CardHeader, StatsGrid, StatCard, Badge, InfoTip } from '../components/ui';
 import { HELP } from '../i18n/help';
+import { fmtTs } from '../utils/datetime';
 
 // Mappa stato sensore → etichetta/badge/icona/tooltip.
 const SENSOR_UI: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'default'; icon: JSX.Element; info: string }> = {
@@ -65,7 +66,7 @@ function SensorPanel() {
                       </span>
                     </td>
                     <td className="px-3 py-2 text-slate-600 text-xs">
-                      {s.last_event_at ? new Date(s.last_event_at).toLocaleString() : '—'}
+                      {fmtTs(s.last_event_at, 'dd/MM/yyyy HH:mm:ss')}
                       {s.event_minutes_ago != null && (
                         <span className="text-slate-400"> ({s.event_minutes_ago}m fa)</span>
                       )}
@@ -173,7 +174,7 @@ export default function Monitoring() {
         />
         <StatCard
           title="Ultimo dato"
-          value={lastSeen ? new Date(lastSeen).toLocaleString() : 'Mai'}
+          value={lastSeen ? fmtTs(lastSeen, 'dd/MM/yyyy HH:mm') : 'Mai'}
           icon={<HardDrive className="w-6 h-6" />}
           variant="default"
           info={HELP.monitoring.statLastData}

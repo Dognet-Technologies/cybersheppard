@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bell, AlertTriangle, ShieldAlert } from 'lucide-react';
 import api from '../services/api';
-import { format } from 'date-fns';
+import { fmtTs } from '../utils/datetime';
 import {
   Table,
   SeverityBadge,
@@ -74,7 +74,7 @@ export default function AlertsView() {
       sortable: true,
       info: HELP.alerts.colCreated,
       render: (row: any) => (
-        <div className="text-sm text-gray-600">{format(new Date(row.created_at), 'PPp')}</div>
+        <div className="text-sm text-gray-600">{fmtTs(row.created_at, 'PPp')}</div>
       ),
     },
     {
