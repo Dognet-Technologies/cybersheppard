@@ -40,7 +40,9 @@ fn d3fend_for_tactic(tactic: &str) -> Option<&'static str> {
         "persistence" => Some("D3-FIM"),                          // File Integrity Monitoring
         "lateral_movement" => Some("D3-NTF"),                     // Network Traffic Filtering
         "command_and_control" | "exfiltration" => Some("D3-OTF"), // Outbound Traffic Filtering
-        "defense_evasion" => Some("D3-FIM"),                      // File Integrity Monitoring (log tamper)
+        "stealth" => Some("D3-FIM"),                              // File Integrity Monitoring (masquerading/LOLBins)
+        "defense_impairment" => Some("D3-FIM"),                   // File Integrity Monitoring (tamper sensore/log)
+        "collection" => Some("D3-FE"),                            // File Encryption (dati raccolti/staging)
         "discovery" => Some("D3-PA"),                             // Process Analysis
         "impact" => Some("D3-FIM"),                               // File Integrity Monitoring
         _ => None,
@@ -66,8 +68,10 @@ fn technique_for_pattern(pattern: &str) -> Option<(&'static str, &'static str)> 
         "Discovery Burst" => Some(("T1082", "System Information Discovery")),
         "Root Asset Discovery" => Some(("T1083", "File and Directory Discovery")),
         "Defense Evasion" => Some(("T1070", "Indicator Removal")),
-        "io_uring Audit Evasion" => Some(("T1562", "Impair Defenses")),
-        "Sensor Silence" => Some(("T1562", "Impair Defenses")),
+        // MITRE v19: T1562 (Impair Defenses) REVOCATA → T1685.004 (Disable or
+        // Modify Linux Audit System Log), tattica defense_impairment.
+        "io_uring Audit Evasion" => Some(("T1685.004", "Disable or Modify Linux Audit System Log")),
+        "Sensor Silence" => Some(("T1685.004", "Disable or Modify Linux Audit System Log")),
         "Fileless Execution" => Some(("T1620", "Reflective Code Loading")),
         "eBPF Credential Access" => Some(("T1003", "OS Credential Dumping")),
         "Process Injection (ptrace)" => Some(("T1055", "Process Injection")),
@@ -86,6 +90,19 @@ fn technique_for_pattern(pattern: &str) -> Option<(&'static str, &'static str)> 
         "First-Seen User On Host" => Some(("T1078", "Valid Accounts")),
         "New Login Source" => Some(("T1078", "Valid Accounts")),
         "Service Account Shell" => Some(("T1059.004", "Unix Shell")),
+        // R35–R46 — roadmap copertura MITRE v19
+        "Scheduled Task Execution" => Some(("T1053.003", "Scheduled Task/Job: Cron")),
+        "Systemd Service Creation" => Some(("T1543.002", "Create or Modify System Process: Systemd Service")),
+        "Credentials In Files" => Some(("T1552.001", "Unsecured Credentials: Credentials In Files")),
+        "Container Escape" => Some(("T1611", "Escape to Host")),
+        "Data Staging" => Some(("T1074", "Data Staged")),
+        "Audit Log Disable" => Some(("T1685.004", "Disable or Modify Linux Audit System Log")),
+        "Ingress Tool Transfer" => Some(("T1105", "Ingress Tool Transfer")),
+        "Obfuscated Command" => Some(("T1027", "Obfuscated Files or Information")),
+        "Masquerading" => Some(("T1036", "Masquerading")),
+        "Clear Command History" => Some(("T1070.003", "Clear Command History")),
+        "Timestomp" => Some(("T1070.006", "Timestomp")),
+        "At Job Scheduling" => Some(("T1053.002", "Scheduled Task/Job: At")),
         _ => None, // es. "Anomaly Cluster": nessuna tecnica ATT&CK fissa
     }
 }
@@ -161,6 +178,20 @@ impl CorrelationEngine {
         correlations.extend(self.detect_first_seen_user_host(hours).await?); // R32
         correlations.extend(self.detect_new_login_source(hours).await?); // R33
         correlations.extend(self.detect_service_shell(hours).await?); // R34
+
+        // R35–R46 — roadmap copertura MITRE v19 (Fase 1 + ombrelli Fase 3)
+        correlations.extend(self.detect_scheduled_task_exec(hours).await?); // R35
+        correlations.extend(self.detect_systemd_service_creation(hours).await?); // R36
+        correlations.extend(self.detect_credentials_in_files(hours).await?); // R37
+        correlations.extend(self.detect_container_escape(hours).await?); // R39
+        correlations.extend(self.detect_data_staging(hours).await?); // R40
+        correlations.extend(self.detect_audit_log_disable(hours).await?); // R41
+        correlations.extend(self.detect_ingress_tool_transfer(hours).await?); // R42
+        correlations.extend(self.detect_obfuscated_command(hours).await?); // R43 (ombrello T1027)
+        correlations.extend(self.detect_masquerading(hours).await?); // R44 (ombrello T1036)
+        correlations.extend(self.detect_clear_history(hours).await?); // R45a
+        correlations.extend(self.detect_timestomp(hours).await?); // R45b
+        correlations.extend(self.detect_at_job(hours).await?); // R46
 
         info!("Total correlations detected: {}", correlations.len());
 
@@ -1173,6 +1204,493 @@ impl CorrelationEngine {
         Ok(out)
     }
 
+    // ========================================================================
+    // Roadmap copertura MITRE ATT&CK v19 — Fase 1 (R35–R42) + ombrelli Fase 3
+    // (R43–R46). Regole host-local, API sqlx runtime (niente cache .sqlx).
+    // Vedi docs/MITRE_ATTACK_ALIGNMENT_AND_ROADMAP.md.
+    // ========================================================================
+
+    /// R35 — Cron/Systemd Timer Execution (T1053.003/.006) — Persistence.
+    /// Intercetta l'ESECUZIONE del comando che crea il job (distinta da R11 che
+    /// intercetta la scrittura su /etc/cron*).
+    async fn detect_scheduled_task_exec(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name ~* '(^|/)(crontab|systemctl)$'
+              AND process_cmdline ~* '(crontab -e|crontab .*-r|systemctl (enable|start).*\.timer|systemctl link)'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Scheduled Task Execution",
+                format!("Creazione job pianificato (cron/systemd timer) su {host} da '{user}' ({cnt} eventi)"),
+                Severity::High, Self::calculate_confidence(cnt, 1, 3), Self::calculate_risk_score(cnt as f64, 1.0, 4.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }), AttackStage::Persistence,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R36 — Systemd Service File Creation (T1543.002) — Persistence.
+    async fn detect_systemd_service_creation(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT file_path) FILTER (WHERE file_path IS NOT NULL) AS files
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND file_path IS NOT NULL
+              AND (file_operation IS NULL OR file_operation NOT ILIKE '%read%')
+              AND file_path ~* '/(etc|usr/lib|lib)/systemd/system/.*\.service$'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let files: Vec<String> = r.try_get("files").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Systemd Service Creation",
+                format!("Creazione/modifica di unit systemd .service su {host} da '{user}' ({cnt} eventi)"),
+                Severity::High, Self::calculate_confidence(cnt, 1, 3), Self::calculate_risk_score(cnt as f64, 1.0, 4.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], files.clone(),
+                json!({ "files": files }), AttackStage::Persistence,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R37 — Credentials in Files (T1552.001) — CredentialAccess.
+    /// NB: falsi positivi possibili (proprietario che legge il proprio file); i
+    /// path applicativi vanno watchati lato auditd per generare l'evento.
+    async fn detect_credentials_in_files(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT file_path) FILTER (WHERE file_path IS NOT NULL) AS files
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND file_path IS NOT NULL
+              AND file_operation ILIKE '%read%'
+              AND user_name IS NOT NULL
+              AND (
+                    file_path ~* '\.bash_history$'
+                    OR file_path ~* '\.(pgpass|netrc|my\.cnf)$'
+                    OR file_path ~* '/\.aws/credentials$'
+                    OR file_path ~* '/\.ssh/id_(rsa|ed25519|ecdsa)$'
+                    OR file_path ~* '\.env$'
+                  )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let files: Vec<String> = r.try_get("files").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Credentials In Files",
+                format!("Lettura di file con credenziali su {host} da '{user}': {} ({cnt} eventi)", files.join(", ")),
+                Severity::High, Self::calculate_confidence(cnt, 1, 4), Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], files.clone(),
+                json!({ "files": files }), AttackStage::CredentialAccess,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R39 — Container Escape Indicators (T1611) — PrivilegeEscalation.
+    async fn detect_container_escape(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND (
+                    process_cmdline ~* 'nsenter|unshare.*--mount|/proc/[0-9]+/root'
+                    OR (file_path ~* '^/host' AND (file_operation ILIKE '%write%' OR file_operation ILIKE '%exec%'))
+                    OR file_path = '/var/run/docker.sock'
+                  )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Container Escape",
+                format!("Indicatori di container escape su {host} da '{user}' ({cnt} eventi)"),
+                Severity::Critical, Self::calculate_confidence(cnt, 1, 2), Self::calculate_risk_score(cnt as f64, 1.0, 2.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }), AttackStage::PrivilegeEscalation,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R40 — Data Staging / Archive Collected Data (T1074/T1560) — Collection.
+    async fn detect_data_staging(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name ~* '(^|/)(tar|zip|gzip|7z|7za|xz|bzip2)$'
+              AND process_cmdline ~* '(/tmp/|/var/tmp/|/dev/shm/)'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Data Staging",
+                format!("Archiviazione dati verso path temporaneo su {host} da '{user}' ({cnt} eventi)"),
+                Severity::Medium, Self::calculate_confidence(cnt, 1, 4), Self::calculate_risk_score(cnt as f64, 1.0, 6.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }), AttackStage::Collection,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R41 — Disable/Modify Linux Audit System Log (T1685.004) — DefenseImpairment.
+    /// Comando esplicito di stop/disable del sensore (complementare a R17/R18).
+    async fn detect_audit_log_disable(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name ~* '(^|/)(systemctl|service|auditctl)$'
+              AND process_cmdline ~* '((stop|disable|mask) (auditd|laurel|rsyslog|fail2ban|firedog)|auditctl -e 0|auditctl -D)'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Audit Log Disable",
+                format!("Tentativo di disabilitare il sensore audit/log su {host} da '{user}' ({cnt} eventi)"),
+                Severity::Critical, Self::calculate_confidence(cnt, 1, 2), Self::calculate_risk_score(cnt as f64, 1.0, 2.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }), AttackStage::DefenseImpairment,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R42 — Ingress Tool Transfer (T1105) — CommandAndControl.
+    async fn detect_ingress_tool_transfer(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND (
+                    (process_name ~* '(^|/)(curl|wget)$' AND process_cmdline ~* '(-o|--output|-O)')
+                    OR process_name ~* '(^|/)scp$'
+                  )
+              AND process_cmdline ~* '(/tmp/|/var/tmp/|/dev/shm/)'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Ingress Tool Transfer",
+                format!("Download di file verso path temporaneo su {host} da '{user}' ({cnt} eventi)"),
+                Severity::Medium, Self::calculate_confidence(cnt, 1, 4), Self::calculate_risk_score(cnt as f64, 1.0, 6.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }), AttackStage::CommandAndControl,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R43 — OMBRELLO: Obfuscated/Encoded Command (famiglia T1027) — Stealth.
+    /// Un'unica euristica sul process_cmdline copre più sotto-tecniche che
+    /// condividono lo stesso segnale (payload non in chiaro).
+    async fn detect_obfuscated_command(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_cmdline IS NOT NULL
+              AND (
+                    process_cmdline ~* 'base64 (-d|--decode)'
+                    OR process_cmdline ~* 'echo[^|]*\|[[:space:]]*base64'
+                    OR process_cmdline ~* 'eval[[:space:]]+.*\$\('
+                    OR process_cmdline ~* 'xxd -r'
+                    OR process_cmdline ~* 'printf.*\\x[0-9a-f]{2}'
+                    OR process_cmdline ~* '(python[0-9]?|perl).*(b64decode|pack\()'
+                  )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Obfuscated Command",
+                format!("Comando offuscato/codificato su {host} da '{user}' ({cnt} eventi)"),
+                Severity::High, Self::calculate_confidence(cnt, 1, 3), Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds, "family": "T1027" }), AttackStage::Stealth,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R44 — OMBRELLO: Masquerading (famiglia T1036) — Stealth.
+    /// Binario col nome di un eseguibile di sistema ma da percorso non standard,
+    /// oppure nome con spazio finale (T1036.006).
+    async fn detect_masquerading(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_name) FILTER (WHERE process_name IS NOT NULL) AS procs
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name IS NOT NULL
+              AND (
+                    ( process_name ~* '/(sshd|systemd|crond?|bash|dash|sudo|agetty)$'
+                      AND process_name !~ '^/(usr/)?s?bin/'
+                      AND process_name !~ '^/usr/lib/' )
+                    OR process_name ~ ' $'
+                  )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let procs: Vec<String> = r.try_get("procs").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Masquerading",
+                format!("Processo che imita un binario di sistema da percorso anomalo su {host} da '{user}' ({cnt} eventi)"),
+                Severity::High, Self::calculate_confidence(cnt, 1, 3), Self::calculate_risk_score(cnt as f64, 1.0, 5.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], procs.clone(),
+                json!({ "processes": procs, "family": "T1036" }), AttackStage::Stealth,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R45a — Clear Command History (T1070.003) — Stealth.
+    async fn detect_clear_history(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND (
+                    process_cmdline ~* 'history -c|unset HISTFILE|export HISTSIZE=0|HISTFILE=/dev/null'
+                    OR (file_path ~* '\.bash_history$' AND file_operation ILIKE '%delete%')
+                  )
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Clear Command History",
+                format!("Cancellazione/disabilitazione della cronologia comandi su {host} da '{user}' ({cnt} eventi)"),
+                Severity::High, Self::calculate_confidence(cnt, 1, 2), Self::calculate_risk_score(cnt as f64, 1.0, 3.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }), AttackStage::Stealth,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R45b — Timestomp (T1070.006) — Stealth.
+    async fn detect_timestomp(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name ~* '(^|/)touch$'
+              AND process_cmdline ~* '(-t |-d |--date|-r )'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "Timestomp",
+                format!("Alterazione dei timestamp dei file (touch -t/-d) su {host} da '{user}' ({cnt} eventi)"),
+                Severity::High, Self::calculate_confidence(cnt, 1, 3), Self::calculate_risk_score(cnt as f64, 1.0, 4.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }), AttackStage::Stealth,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// R46 — At Job Scheduling (T1053.002) — Persistence.
+    async fn detect_at_job(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT source_host, user_name,
+                   COUNT(*) AS cnt, MIN(timestamp) AS first_t, MAX(timestamp) AS last_t,
+                   array_agg(DISTINCT process_cmdline) FILTER (WHERE process_cmdline IS NOT NULL) AS cmds
+            FROM security_events
+            WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+              AND process_name ~* '(^|/)at$'
+            GROUP BY source_host, user_name
+            HAVING COUNT(*) >= 1
+            "#,
+        )
+        .bind(hours as f64)
+        .fetch_all(&self.db)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            let cnt: i64 = r.try_get("cnt").unwrap_or(0);
+            let host: String = r.try_get("source_host").unwrap_or_default();
+            let user: String = r.try_get::<Option<String>, _>("user_name").ok().flatten().unwrap_or_else(|| "unknown".into());
+            let cmds: Vec<String> = r.try_get("cmds").unwrap_or_default();
+            let first = r.try_get::<chrono::DateTime<Utc>, _>("first_t").unwrap_or_else(|_| Utc::now());
+            let last = r.try_get::<chrono::DateTime<Utc>, _>("last_t").unwrap_or_else(|_| Utc::now());
+            out.push(Self::build_correlation(
+                CorrelationType::Sequence, "At Job Scheduling",
+                format!("Pianificazione job con 'at' su {host} da '{user}' ({cnt} eventi)"),
+                Severity::Medium, Self::calculate_confidence(cnt, 1, 3), Self::calculate_risk_score(cnt as f64, 1.0, 4.0),
+                first, last, cnt as i32, vec![user], vec![host], vec![], cmds.clone(),
+                json!({ "commands": cmds }), AttackStage::Persistence,
+            ));
+        }
+        Ok(out)
+    }
+
     /// R6 — Esecuzione sospetta (reverse-shell/interprete). Euristica 1-hop sul
     /// lignaggio di processo (una catena antenati completa da Laurel è TODO).
     async fn detect_suspicious_process(&self, hours: i32) -> Result<Vec<EventCorrelation>> {
@@ -1527,7 +2045,7 @@ impl CorrelationEngine {
         Ok(out)
     }
 
-    /// R17 — **io_uring Audit Evasion** (T1562, Impair Defenses).
+    /// R17 — **io_uring Audit Evasion** (T1685.004, Disable/Modify Linux Audit System Log — MITRE v19).
     /// io_uring esegue open/read/connect in contesto worker del kernel, aggirando
     /// sia i watch auditd basati su inode sia l'auditing dei syscall: nel lab una
     /// lettura di `/etc/shadow` via io_uring ha prodotto **zero** record. La difesa
@@ -1576,13 +2094,13 @@ impl CorrelationEngine {
                 vec![],
                 vec![proc],
                 json!({ "note": "io_uring bypassa i watch inode e l'auditing syscall; verificare l'attività del processo" }),
-                AttackStage::DefenseEvasion,
+                AttackStage::DefenseImpairment,
             ));
         }
         Ok(out)
     }
 
-    /// R18 — **Sensor Silence** (T1562, Impair Defenses).
+    /// R18 — **Sensor Silence** (T1685.004, Disable/Modify Linux Audit System Log — MITRE v19).
     /// Purple-team: uccidere il processo Laurel è inefficace (auditd lo respawna),
     /// ma un attaccante root può fermare auditd o disabilitare il plugin: nessun
     /// record locale lo segnala ("dead men tell no tales"). Difesa **server-side**:
@@ -1626,7 +2144,7 @@ impl CorrelationEngine {
                 vec![],
                 vec![],
                 json!({ "note": "agent connesso e metriche attive, ma pipeline eventi ferma", "last_event": last.to_rfc3339() }),
-                AttackStage::DefenseEvasion,
+                AttackStage::DefenseImpairment,
             ));
         }
         Ok(out)
@@ -1774,7 +2292,7 @@ impl CorrelationEngine {
                 vec![],
                 vec![proc],
                 json!({ "sensor": "ebpf", "note": "security_ptrace_access_check" }),
-                AttackStage::DefenseEvasion,
+                AttackStage::Stealth,
             ));
         }
         Ok(out)
@@ -1868,7 +2386,7 @@ impl CorrelationEngine {
                 vec![],
                 vec![proc],
                 json!({ "note": "LD_PRELOAD verso percorso file in execve (T1574.006)" }),
-                AttackStage::DefenseEvasion,
+                AttackStage::Stealth,
             ));
         }
         Ok(out)
@@ -1920,7 +2438,7 @@ impl CorrelationEngine {
                 vec![],
                 cmds.clone(),
                 json!({ "commands": cmds }),
-                AttackStage::DefenseEvasion,
+                AttackStage::Stealth,
             ));
         }
         Ok(out)

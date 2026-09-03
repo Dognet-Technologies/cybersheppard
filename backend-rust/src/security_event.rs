@@ -275,8 +275,13 @@ pub enum AttackStage {
     Collection,
     #[serde(rename = "exfiltration")]
     Exfiltration,
-    #[serde(rename = "defense_evasion")]
-    DefenseEvasion,
+    // MITRE ATT&CK v19 (28 apr 2026): Defense Evasion (TA0005) divisa in due
+    // tattiche per intento: Stealth (l'attaccante si nasconde, i controlli
+    // restano intatti) e Defense Impairment (l'attaccante rompe i controlli).
+    #[serde(rename = "stealth")]
+    Stealth,
+    #[serde(rename = "defense_impairment")]
+    DefenseImpairment,
     #[serde(rename = "discovery")]
     Discovery,
     #[serde(rename = "command_and_control")]
@@ -297,7 +302,8 @@ impl std::fmt::Display for AttackStage {
             AttackStage::LateralMovement => write!(f, "lateral_movement"),
             AttackStage::Collection => write!(f, "collection"),
             AttackStage::Exfiltration => write!(f, "exfiltration"),
-            AttackStage::DefenseEvasion => write!(f, "defense_evasion"),
+            AttackStage::Stealth => write!(f, "stealth"),
+            AttackStage::DefenseImpairment => write!(f, "defense_impairment"),
             AttackStage::Discovery => write!(f, "discovery"),
             AttackStage::CommandAndControl => write!(f, "command_and_control"),
             AttackStage::Impact => write!(f, "impact"),
