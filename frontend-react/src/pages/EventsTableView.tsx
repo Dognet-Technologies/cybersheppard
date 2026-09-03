@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Shield, AlertTriangle, Activity, Cpu } from 'lucide-react';
 import api from '../services/api';
@@ -23,10 +24,12 @@ import EventDrawer from '../components/EventDrawer';
 const sensorOf = (e: any): 'ebpf' | 'auditd' => (e?.event_data?.sensor === 'ebpf' ? 'ebpf' : 'auditd');
 
 export default function EventsTableView() {
+  const [searchParams] = useSearchParams();
   const [hours, setHours] = useState(24);
   const [selectedSeverity, setSelectedSeverity] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedHost, setSelectedHost] = useState('all');
+  // Host preselezionabile via URL (?host=...), es. deep-link dalla Dashboard.
+  const [selectedHost, setSelectedHost] = useState(searchParams.get('host') || 'all');
   const [selected, setSelected] = useState<any>(null);
 
   const { data: response, isLoading } = useQuery({
