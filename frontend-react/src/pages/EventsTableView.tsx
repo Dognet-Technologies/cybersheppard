@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Shield, AlertTriangle, Activity, Cpu } from 'lucide-react';
 import api from '../services/api';
 import { format } from 'date-fns';
+import { tzAbbr } from '../utils/datetime';
 import {
   SeverityBadge,
   StatsGrid,
@@ -121,7 +122,7 @@ export default function EventsTableView() {
             <thead className="sticky top-0 bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wide">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Severità</th>
-                <th className="text-left px-3 py-2 font-medium">Ora</th>
+                <th className="text-left px-3 py-2 font-medium">Ora ({tzAbbr()})</th>
                 <th className="text-left px-3 py-2 font-medium">Host</th>
                 <th className="text-left px-3 py-2 font-medium">Categoria</th>
                 <th className="text-left px-3 py-2 font-medium">Evento</th>

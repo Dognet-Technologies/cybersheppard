@@ -14,7 +14,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 import { AlertTriangle, CheckCircle, Activity, Cpu, X, ChevronRight, ChevronDown } from 'lucide-react';
-import { format } from 'date-fns';
+import { fmtTs } from '../utils/datetime';
 import { Badge, StatsGrid, StatCard, EmptyState, Select, InfoTip } from '../components/ui';
 import { HELP } from '../i18n/help';
 import { getGroupWindowMin } from '../utils/prefs';
@@ -237,7 +237,7 @@ export default function CorrelationsList() {
                         </td>
                         <td className="px-3 py-2 text-slate-600">{(c.involved_hosts || []).slice(0, 2).join(', ') || '—'}</td>
                         <td className="px-3 py-2 text-slate-700 font-mono text-xs">{c.risk_score ? Number(c.risk_score).toFixed(0) : '—'}/100</td>
-                        <td className="px-3 py-2 text-slate-500 text-xs whitespace-nowrap">{c.last_event_time ? format(new Date(c.last_event_time), 'dd/MM HH:mm') : '—'}</td>
+                        <td className="px-3 py-2 text-slate-500 text-xs whitespace-nowrap">{fmtTs(c.last_event_time, 'dd/MM HH:mm')}</td>
                         <td className="px-3 py-2">
                           {multi
                             ? <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-full text-xs font-bold bg-blue-600 text-white">×{g.items.length}</span>
@@ -253,7 +253,7 @@ export default function CorrelationsList() {
                             <div className="space-y-1">
                               {g.items.slice().sort((a, b) => tsOf(b) - tsOf(a)).map((o) => (
                                 <div key={o.id} className="flex items-center gap-3 text-xs text-slate-600 font-mono">
-                                  <span className="text-slate-400">{o.last_event_time ? format(new Date(o.last_event_time), 'dd/MM/yyyy HH:mm:ss') : '—'}</span>
+                                  <span className="text-slate-400">{fmtTs(o.last_event_time, 'dd/MM/yyyy HH:mm:ss')}</span>
                                   <span>risk {o.risk_score ? Number(o.risk_score).toFixed(0) : '—'}</span>
                                   <span>{o.event_count ?? 0} eventi</span>
                                   <span className="truncate">{(o.involved_users || []).join(', ')}</span>

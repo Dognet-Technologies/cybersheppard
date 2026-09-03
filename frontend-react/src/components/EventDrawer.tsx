@@ -5,9 +5,9 @@
 // ============================================================================
 
 import { useState } from 'react';
-import { format } from 'date-fns';
 import { X, Cpu, ChevronRight } from 'lucide-react';
 import { Badge } from './ui';
+import { fmtTs } from '../utils/datetime';
 
 export default function EventDrawer({ event, onClose }: { event: any; onClose: () => void }) {
   const raw = event.event_data?.laurel_raw;
@@ -29,7 +29,7 @@ export default function EventDrawer({ event, onClose }: { event: any; onClose: (
       <aside className="fixed right-0 top-0 h-full w-[min(560px,92vw)] bg-white shadow-2xl z-50 flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
           <div>
-            <div className="text-xs text-slate-400">{event.timestamp && format(new Date(event.timestamp), 'PPpp')}</div>
+            <div className="text-xs text-slate-400">{event.timestamp && fmtTs(event.timestamp, 'PPpp')}</div>
             <div className="text-lg font-semibold text-slate-800">{event.event_type}</div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded hover:bg-slate-100"><X className="w-5 h-5 text-slate-500" /></button>
