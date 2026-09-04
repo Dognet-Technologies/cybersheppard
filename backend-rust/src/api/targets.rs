@@ -26,6 +26,7 @@ use crate::AppState;
 pub struct CreateTargetRequest {
     pub hostname: String,
     pub ip_address: String,
+    pub mac_address: Option<String>,
     pub ssh_port: Option<i32>,
     pub ssh_username: Option<String>,
     pub ssh_key_id: Option<i32>,
@@ -280,14 +281,29 @@ async fn create_target(
     // Convert tags to JSON
     let tags_json = payload.tags.map(|tags| json!(tags));
 
+    // Identità per il pairing agent (stile FireDog): SHA512(ip+hostname+mac),
+    // calcolata solo se il MAC è fornito. La stessa stringa è ricomposta
+    // dall'agent in fase 2 di pairing (ip+hostname+mac, mac in minuscolo).
+    let mac_norm = payload
+        .mac_address
+        .as_ref()
+        .map(|m| m.trim().to_lowercase())
+        .filter(|m| !m.is_empty());
+    let identity_hash: Option<String> = mac_norm.as_ref().map(|mac| {
+        use sha2::{Digest, Sha512};
+        let mut h = Sha512::new();
+        h.update(format!("{}{}{}", payload.ip_address, payload.hostname, mac));
+        h.finalize().iter().map(|b| format!("{:02x}", b)).collect::<String>()
+    });
+
     let target = sqlx::query_as::<_, Target>(
         r#"
         INSERT INTO targets (
-            hostname, ip_address, ssh_port, ssh_username, ssh_key_id,
+            hostname, ip_address, mac_address, identity_hash, ssh_port, ssh_username, ssh_key_id,
             role, environment, gruppo, tags, compliance_standard,
             monitoring_enabled, monitoring_interval_seconds
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2::inet, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
                   role, environment, gruppo, tags, compliance_standard,
                   status, status_message, last_seen, last_check,
@@ -298,6 +314,8 @@ async fn create_target(
     )
     .bind(&payload.hostname)
     .bind(&payload.ip_address)
+    .bind(mac_norm)
+    .bind(identity_hash)
     .bind(payload.ssh_port.unwrap_or(22))
     .bind(payload.ssh_username.unwrap_or_else(|| "microcyber".to_string()))
     .bind(payload.ssh_key_id)
