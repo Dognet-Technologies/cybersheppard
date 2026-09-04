@@ -9,11 +9,13 @@ import { Server, CheckCircle, XCircle, Trash2, Edit, Activity, Plus, Link2 } fro
 import AddTargetModal from '../components/AddTargetModal';
 import EditTargetModal from '../components/EditTargetModal';
 import PairingModal from '../components/PairingModal';
-import { PageHeader, Button, Card, EmptyState, StatusBadge, Badge } from '../components/ui';
+import { PageHeader, Button, Card, EmptyState, StatusBadge, Badge, Modal } from '../components/ui';
 import { HELP } from '../i18n/help';
 
 export default function Targets() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // Target in attesa di conferma eliminazione (null = nessuna conferma aperta).
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; hostname: string } | null>(null);
   const queryClient = useQueryClient();
 
   const { data: targets, isLoading } = useQuery({
@@ -25,13 +27,13 @@ export default function Targets() {
     mutationFn: (id: number) => api.deleteTarget(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['targets'] });
+      setPendingDelete(null);
     },
   });
 
-  const handleDelete = async (id: number, hostname: string) => {
-    if (confirm(`Are you sure you want to delete target "${hostname}"?`)) {
-      deleteMutation.mutate(id);
-    }
+  // Apre la modale di conferma (l'eliminazione effettiva avviene su conferma).
+  const handleDelete = (id: number, hostname: string) => {
+    setPendingDelete({ id, hostname });
   };
 
   if (isLoading) {
@@ -84,6 +86,40 @@ export default function Targets() {
       )}
 
       <AddTargetModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
+
+      <Modal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleteMutation.isPending && setPendingDelete(null)}
+        title="Elimina target"
+        subtitle={pendingDelete ? `${pendingDelete.hostname} verrà rimosso definitivamente` : undefined}
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPendingDelete(null)} disabled={deleteMutation.isPending}>
+              Annulla
+            </Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 className="w-4 h-4" />}
+              onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Eliminazione…' : 'Elimina'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">
+          Sei sicuro di voler eliminare il target{' '}
+          <strong className="text-gray-900">{pendingDelete?.hostname}</strong>? L'operazione è
+          irreversibile: verranno rimossi anche l'associazione dell'agent e la relativa configurazione lato server.
+        </p>
+        {deleteMutation.isError && (
+          <div className="mt-3 bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm">
+            Eliminazione non riuscita. Riprova.
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
