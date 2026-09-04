@@ -96,15 +96,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         alert_broadcaster: alert_broadcaster.clone(),
     };
 
-    // Start monitoring scheduler in background
-    let scheduler = std::sync::Arc::new(services::scheduler::MonitoringScheduler::new(
-        pg_pool.clone(),
-        std::sync::Arc::new(influx_client.clone()),
-    ));
-    tokio::spawn(async move {
-        scheduler.start().await;
-    });
-    tracing::info!("✅ Monitoring scheduler started");
+    // Nota: la raccolta metriche/eventi è push-based via agent (WebSocket
+    // /api/agents/ws). Il vecchio scheduler SSH-pull (collector + influxdb_writer)
+    // è stato rimosso in quanto architettura legacy non più utilizzata.
 
     // Start hardening executor background loop
     let executor_clone = hardening_executor.clone();
