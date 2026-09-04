@@ -131,6 +131,7 @@ pub fn routes() -> Router<crate::AppState> {
         .route("/:id", get(get_target).put(update_target).delete(delete_target))
         .route("/:id/status", get(get_target_status))
         .route("/:id/test-connection", post(test_target_connection))
+        .route("/:id/pairing", post(start_pairing).get(get_pairing_status))
 }
 
 // ============================================================================
@@ -631,4 +632,126 @@ async fn test_target_connection(
         "status": "not_implemented",
         "message": "SSH connection testing will be implemented with Django integration"
     })))
+}
+
+// ============================================================================
+// Agent pairing (stile FireDog — finestra 3 minuti)
+// ============================================================================
+
+/// Avvia una finestra di pairing di 3 minuti per il target.
+/// L'agent, avviato sul target entro la finestra, presenta ip/hostname/mac:
+/// il server calcola SHA512(ip+hostname+mac) e lo confronta con `identity_hash`.
+async fn start_pairing(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    _manager: ManagerUser,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    use sqlx::Row;
+
+    // Il target deve esistere e avere un'identità registrata (mac/identity_hash).
+    let target = sqlx::query("SELECT identity_hash, agent_auth_token FROM targets WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.pg_pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse { error: "Target not found".to_string() }),
+            )
+        })?;
+
+    let identity_hash: Option<String> = target.try_get("identity_hash").ok().flatten();
+    if identity_hash.as_deref().unwrap_or("").is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Target senza identità (MAC mancante): impossibile avviare il pairing".to_string(),
+            }),
+        ));
+    }
+
+    // Scade eventuali sessioni ancora aperte per lo stesso target.
+    let _ = sqlx::query(
+        "UPDATE pairing_sessions SET status = 'expired' \
+         WHERE target_id = $1 AND status IN ('pending','verifying_hash')",
+    )
+    .bind(id)
+    .execute(&state.pg_pool)
+    .await;
+
+    let row = sqlx::query(
+        "INSERT INTO pairing_sessions (target_id, status, expires_at) \
+         VALUES ($1, 'pending', now() + interval '3 minutes') \
+         RETURNING id, expires_at",
+    )
+    .bind(id)
+    .fetch_one(&state.pg_pool)
+    .await
+    .map_err(db_err)?;
+
+    let session_id: i32 = row.try_get("id").map_err(db_err)?;
+    let expires_at: DateTime<Utc> = row.try_get("expires_at").map_err(db_err)?;
+
+    Ok(Json(json!({
+        "session_id": session_id,
+        "target_id": id,
+        "status": "pending",
+        "expires_at": expires_at.to_rfc3339(),
+        "window_seconds": 180,
+    })))
+}
+
+/// Poll dello stato dell'ultima sessione di pairing del target.
+async fn get_pairing_status(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    _auth: AuthUser,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    use sqlx::Row;
+
+    let row = sqlx::query(
+        "SELECT id, status, phase_1_verified, phase_2_verified, error_message, \
+                expires_at, completed_at, agent_ip, agent_hostname, agent_mac \
+         FROM pairing_sessions WHERE target_id = $1 ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pg_pool)
+    .await
+    .map_err(db_err)?;
+
+    let Some(row) = row else {
+        return Ok(Json(json!({ "status": "none", "target_id": id })));
+    };
+
+    let status: String = row.try_get("status").unwrap_or_else(|_| "unknown".to_string());
+    let expires_at: Option<DateTime<Utc>> = row.try_get("expires_at").ok();
+    // Se scaduta ma ancora "pending", riporta 'expired' (la scadenza è lazy).
+    let effective = match (&status[..], expires_at) {
+        ("pending" | "verifying_hash", Some(exp)) if exp < Utc::now() => "expired".to_string(),
+        _ => status,
+    };
+
+    Ok(Json(json!({
+        "session_id": row.try_get::<i32, _>("id").ok(),
+        "target_id": id,
+        "status": effective,
+        "phase_1_verified": row.try_get::<bool, _>("phase_1_verified").unwrap_or(false),
+        "phase_2_verified": row.try_get::<bool, _>("phase_2_verified").unwrap_or(false),
+        "error_message": row.try_get::<Option<String>, _>("error_message").ok().flatten(),
+        "expires_at": expires_at.map(|d| d.to_rfc3339()),
+        "completed_at": row.try_get::<Option<DateTime<Utc>>, _>("completed_at").ok().flatten().map(|d| d.to_rfc3339()),
+        "agent_ip": row.try_get::<Option<String>, _>("agent_ip").ok().flatten(),
+        "agent_hostname": row.try_get::<Option<String>, _>("agent_hostname").ok().flatten(),
+        "agent_mac": row.try_get::<Option<String>, _>("agent_mac").ok().flatten(),
+    })))
+}
+
+/// Helper: mappa un errore sqlx a una 500 con messaggio generico.
+fn db_err(e: sqlx::Error) -> (StatusCode, Json<ErrorResponse>) {
+    tracing::error!(error = %e, "pairing db error");
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse { error: "Database error".to_string() }),
+    )
 }

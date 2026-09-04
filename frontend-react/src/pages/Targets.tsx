@@ -5,8 +5,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
-import { Server, CheckCircle, XCircle, Trash2, Edit, Activity, Plus } from 'lucide-react';
+import { Server, CheckCircle, XCircle, Trash2, Edit, Activity, Plus, Link2 } from 'lucide-react';
 import AddTargetModal from '../components/AddTargetModal';
+import PairingModal from '../components/PairingModal';
 import { PageHeader, Button, Card, EmptyState, StatusBadge, Badge } from '../components/ui';
 import { HELP } from '../i18n/help';
 
@@ -87,6 +88,8 @@ export default function Targets() {
 }
 
 function TargetCard({ target, onDelete }: any) {
+  const [isPairingOpen, setIsPairingOpen] = useState(false);
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'online':
@@ -170,20 +173,33 @@ function TargetCard({ target, onDelete }: any) {
         )}
       </div>
 
-      <div className="flex items-center gap-2 pt-4 border-t border-gray-200">
-        <Button variant="ghost" size="sm" className="flex-1" icon={<Edit className="w-4 h-4" />}>
-          Edit
-        </Button>
+      <div className="pt-4 border-t border-gray-200 space-y-2">
         <Button
-          variant="ghost"
+          variant="primary"
           size="sm"
-          className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-          icon={<Trash2 className="w-4 h-4" />}
-          onClick={() => onDelete(target.id, target.hostname)}
+          className="w-full"
+          icon={<Link2 className="w-4 h-4" />}
+          onClick={() => setIsPairingOpen(true)}
         >
-          Delete
+          Agent pairing
         </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="flex-1" icon={<Edit className="w-4 h-4" />}>
+            Edit
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+            icon={<Trash2 className="w-4 h-4" />}
+            onClick={() => onDelete(target.id, target.hostname)}
+          >
+            Delete
+          </Button>
+        </div>
       </div>
+
+      <PairingModal isOpen={isPairingOpen} onClose={() => setIsPairingOpen(false)} target={target} />
     </Card>
   );
 }

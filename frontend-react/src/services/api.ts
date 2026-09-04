@@ -119,6 +119,18 @@ class ApiService {
     return response.data;
   }
 
+  // Avvia una finestra di pairing (3 min) per l'agent del target.
+  async startPairing(id: number) {
+    const response = await this.client.post(`/api/targets/${id}/pairing`);
+    return response.data;
+  }
+
+  // Poll dello stato dell'ultima sessione di pairing del target.
+  async getPairingStatus(id: number) {
+    const response = await this.client.get(`/api/targets/${id}/pairing`);
+    return response.data;
+  }
+
   // ========================================================================
   // COMPLIANCE
   // ========================================================================

@@ -40,6 +40,9 @@ enum MessageType {
     /// Batch di eventi di sicurezza (auditd arricchiti da Laurel) inoltrati
     /// dall'agent, compressi come le metriche.
     SecurityEvents,
+    /// Richiesta di pairing per-identità (stile FireDog): payload con
+    /// api_key + ip/hostname/mac. Alternativa ad Auth come primo messaggio.
+    PairRequest,
 }
 
 pub fn routes() -> Router<AppState> {
@@ -58,16 +61,18 @@ async fn handle_agent_socket(socket: WebSocket, state: AppState) {
 
     info!("Agent WebSocket connected");
 
-    // Wait for authentication
-    let target_id = match authenticate_agent(&mut ws_receiver, &state.pg_pool).await {
-        Ok(id) => {
+    // Wait for authentication (Auth a token oppure PairRequest per-identità)
+    let target_id = match authenticate_agent(&mut ws_receiver, &mut ws_sender, &state.pg_pool).await {
+        Ok((id, already_acked)) => {
             info!("Agent authenticated: target_id={}", id);
-            // The agent waits for this AuthAck (30s timeout) before streaming
-            // metrics. Without it the agent times out and reconnects forever.
-            let ack = serde_json::json!({ "msg_type": "auth_ack", "success": true });
-            if ws_sender.send(Message::Text(ack.to_string())).await.is_err() {
-                error!("Failed to send AuthAck to agent (target_id={})", id);
-                return;
+            // The agent waits for AuthAck (30s timeout) before streaming metrics.
+            // Nel pairing l'ack è già stato dato via pairing_status: non duplicare.
+            if !already_acked {
+                let ack = serde_json::json!({ "msg_type": "auth_ack", "success": true });
+                if ws_sender.send(Message::Text(ack.to_string())).await.is_err() {
+                    error!("Failed to send AuthAck to agent (target_id={})", id);
+                    return;
+                }
             }
             id
         }
@@ -143,44 +148,138 @@ async fn handle_agent_socket(socket: WebSocket, state: AppState) {
     let _ = update_target_status(&state.pg_pool, target_id, "offline", false).await;
 }
 
+/// Autenticazione primo messaggio: `Auth` (token, retro-compat) oppure
+/// `PairRequest` (pairing per-identità stile FireDog). Ritorna
+/// (target_id, already_acked): nel pairing l'ack è già dato via pairing_status.
 async fn authenticate_agent(
     receiver: &mut futures_util::stream::SplitStream<WebSocket>,
+    sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
     db: &PgPool,
-) -> anyhow::Result<i32> {
-    // Wait for auth message with timeout
-    let timeout = tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        receiver.next()
-    ).await?;
+) -> anyhow::Result<(i32, bool)> {
+    let timeout = tokio::time::timeout(std::time::Duration::from_secs(30), receiver.next()).await?;
 
     if let Some(Ok(Message::Text(text))) = timeout {
         let msg: AgentMessage = serde_json::from_str(&text)?;
 
-        if !matches!(msg.msg_type, MessageType::Auth) {
-            anyhow::bail!("Expected auth message");
+        match msg.msg_type {
+            MessageType::Auth => {
+                use sqlx::Row;
+                let auth_token = msg.payload["auth_token"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("Missing auth_token"))?;
+                let row = sqlx::query(
+                    "SELECT id FROM targets WHERE id = $1 AND agent_auth_token = $2",
+                )
+                .bind(msg.target_id)
+                .bind(auth_token)
+                .fetch_one(db)
+                .await?;
+                let id: i32 = row.try_get("id")?;
+                Ok((id, false))
+            }
+            MessageType::PairRequest => {
+                let id = do_pairing(&msg, sender, db).await?;
+                Ok((id, true))
+            }
+            _ => anyhow::bail!("Expected auth or pair_request message"),
         }
-
-        let auth_token = msg.payload["auth_token"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("Missing auth_token"))?;
-
-        // Verify token and get target_id
-        let target = sqlx::query!(
-            r#"
-            SELECT id, agent_auth_token
-            FROM targets
-            WHERE id = $1 AND agent_auth_token = $2
-            "#,
-            msg.target_id,
-            auth_token
-        )
-        .fetch_one(db)
-        .await?;
-
-        Ok(target.id)
     } else {
         anyhow::bail!("No auth message received")
     }
+}
+
+/// Invia un messaggio `pairing_status` all'agent (shape compatibile FireDog).
+async fn send_pairing_status(
+    sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
+    status: &str,
+    phase: u8,
+    p1: bool,
+    p2: bool,
+    target_id: Option<i32>,
+    error: Option<&str>,
+) {
+    let msg = serde_json::json!({
+        "msg_type": "pairing_status",
+        "type": "pairing_status",
+        "status": status,
+        "phase": phase,
+        "phase_1_verified": p1,
+        "phase_2_verified": p2,
+        "target_id": target_id,
+        "message": error,
+    });
+    let _ = sender.send(Message::Text(msg.to_string())).await;
+}
+
+/// Pairing per-identità a 2 fasi (mirror del server FireDog):
+///   Fase 1: api_key == targets.agent_auth_token
+///   Fase 2: SHA512(ip+hostname+mac) == targets.identity_hash (+ sessione attiva)
+async fn do_pairing(
+    msg: &AgentMessage,
+    sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
+    db: &PgPool,
+) -> anyhow::Result<i32> {
+    use sqlx::Row;
+    let api_key = msg.payload["api_key"].as_str().unwrap_or("");
+    let ip = msg.payload["ip"].as_str().unwrap_or("");
+    let hostname = msg.payload["hostname"].as_str().unwrap_or("");
+    let mac = msg.payload["mac"].as_str().unwrap_or("").trim().to_lowercase();
+
+    if api_key.is_empty() || ip.is_empty() || hostname.is_empty() || mac.is_empty() {
+        send_pairing_status(sender, "failed", 1, false, false, None, Some("Missing pairing fields")).await;
+        anyhow::bail!("pairing: missing fields");
+    }
+
+    // identity_hash = SHA512(ip+hostname+mac)  (stessa stringa del create target)
+    let ihash = {
+        use sha2::{Digest, Sha512};
+        let mut h = Sha512::new();
+        h.update(format!("{}{}{}", ip, hostname, mac));
+        h.finalize().iter().map(|b| format!("{:02x}", b)).collect::<String>()
+    };
+
+    let row = sqlx::query("SELECT id, agent_auth_token FROM targets WHERE identity_hash = $1")
+        .bind(&ihash)
+        .fetch_optional(db)
+        .await?;
+    let Some(row) = row else {
+        send_pairing_status(sender, "failed", 2, false, false, None, Some("Identity hash verification failed")).await;
+        anyhow::bail!("pairing: identity not found");
+    };
+    let tid: i32 = row.try_get("id")?;
+    let token: Option<String> = row.try_get("agent_auth_token").ok().flatten();
+
+    // Fase 1 — api_key
+    if token.as_deref() != Some(api_key) {
+        send_pairing_status(sender, "failed", 1, false, false, None, Some("Invalid API key")).await;
+        anyhow::bail!("pairing: invalid api_key");
+    }
+    send_pairing_status(sender, "verifying", 1, true, false, None, None).await;
+
+    // Fase 2 — identità già verificata dal lookup; completa la sessione aperta
+    // (se presente: apertura dall'UI entro 3 min). In assenza di sessione la
+    // connessione è comunque valida (riconnessione di un agent già pairato).
+    let _ = sqlx::query(
+        r#"
+        UPDATE pairing_sessions
+        SET phase_1_verified = true, phase_2_verified = true, status = 'success',
+            completed_at = now(), agent_ip = $2, agent_hostname = $3, agent_mac = $4
+        WHERE id = (
+            SELECT id FROM pairing_sessions
+            WHERE target_id = $1 AND status IN ('pending','verifying_hash') AND expires_at > now()
+            ORDER BY created_at DESC LIMIT 1
+        )
+        "#,
+    )
+    .bind(tid)
+    .bind(ip)
+    .bind(hostname)
+    .bind(&mac)
+    .execute(db)
+    .await;
+
+    send_pairing_status(sender, "success", 2, true, true, Some(tid), None).await;
+    Ok(tid)
 }
 
 async fn handle_agent_message(
