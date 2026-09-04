@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { Server, CheckCircle, XCircle, Trash2, Edit, Activity, Plus, Link2 } from 'lucide-react';
 import AddTargetModal from '../components/AddTargetModal';
+import EditTargetModal from '../components/EditTargetModal';
 import PairingModal from '../components/PairingModal';
 import { PageHeader, Button, Card, EmptyState, StatusBadge, Badge } from '../components/ui';
 import { HELP } from '../i18n/help';
@@ -89,6 +90,7 @@ export default function Targets() {
 
 function TargetCard({ target, onDelete }: any) {
   const [isPairingOpen, setIsPairingOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -184,7 +186,7 @@ function TargetCard({ target, onDelete }: any) {
           Agent pairing
         </Button>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="flex-1" icon={<Edit className="w-4 h-4" />}>
+          <Button variant="ghost" size="sm" className="flex-1" icon={<Edit className="w-4 h-4" />} onClick={() => setIsEditOpen(true)}>
             Edit
           </Button>
           <Button
@@ -200,6 +202,7 @@ function TargetCard({ target, onDelete }: any) {
       </div>
 
       <PairingModal isOpen={isPairingOpen} onClose={() => setIsPairingOpen(false)} target={target} />
+      <EditTargetModal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} target={target} />
     </Card>
   );
 }

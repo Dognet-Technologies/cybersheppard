@@ -43,6 +43,7 @@ pub struct CreateTargetRequest {
 pub struct UpdateTargetRequest {
     pub hostname: Option<String>,
     pub ip_address: Option<String>,
+    pub mac_address: Option<String>,
     pub ssh_port: Option<i32>,
     pub ssh_username: Option<String>,
     pub ssh_key_id: Option<i32>,
@@ -73,6 +74,7 @@ pub struct TargetResponse {
     pub id: i32,
     pub hostname: String,
     pub ip_address: String,
+    pub mac_address: Option<String>,
     pub ssh_port: i32,
     pub ssh_username: String,
     pub ssh_key_id: Option<i32>,
@@ -150,7 +152,7 @@ async fn list_targets(
     // Build dynamic query based on filters
     let mut query = String::from(
         r#"
-        SELECT id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
+        SELECT id, hostname, ip_address::text AS ip_address, mac_address, ssh_port, ssh_username, ssh_key_id,
                role, environment, gruppo, tags, compliance_standard,
                status, status_message, last_seen, last_check,
                hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
@@ -185,7 +187,7 @@ async fn list_targets(
     // TODO: Use proper parameterized query with sqlx query_as!
     let targets = sqlx::query_as::<_, Target>(
         r#"
-        SELECT id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
+        SELECT id, hostname, ip_address::text AS ip_address, mac_address, ssh_port, ssh_username, ssh_key_id,
                role, environment, gruppo, tags, compliance_standard,
                status, status_message, last_seen, last_check,
                hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
@@ -227,6 +229,7 @@ async fn list_targets(
             id: t.id,
             hostname: t.hostname,
             ip_address: t.ip_address,
+            mac_address: t.mac_address,
             ssh_port: t.ssh_port,
             ssh_username: t.ssh_username,
             ssh_key_id: t.ssh_key_id,
@@ -305,7 +308,7 @@ async fn create_target(
             monitoring_enabled, monitoring_interval_seconds
         )
         VALUES ($1, $2::inet, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-        RETURNING id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
+        RETURNING id, hostname, ip_address::text AS ip_address, mac_address, ssh_port, ssh_username, ssh_key_id,
                   role, environment, gruppo, tags, compliance_standard,
                   status, status_message, last_seen, last_check,
                   hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
@@ -342,6 +345,7 @@ async fn create_target(
         id: target.id,
         hostname: target.hostname,
         ip_address: target.ip_address,
+        mac_address: target.mac_address,
         ssh_port: target.ssh_port,
         ssh_username: target.ssh_username,
         ssh_key_id: target.ssh_key_id,
@@ -371,7 +375,7 @@ async fn get_target(
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let target = sqlx::query_as::<_, Target>(
         r#"
-        SELECT id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
+        SELECT id, hostname, ip_address::text AS ip_address, mac_address, ssh_port, ssh_username, ssh_key_id,
                role, environment, gruppo, tags, compliance_standard,
                status, status_message, last_seen, last_check,
                hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
@@ -405,6 +409,7 @@ async fn get_target(
         id: target.id,
         hostname: target.hostname,
         ip_address: target.ip_address,
+        mac_address: target.mac_address,
         ssh_port: target.ssh_port,
         ssh_username: target.ssh_username,
         ssh_key_id: target.ssh_key_id,
@@ -460,12 +465,32 @@ async fn update_target(
     // For simplicity, update all fields that are provided
     let tags_json = payload.tags.map(|tags| json!(tags));
 
+    // Normalizza il MAC (trim + lowercase) come in fase di creazione.
+    let mac_norm = payload
+        .mac_address
+        .as_ref()
+        .map(|m| m.trim().to_lowercase())
+        .filter(|m| !m.is_empty());
+
+    // Se cambiano i campi identità (hostname/ip/mac), ricalcola identity_hash con
+    // gli stessi input della creazione: SHA512(ip + hostname + mac). Richiede che
+    // tutti e tre siano presenti nel payload (il form di edit li invia sempre).
+    let identity_hash: Option<String> = match (&payload.hostname, &payload.ip_address, &mac_norm) {
+        (Some(h), Some(ip), Some(mac)) => {
+            use sha2::{Digest, Sha512};
+            let mut hasher = Sha512::new();
+            hasher.update(format!("{}{}{}", ip, h, mac));
+            Some(hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect::<String>())
+        }
+        _ => None,
+    };
+
     let target = sqlx::query_as::<_, Target>(
         r#"
         UPDATE targets
         SET
             hostname = COALESCE($2, hostname),
-            ip_address = COALESCE($3, ip_address),
+            ip_address = COALESCE($3::inet, ip_address),
             ssh_port = COALESCE($4, ssh_port),
             ssh_username = COALESCE($5, ssh_username),
             ssh_key_id = COALESCE($6, ssh_key_id),
@@ -478,9 +503,11 @@ async fn update_target(
             status_message = COALESCE($13, status_message),
             monitoring_enabled = COALESCE($14, monitoring_enabled),
             monitoring_interval_seconds = COALESCE($15, monitoring_interval_seconds),
+            mac_address = COALESCE($16, mac_address),
+            identity_hash = COALESCE($17, identity_hash),
             updated_at = NOW()
         WHERE id = $1
-        RETURNING id, hostname, ip_address::text AS ip_address, ssh_port, ssh_username, ssh_key_id,
+        RETURNING id, hostname, ip_address::text AS ip_address, mac_address, ssh_port, ssh_username, ssh_key_id,
                   role, environment, gruppo, tags, compliance_standard,
                   status, status_message, last_seen, last_check,
                   hardening_applied, hardening_model_id, hardening_applied_at, hardening_score,
@@ -503,6 +530,8 @@ async fn update_target(
     .bind(payload.status_message)
     .bind(payload.monitoring_enabled)
     .bind(payload.monitoring_interval_seconds)
+    .bind(mac_norm)
+    .bind(identity_hash)
     .fetch_one(&state.pg_pool)
     .await
     .map_err(|e| {
@@ -518,6 +547,7 @@ async fn update_target(
         id: target.id,
         hostname: target.hostname,
         ip_address: target.ip_address,
+        mac_address: target.mac_address,
         ssh_port: target.ssh_port,
         ssh_username: target.ssh_username,
         ssh_key_id: target.ssh_key_id,

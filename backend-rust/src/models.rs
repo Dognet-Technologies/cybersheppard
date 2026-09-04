@@ -30,6 +30,7 @@ pub struct Target {
     pub id: i32,
     pub hostname: String,
     pub ip_address: String,
+    pub mac_address: Option<String>,
     pub ssh_port: i32,
     pub ssh_username: String,
     pub ssh_key_id: Option<i32>,

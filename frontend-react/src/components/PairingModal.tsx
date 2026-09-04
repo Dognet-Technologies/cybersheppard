@@ -13,7 +13,7 @@ import api from '../services/api';
 interface PairingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  target: { id: number; hostname: string; ip_address?: string };
+  target: { id: number; hostname: string; ip_address?: string; status?: string };
 }
 
 const WINDOW_SECONDS = 180;
@@ -66,9 +66,12 @@ export default function PairingModal({ isOpen, onClose, target }: PairingModalPr
   const isDone = st === 'success';
   const isFailed = st === 'failed' || st === 'expired';
 
-  // Avvio automatico all'apertura.
+  // Se l'agent risulta già connesso/associato (target online), chiediamo conferma
+  // prima di ri-eseguire il pairing; altrimenti avviamo subito la finestra.
+  const alreadyPaired = target.status === 'online';
+
   useEffect(() => {
-    if (isOpen && !started && !startMutation.isPending) {
+    if (isOpen && !alreadyPaired && !started && !startMutation.isPending) {
       startMutation.mutate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,6 +114,9 @@ export default function PairingModal({ isOpen, onClose, target }: PairingModalPr
   const mmss = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
   const timedOut = remaining <= 0 && !isDone;
   const effectiveStatus: PairStatus = timedOut && !isFailed ? 'expired' : st;
+  // Gate di conferma: l'agent è già connesso/associato e il pairing non è ancora
+  // stato (ri)avviato in questa sessione della modale.
+  const inConfirm = alreadyPaired && !started && !startError;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -122,7 +128,20 @@ export default function PairingModal({ isOpen, onClose, target }: PairingModalPr
           </button>
         </div>
 
-        {startError ? (
+        {inConfirm ? (
+          <div className="py-2">
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" />
+              <div className="text-sm text-amber-900">
+                <p className="font-semibold">L'agent risulta già connesso e associato.</p>
+                <p className="mt-1 text-amber-800">
+                  Il target <strong>{target.hostname}</strong> è online. Vuoi ripetere il pairing
+                  (apre una nuova finestra di 3 minuti) oppure annullare?
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : startError ? (
           <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
             <AlertTriangle className="w-5 h-5 shrink-0" />
             <span>{startError}</span>
@@ -183,7 +202,15 @@ export default function PairingModal({ isOpen, onClose, target }: PairingModalPr
         )}
 
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-          {(effectiveStatus === 'expired' || effectiveStatus === 'failed' || !!startError) && (
+          {inConfirm && (
+            <button
+              onClick={retry}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Ripeti pairing
+            </button>
+          )}
+          {!inConfirm && (effectiveStatus === 'expired' || effectiveStatus === 'failed' || !!startError) && (
             <button
               onClick={retry}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"

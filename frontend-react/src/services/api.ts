@@ -22,12 +22,20 @@ class ApiService {
       },
     });
 
-    // Request interceptor - add auth token
+    // Request interceptor - add auth token + CSRF token per le richieste di
+    // scrittura (il backend richiede X-CSRF-Token su POST/PUT/PATCH/DELETE).
     this.client.interceptors.request.use(
       (config) => {
         const token = localStorage.getItem('access_token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
+        }
+        const method = (config.method || 'get').toLowerCase();
+        if (['post', 'put', 'patch', 'delete'].includes(method)) {
+          const csrf = localStorage.getItem('csrf_token');
+          if (csrf) {
+            config.headers['X-CSRF-Token'] = csrf;
+          }
         }
         return config;
       },
